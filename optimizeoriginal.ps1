@@ -872,6 +872,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     }
 
     Write-Host "---------------------------------"
+    Write-Output '37% Completado'
     Write-Host "Instalando Nitro PDF 14 Pro"
 
     # Instalar Nitro PDF
