@@ -1161,6 +1161,23 @@ if ($entradas) {
 }
 Write-Output '60% Completado'
 ############## Eliminar el autoinicio de microsoft Edge ####################
+
+# Ruta del registro para habilitar la instalación de extensiones en Edge
+$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallAllowlist"
+
+# Crear la clave si no existe
+if (-not (Test-Path $edgePolicyPath)) {
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ExtensionInstallAllowlist" -Force
+}
+
+# ID de la extensión AdGuard (Ejemplo)
+$adguardExtensionID = "bgnkhhnnamicmpeenaelnjfhikgbkllg"
+
+# Añadir la extensión de AdGuard a la lista de permitidos
+Set-ItemProperty -Path $edgePolicyPath -Name "1" -Value $adguardExtensionID
+
+Write-Host "La instalación de la extensión AdGuard ha sido habilitada exitosamente."
+
 # Definir el nombre que se buscarÃ¡
 $nombreABuscar = "!BCILauncher"
 
