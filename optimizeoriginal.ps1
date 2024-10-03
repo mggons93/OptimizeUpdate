@@ -1283,7 +1283,7 @@ if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
     Write-Host "Deteniendo el proceso $processName..."
 
     Get-Process -Name $processName | Stop-Process -Force
-    Write-Host"Proceso $processName detenido."
+    Write-Host "Proceso $processName detenido."
 } else {
     Write-Host "El proceso $processName no esta en ejecucion."
 }
