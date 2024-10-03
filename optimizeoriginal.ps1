@@ -289,10 +289,27 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
 
 # Prevents Dev Home Installation
-Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate" -Force
+if (Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate") {
+    Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate" -Force
+}
 
 # Prevents New Outlook for Windows Installation
-Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate" -Force
+if (Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate") {
+    Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate" -Force
+}
+
+# Prevents Chat Auto Installation and Removes Chat Icon
+# Crear clave si no existe
+if (-not (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications")) {
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Force
+}
+New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Name "ConfigureChatAutoInstall" -PropertyType DWord -Value 0 -Force
+
+# Crear clave si no existe
+if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat")) {
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Force
+}
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Name "ChatIcon" -PropertyType DWord -Value 3 -Force
 
 # Prevents Chat Auto Installation and Removes Chat Icon
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Name "ConfigureChatAutoInstall" -PropertyType DWord -Value 0 -Force
@@ -337,15 +354,27 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
 #Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps" -Force
 
 # Añadir una entrada para ejecutar una vez y eliminar Copilot
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Name "UninstallCopilot" -PropertyType String -Value ""
+if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce")) {
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Force
+}
+New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Name "UninstallCopilot" -PropertyType String -Value "" -Force
 
 # Deshabilitar Windows Copilot
-New-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -PropertyType DWord -Value 1
+if (-not (Test-Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot")) {
+    New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Force
+}
+New-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -PropertyType DWord -Value 1 -Force
 
 # Deshabilita la descarga automática de mapas
+if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps")) {
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Force
+}
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Name "AutoDownload" -PropertyType DWord -Value 0 -Force
 
 # Deshabilita la toma automática de muestras de retroalimentación
+if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback")) {
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Force
+}
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "AutoSample" -PropertyType DWord -Value 0 -Force
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "ServiceEnabled" -PropertyType DWord -Value 0 -Force
 
@@ -370,10 +399,17 @@ New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "AutoEndTasks" -Prope
 New-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseHoverTime" -PropertyType String -Value "400" -Force
 
 # Oculta el botón de "Meet Now" en la barra de tareas
+if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer")) {
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force
+}
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -PropertyType DWord -Value 1 -Force
 
 # Desactiva la segunda experiencia de configuración de Windows (Out-Of-Box Experience)
+if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement")) {
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Force
+}
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Name "ScoobeSystemSettingEnabled" -PropertyType DWord -Value 0 -Force
+
 
 # Configura la visualización para el rendimiento
 New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "DragFullWindows" -PropertyType String -Value "1" -Force
@@ -836,6 +872,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     }
 
     Write-Host "---------------------------------"
+    Write-Output '37% Completado'
     Write-Host "Instalando Nitro PDF 14 Pro"
 
     # Instalar Nitro PDF
@@ -947,18 +984,26 @@ Write-Host "Meet now"
 			$Settings[9] = 128
 			New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3 -Name Settings -PropertyType Binary -Value $Settings -Force
 	
-Write-Host "Deshabilitando la busqueda de Bing en el menu Inicio..."
-    $ResultText.text = "`r`n" +"`r`n" + "Disabling Search, Cortana, Start menu search... Please Wait"
+# Deshabilitar búsqueda de Bing y Cortana
+Write-Host "Deshabilitando la búsqueda de Bing en el menú Inicio..."
+Write-Host "Disabling Search, Cortana, Start menu search... Please Wait"
+
+try {
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "BingSearchEnabled" -Type DWord -Value 0
-	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowCortanaButton -PropertyType DWord -Value 0 -Force
-	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 2 -Force
-	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowTaskViewButton -PropertyType DWord -Value 0 -Force
-    if (-not (Test-Path -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId"))
-		{
-		New-Item -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId" -Force
-		}
-	New-ItemProperty -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId" -Name State -PropertyType DWord -Value 1 -Force
-	
+    New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowCortanaButton -PropertyType DWord -Value 0 -Force
+    New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 2 -Force
+    New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowTaskViewButton -PropertyType DWord -Value 0 -Force
+
+    if (-not (Test-Path -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId")) {
+        New-Item -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId" -Force
+    }
+
+    New-ItemProperty -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId" -Name State -PropertyType DWord -Value 1 -Force
+
+    Write-Host "Desactivación completada con éxito."
+} catch {
+    Write-Host "Ocurrió un error: $_"
+}
 	
 Write-Host "Ocultar cuadro/boton de busqueda..."
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 4
@@ -1161,6 +1206,23 @@ if ($entradas) {
 }
 Write-Output '60% Completado'
 ############## Eliminar el autoinicio de microsoft Edge ####################
+
+# Ruta del registro para habilitar la instalación de extensiones en Edge
+$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallAllowlist"
+
+# Crear la clave si no existe
+if (-not (Test-Path $edgePolicyPath)) {
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ExtensionInstallAllowlist" -Force
+}
+
+# ID de la extensión AdGuard (Ejemplo)
+$adguardExtensionID = "bgnkhhnnamicmpeenaelnjfhikgbkllg"
+
+# Añadir la extensión de AdGuard a la lista de permitidos
+Set-ItemProperty -Path $edgePolicyPath -Name "1" -Value $adguardExtensionID
+
+Write-Host "La instalación de la extensión AdGuard ha sido habilitada exitosamente."
+
 # Definir el nombre que se buscarÃ¡
 $nombreABuscar = "!BCILauncher"
 
@@ -1222,7 +1284,7 @@ if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
     Write-Host "Deteniendo el proceso $processName..."
 
     Get-Process -Name $processName | Stop-Process -Force
-    Write-Host"Proceso $processName detenido."
+    Write-Host "Proceso $processName detenido."
 } else {
     Write-Host "El proceso $processName no esta en ejecucion."
 }
@@ -1419,39 +1481,46 @@ Write-Host "Ocultar iconos de la bandeja..."
 Write-Host "Segundos en el relog"
 	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowSecondsInSystemClock -PropertyType DWord -Value 1 -Force
 
+# Verificar y cambiar la vista predeterminada del Explorador de Windows a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a Esta PC..."
-    $ResultText.text += "`r`n" +"Quality of Life Tweaks"
+
+# Comprobar el valor actual en el registro
+$currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo"
+
+if ($currentValue.LaunchTo -ne 1) {
+    # Si no está configurado en "Esta PC", cambiarlo
     Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Type DWord -Value 1
+    Write-Host "La vista predeterminada del Explorador se ha cambiado a 'Esta PC'."
+} else {
+    Write-Host "La vista predeterminada del Explorador ya está configurada en 'Esta PC'."
+}
 
 Write-Host "Ocultando el Ã­cono de Objetos 3D de Esta PC..."
-    Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}" -Recurse -ErrorAction SilentlyContinue
+    	Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}" -Recurse -ErrorAction SilentlyContinue
 
 #Network Tweaks
 	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "IRPStackSize" -Type DWord -Value 20
 
 Write-Host "Habilitando la oferta de controladores a travÃ©s de Windows Update..."
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontPromptForWindowsUpdate" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontSearchWindowsUpdate" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontPromptForWindowsUpdate" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontSearchWindowsUpdate" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
 
 Write-Host "Habilitando el reinicio automatico de Windows Update..."
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -ErrorAction SilentlyContinue
-
-Write-Host "Oferta de controlador habilitado a travÃ©s de Windows Update"
-    $ResultText.text = "`r`n" +"`r`n" + "Set Windows Updates to Stock Settings"
+    	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -ErrorAction SilentlyContinue
+    	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -ErrorAction SilentlyContinue
 
 Write-Host "Habilitando proveedor de ubicaciÃ³n..."
 	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableWindowsLocationProvider" -ErrorAction SilentlyContinue
 	Write-Host "Enabling Location Scripting..."
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocationScripting" -ErrorAction SilentlyContinue
+   	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocationScripting" -ErrorAction SilentlyContinue
 
 Write-Host "Habilitando ubicacion."
 	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocation" -ErrorAction SilentlyContinue
 	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "SensorPermissionState" -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "Value" -Type String -Value "Allow"
+    	Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "Value" -Type String -Value "Allow"
 
 Write-Host "Permitir el acceso a la ubicacion"
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Type String -Value "Allow"
@@ -1699,5 +1768,5 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 
 Write-Output '100% Completado'
 
-shutdown -r -t 6
+shutdown -r -t 3
 #############################################################################################################################
