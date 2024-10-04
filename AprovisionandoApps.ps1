@@ -639,9 +639,9 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
 
     # Descargar Nitro PDF 14 Pro
     try {
+        Write-Output '71% Completado'
         Invoke-WebRequest -Uri $nitroUrl -OutFile "C:\ODT\nitro_pro14_x64.msi"
-		Write-Output '71% Completado'
-        Write-Host "Nitro PDF 14 Pro descargado correctamente."
+	Write-Host "Nitro PDF 14 Pro descargado correctamente."
     } catch {
         Write-Host "Error al descargar Nitro PDF 14 Pro: $_"
         exit 1
@@ -651,7 +651,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Write-Host "Descargando activador"
     try {
         Invoke-WebRequest -Uri $patchUrl -OutFile "C:\ODT\Patch.exe"
-		Write-Output '79% Completado'
+	Write-Output '79% Completado'
         Write-Host "Parche descargado correctamente."
     } catch {
         Write-Host "Error al descargar el parche: $_"
@@ -659,13 +659,14 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     }
 
     Write-Host "---------------------------------"
-    
+    Write-Output '85% Completado'
     Write-Host "Instalando Nitro PDF 14 Pro"
-
+    Start-Sleep 3
     # Instalar Nitro PDF
-	Write-Output '85% Completado'
+    Write-Output '89% Completado'
     Start-Process -FilePath "C:\ODT\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
-
+    Start-Sleep 3
+    
     Write-Host "Parcheando Nitro PDF 14 Pro"
     Start-Process -FilePath "C:\ODT\Patch.exe" -ArgumentList "/s" -Wait
 	Write-Output '91% Completado'
