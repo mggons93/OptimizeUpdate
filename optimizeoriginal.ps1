@@ -1367,7 +1367,7 @@ Write-Host "Icono de personas ocultas..."
 Write-Host "Deshabilitando informe de errores..."
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -Type DWord -Value 1
 Disable-ScheduledTask -TaskName "Microsoft\Windows\Windows Error Reporting\QueueReporting" | Out-Null
-Write-Output '76%'
+Write-Output '78% Completado'
 
 # Detener y deshabilitar servicios
 $servicesToDisable = @("DiagTrack", "dmwappushservice", "HomeGroupListener", "HomeGroupProvider", "SysMain")
