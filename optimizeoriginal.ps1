@@ -1197,29 +1197,61 @@ Write-Host "Telemetría deshabilitada"
 
 Write-Output '70% Completado'
 
+# Inhabilitando Wi-Fi Sense
 Write-Host "Inhabilitando Wi-Fi Sense..."
-    If (!(Test-Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting")) {
-        New-Item -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" -Force | Out-Null
-    }
-    Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" -Name "Value" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" -Name "Value" -Type DWord -Value 0
+
+# Ruta de Wi-Fi Sense
+$wifiSensePath = "HKLM:\Software\Microsoft\PolicyManager\default\WiFi"
+
+# Verificar y crear la clave AllowWiFiHotSpotReporting si no existe
+if (-not (Test-Path "$wifiSensePath\AllowWiFiHotSpotReporting")) {
+    Write-Host "Creando clave AllowWiFiHotSpotReporting..."
+    New-Item -Path $wifiSensePath -Name "AllowWiFiHotSpotReporting" -Force | Out-Null
+}
+
+# Configurar valores para deshabilitar Wi-Fi Sense
+Set-ItemProperty -Path "$wifiSensePath\AllowWiFiHotSpotReporting" -Name "Value" -Type DWord -Value 0
+Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi" -Name "AllowAutoConnectToWiFiSenseHotspots" -Type DWord -Value 0
 
 ########################################### 11.MODULO DE OPTIMIZACION DE INTERNET ###########################################
-    Write-Host "Deshabilitando sugerencias de aplicaciones..."
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "ContentDeliveryAllowed" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "OemPreInstalledAppsEnabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "PreInstalledAppsEnabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "PreInstalledAppsEverEnabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SilentInstalledAppsEnabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338387Enabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338388Enabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338389Enabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353698Enabled" -Type DWord -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SystemPaneSuggestionsEnabled" -Type DWord -Value 0
-    If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent")) {
-        New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Force | Out-Null
+Write-Host "Deshabilitando sugerencias de aplicaciones..."
+
+# Ruta de ContentDeliveryManager
+$contentDeliveryPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+
+# Configurar propiedades para deshabilitar sugerencias de aplicaciones
+$properties = @(
+    "ContentDeliveryAllowed",
+    "OemPreInstalledAppsEnabled",
+    "PreInstalledAppsEnabled",
+    "PreInstalledAppsEverEnabled",
+    "SilentInstalledAppsEnabled",
+    "SubscribedContent-338387Enabled",
+    "SubscribedContent-338388Enabled",
+    "SubscribedContent-338389Enabled",
+    "SubscribedContent-353698Enabled",
+    "SystemPaneSuggestionsEnabled"
+)
+
+foreach ($property in $properties) {
+    if (-not (Test-Path "$contentDeliveryPath\$property")) {
+        Write-Host "Creando propiedad $property..."
+        New-ItemProperty -Path $contentDeliveryPath -Name $property -PropertyType DWord -Value 0 -Force
+    } else {
+        Write-Host "Propiedad $property ya existe en $contentDeliveryPath, actualizando su valor..."
     }
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -Type DWord -Value 1
+    Set-ItemProperty -Path $contentDeliveryPath -Name $property -Type DWord -Value 0
+}
+
+# Verificar y crear la clave CloudContent si no existe
+$cloudContentPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+if (-not (Test-Path $cloudContentPath)) {
+    Write-Host "Creando clave CloudContent..."
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows" -Name "CloudContent" -Force | Out-Null
+}
+
+# Configurar la propiedad DisableWindowsConsumerFeatures
+Set-ItemProperty -Path $cloudContentPath -Name "DisableWindowsConsumerFeatures" -Type DWord -Value 1
 
     Write-Host "Inhabilitando las actualizaciones automÃ¡ticas de Maps..."
     Set-ItemProperty -Path "HKLM:\SYSTEM\Maps" -Name "AutoUpdateEnabled" -Type DWord -Value 0
