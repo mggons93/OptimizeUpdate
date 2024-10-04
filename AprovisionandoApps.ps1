@@ -489,12 +489,31 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Expandiendo archivos OEM"
 
     # Ejecutar el instalador de forma silenciosa
-	Write-Output '31% Completado'
+    Write-Output '31% Completado'
     Start-Process -FilePath $outputPath -ArgumentList "/s" -Wait
-	
+
     # Esperar un momento para asegurar que la instalación haya finalizado
     Start-Sleep 5
-
+    
+    # Rutas de los archivos XML
+	$Optimize_RAM_XML = "C:\ODT\Scripts\task\Optimize_RAM.xml"
+	$AutoClean_Temp_XML = "C:\ODT\Scripts\task\AutoClean_Temp.xml"
+	$Optimize_OOSU_XML = "C:\ODT\Scripts\task\Optimize_OOSU.xml"
+	$Optimize_DISM_XML = "C:\ODT\Scripts\task\Optimize_DISM.xml"
+	
+	# Crear tareas programadas
+	Register-ScheduledTask -Xml (Get-Content $Optimize_RAM_XML | Out-String) -TaskName "Optimize_RAM" -Force
+	Start-Sleep -Seconds 2
+	Register-ScheduledTask -Xml (Get-Content $AutoClean_Temp_XML | Out-String) -TaskName "AutoClean_Temp" -Force
+	Start-Sleep -Seconds 2
+	Register-ScheduledTask -Xml (Get-Content $Optimize_OOSU_XML | Out-String) -TaskName "Optimize_OOSU" -Force
+	Start-Sleep -Seconds 2
+	Register-ScheduledTask -Xml (Get-Content $Optimize_DISM_XML | Out-String) -TaskName "Optimize_DISM" -Force
+	Start-Sleep -Seconds 2
+	
+	Write-Host "Tareas de mantenimiento activadas"
+	Start-Sleep -s 1
+	
     # Eliminar el archivo OEM
     Remove-Item -Path $outputPath -Force
     Write-Host "Archivo OEM eliminado."
@@ -521,7 +540,7 @@ if (Test-Path -Path $destinationPath1) {
 
     # Descargar ECM.exe
     try {
-		Write-Output '34% Completado'
+	Write-Output '34% Completado'
         Invoke-WebRequest -Uri $ecmExeUrl -OutFile $outputExePath
         Write-Host "Archivo ECM.exe descargado correctamente."
     } catch {
