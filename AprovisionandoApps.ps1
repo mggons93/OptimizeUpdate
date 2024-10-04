@@ -462,6 +462,13 @@ if (Test-ServerStatus $primaryServer) {
 } else {
     Write-Host "Ambos servidores están fuera de línea. No se pudo descargar el archivo."
 }
+
+# Leer y mostrar el contenido del archivo descargado
+if (Test-Path -Path $destinationPath1) {
+    $fileContent = Get-Content -Path $destinationPath1
+    #Write-Host $fileContent 
+    start-sleep 5
+}
 #########################################################################################
    Write-Host "---------------------------------"
     Write-Host "Descargando en segundo plano Archivos de instalación OEM"
