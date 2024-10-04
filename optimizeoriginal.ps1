@@ -57,38 +57,63 @@ if (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue
 Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
 
 Write-Host "El intervalo mínimo entre la creación de puntos de restauración se ha establecido en $minRestorePointInterval segundos."
+
 # Obtener todas las tarjetas de red
+# Obtener todas las tarjetas de red (sin filtrar por estado)
 $networkAdapters = Get-NetAdapter
 
-# Verificar la cantidad de tarjetas de red
-$numberOfAdapters = $networkAdapters.Count
+# Mostrar todos los adaptadores detectados
+Write-Host "Adaptadores de red detectados:"
+$networkAdapters | ForEach-Object {
+    Write-Host "Nombre: $($_.Name) - Estado: $($_.Status) - Descripción: $($_.InterfaceDescription)"
+}
 
-if ($numberOfAdapters -eq 1) {
-    # Ejecutar el primer script si hay una tarjeta de red
-    Write-Host "Aplicando configuracion para tarjeta de red #1"
-	Write-Host "Agregando DNS de Adguard - ELiminar publicidad"
-	Get-NetAdapterBinding -ComponentID ms_tcpip6
-	set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses 181.57.227.194,8.8.8.8
-	set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses 181.57.227.194,8.8.8.8
-	Disable-NetAdapterBinding -Name 'Ethernet' -ComponentID 'ms_tcpip6'
-	Disable-NetAdapterBinding -Name 'Wi-Fi' -ComponentID 'ms_tcpip6'
-	ipconfig /flushdns
+# Verificar todos los adaptadores LAN
+$lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
+
+# Verificar todos los adaptadores Wi-Fi
+$wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' }
+
+# Verificar la cantidad de adaptadores encontrados
+if ($lanAdapters.Count -gt 0 -and $wifiAdapters.Count -eq 0) {
+    # Solo adaptadores LAN presentes, aplicar configuración a todos los adaptadores LAN
+    Write-Host "Aplicando configuración para adaptadores LAN"
+    foreach ($lanAdapter in $lanAdapters) {
+        Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($lanAdapter.Name)"
+        Set-DnsClientServerAddress -InterfaceAlias $lanAdapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
+        Disable-NetAdapterBinding -Name $lanAdapter.Name -ComponentID 'ms_tcpip6'
+    }
+    ipconfig /flushdns
     
-} elseif ($numberOfAdapters -eq 2) {
-    # Ejecutar el segundo script si hay dos tarjetas de red
-    Write-Host "Aplicando configuracion para tarjeta de red #2"
-	Write-Host "Agregando DNS de Adguard - ELiminar publicidad"
-	Get-NetAdapterBinding -ComponentID ms_tcpip6
-	set-DnsClientServerAddress -InterfaceAlias "Ethernet 2" -ServerAddresses 181.57.227.194,8.8.8.8
-	set-DnsClientServerAddress -InterfaceAlias "Wi-Fi 2" -ServerAddresses 181.57.227.194,8.8.8.8
-	Disable-NetAdapterBinding -Name 'Ethernet 2' -ComponentID 'ms_tcpip6'
-	Disable-NetAdapterBinding -Name 'Wi-Fi 2' -ComponentID 'ms_tcpip6'
-	ipconfig /flushdns
+} elseif ($wifiAdapters.Count -gt 0 -and $lanAdapters.Count -eq 0) {
+    # Solo adaptadores Wi-Fi presentes, aplicar configuración a todos los adaptadores Wi-Fi
+    Write-Host "Aplicando configuración para adaptadores Wi-Fi"
+    foreach ($wifiAdapter in $wifiAdapters) {
+        Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($wifiAdapter.Name)"
+        Set-DnsClientServerAddress -InterfaceAlias $wifiAdapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
+        Disable-NetAdapterBinding -Name $wifiAdapter.Name -ComponentID 'ms_tcpip6'
+    }
+    ipconfig /flushdns
+
+} elseif ($lanAdapters.Count -gt 0 -and $wifiAdapters.Count -gt 0) {
+    # Ambos tipos de adaptadores presentes, aplicar configuración a todos los adaptadores
+    Write-Host "Aplicando configuración para adaptadores LAN y Wi-Fi"
+    foreach ($lanAdapter in $lanAdapters) {
+        Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($lanAdapter.Name)"
+        Set-DnsClientServerAddress -InterfaceAlias $lanAdapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
+        Disable-NetAdapterBinding -Name $lanAdapter.Name -ComponentID 'ms_tcpip6'
+    }
+    foreach ($wifiAdapter in $wifiAdapters) {
+        Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($wifiAdapter.Name)"
+        Set-DnsClientServerAddress -InterfaceAlias $wifiAdapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
+        Disable-NetAdapterBinding -Name $wifiAdapter.Name -ComponentID 'ms_tcpip6'
+    }
+    ipconfig /flushdns
     
 } else {
-    # Caso para otras cantidades de tarjetas de red (puedes agregar mÃ¡s casos si es necesario)
-    Write-Host "No existen tarjetas, Omiitiendo accion."
-}			
+    # No adaptadores de red disponibles
+    Write-Host "No se encontraron adaptadores de red disponibles, omitiendo acción."
+}
 
 #Write-Host "Creando punto de restauracion"
 # Crear un punto de restauraciÃ³n con una descripciÃ³n personalizada
