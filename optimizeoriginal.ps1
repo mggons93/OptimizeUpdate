@@ -615,28 +615,6 @@ $title = "Optimizando Windows 10/11... Espere."
 $host.ui.RawUI.WindowTitle = $title
 ########################################### 12.MODULO DE OPTIMIZACION DE INTERNET ###########################################
 Write-Output '38% Completado'
-#Titulo de Powershell a mostrar
-$title = "Instalando programas para Windows 10/11... Espere."
-$host.ui.RawUI.WindowTitle = $title
-
-# Rutas de los archivos XML
-$Optimize_RAM_XML = "C:\ODT\Scripts\task\Optimize_RAM.xml"
-$AutoClean_Temp_XML = "C:\ODT\Scripts\task\AutoClean_Temp.xml"
-$Optimize_OOSU_XML = "C:\ODT\Scripts\task\Optimize_OOSU.xml"
-$Optimize_DISM_XML = "C:\ODT\Scripts\task\Optimize_DISM.xml"
-
-# Crear tareas programadas
-Register-ScheduledTask -Xml (Get-Content $Optimize_RAM_XML | Out-String) -TaskName "Optimize_RAM" -Force
-Start-Sleep -Seconds 2
-Register-ScheduledTask -Xml (Get-Content $AutoClean_Temp_XML | Out-String) -TaskName "AutoClean_Temp" -Force
-Start-Sleep -Seconds 2
-Register-ScheduledTask -Xml (Get-Content $Optimize_OOSU_XML | Out-String) -TaskName "Optimize_OOSU" -Force
-Start-Sleep -Seconds 2
-Register-ScheduledTask -Xml (Get-Content $Optimize_DISM_XML | Out-String) -TaskName "Optimize_DISM" -Force
-Start-Sleep -Seconds 2
-
-Write-Host "Tareas de mantenimiento activadas"
-Start-Sleep -s 1
 
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Type DWord -Value 0
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Type DWord -Value 0
