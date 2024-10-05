@@ -334,231 +334,310 @@ Write-Output '13% Completado'
 #Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\Subscriptions" -Force
 #Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps" -Force
 
-# Añadir una entrada para ejecutar una vez y eliminar Copilot
-if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce")) {
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Name "UninstallCopilot" -PropertyType String -Value "" -Force
+################################## Configuracion de Windows 10 Menu inicio ###################################
+# Verificar la versión del sistema operativo
+$versionWindows = (Get-CimInstance Win32_OperatingSystem).Version
 
-# Deshabilitar Windows Copilot
-if (-not (Test-Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot")) {
-    New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -PropertyType DWord -Value 1 -Force
+## Obtener la versión de Windows
+$os = Get-WmiObject -Class Win32_OperatingSystem
+$versionWindows = [System.Version]$os.Version
+$buildNumber = [int]$os.BuildNumber
 
-# Deshabilita la descarga automática de mapas
-if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps")) {
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Name "AutoDownload" -PropertyType DWord -Value 0 -Force
+# Verificar si la versión es Windows 10 entre la compilación 19041 y 19045
+if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -le 19045) {
+    Write-Host "Sistema operativo Windows 10 detectado. Ejecutando el script..."
 
-# Deshabilita la toma automática de muestras de retroalimentación
-if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback")) {
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "AutoSample" -PropertyType DWord -Value 0 -Force
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "ServiceEnabled" -PropertyType DWord -Value 0 -Force
+	# Deshabilitar la descarga automática de mapas
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Name "AutoDownload" -PropertyType DWord -Value 0 -Force
 
-# Deshabilita la telemetría y los anuncios
-# Deshabilitar telemetría y anuncios - Verificar antes de ejecutar
+	# Deshabilita la retroalimentación automática
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "AutoSample" -PropertyType DWord -Value 0 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "ServiceEnabled" -PropertyType DWord -Value 0 -Force
 
-# Ruta 1: "HKCU:\SOFTWARE\Microsoft\Siuf\Rules" - "NumberOfSIUFInPeriod"
-$path1 = "HKCU:\SOFTWARE\Microsoft\Siuf\Rules"
-$key1 = "NumberOfSIUFInPeriod"
-if (-not (Test-Path "$path1\$key1")) {
-    Write-Host "Creando propiedad $key1 en $path1"
-    New-ItemProperty -Path $path1 -Name $key1 -PropertyType DWord -Value 0 -Force
+	# Deshabilitar telemetría y anuncios
+	$path1 = "HKCU:\SOFTWARE\Microsoft\Siuf\Rules"
+	$key1 = "NumberOfSIUFInPeriod"
+	if (-not (Test-Path "$path1\$key1")) {
+		New-ItemProperty -Path $path1 -Name $key1 -PropertyType DWord -Value 0 -Force
+	}
+
+	$path2 = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+	$key2 = "DisableTailoredExperiencesWithDiagnosticData"
+	if (-not (Test-Path "$path2\$key2")) {
+		New-ItemProperty -Path $path2 -Name $key2 -PropertyType DWord -Value 1 -Force
+	}
+
+	$key3 = "DisableWindowsConsumerFeatures"
+	if (-not (Test-Path "$path2\$key3")) {
+		New-ItemProperty -Path $path2 -Name $key3 -PropertyType DWord -Value 1 -Force
+	}
+
+	# Ocultar botón de Meet Now
+	$pathExplorerPolicies = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+	if (-not (Test-Path $pathExplorerPolicies)) {
+		New-Item -Path $pathExplorerPolicies -Force
+	}
+	New-ItemProperty -Path $pathExplorerPolicies -Name "HideSCAMeetNow" -PropertyType DWord -Value 1 -Force
+
+	# Desactivar la segunda experiencia de configuración (OOBE)
+	$pathUserProfileEngagement = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement"
+	if (-not (Test-Path $pathUserProfileEngagement)) {
+		New-Item -Path $pathUserProfileEngagement -Force
+	}
+	New-ItemProperty -Path $pathUserProfileEngagement -Name "ScoobeSystemSettingEnabled" -PropertyType DWord -Value 0 -Force
+
+
+    Write-Host "Script ejecutado exitosamente en Windows 10."
 } else {
-    Write-Host "Propiedad $key1 ya existe en $path1"
+    Write-Host "El sistema operativo no es Windows 10 entre la compilación 19041 y 19045. El script se ha omitido."
 }
 
-# Ruta 2: "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" - "DisableTailoredExperiencesWithDiagnosticData"
-$path2 = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-$key2 = "DisableTailoredExperiencesWithDiagnosticData"
-if (-not (Test-Path "$path2\$key2")) {
-    Write-Host "Creando propiedad $key2 en $path2"
-    New-ItemProperty -Path $path2 -Name $key2 -PropertyType DWord -Value 1 -Force
+################################### Configuracion de Windows 11 Menu inicio ###################################
+# Obtener la versión del sistema operativo
+$versionWindows = [System.Environment]::OSVersion.Version
+
+# Verificar si la versión es Windows 11 con una compilación 22000 o superior
+if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
+    Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
+
+	# Añadir una entrada para ejecutar una vez y eliminar Copilot
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Runonce" -Name "UninstallCopilot" -PropertyType String -Value "" -Force
+
+	# Deshabilitar Windows Copilot
+	if (-not (Test-Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot")) {
+		New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -PropertyType DWord -Value 1 -Force
+
+	# Deshabilita la descarga automática de mapas
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Maps" -Name "AutoDownload" -PropertyType DWord -Value 0 -Force
+
+	# Deshabilita la toma automática de muestras de retroalimentación
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "AutoSample" -PropertyType DWord -Value 0 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" -Name "ServiceEnabled" -PropertyType DWord -Value 0 -Force
+
+	# Deshabilita la telemetría y los anuncios
+	# Deshabilitar telemetría y anuncios - Verificar antes de ejecutar
+
+	# Ruta 1: "HKCU:\SOFTWARE\Microsoft\Siuf\Rules" - "NumberOfSIUFInPeriod"
+	$path1 = "HKCU:\SOFTWARE\Microsoft\Siuf\Rules"
+	$key1 = "NumberOfSIUFInPeriod"
+	if (-not (Test-Path "$path1\$key1")) {
+		Write-Host "Creando propiedad $key1 en $path1"
+		New-ItemProperty -Path $path1 -Name $key1 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key1 ya existe en $path1"
+	}
+
+	# Ruta 2: "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" - "DisableTailoredExperiencesWithDiagnosticData"
+	$path2 = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+	$key2 = "DisableTailoredExperiencesWithDiagnosticData"
+	if (-not (Test-Path "$path2\$key2")) {
+		Write-Host "Creando propiedad $key2 en $path2"
+		New-ItemProperty -Path $path2 -Name $key2 -PropertyType DWord -Value 1 -Force
+	} else {
+		Write-Host "Propiedad $key2 ya existe en $path2"
+	}
+
+	# Ruta 3: "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" - "DisableWindowsConsumerFeatures"
+	$key3 = "DisableWindowsConsumerFeatures"
+	if (-not (Test-Path "$path2\$key3")) {
+		Write-Host "Creando propiedad $key3 en $path2"
+		New-ItemProperty -Path $path2 -Name $key3 -PropertyType DWord -Value 1 -Force
+	} else {
+		Write-Host "Propiedad $key3 ya existe en $path2"
+	}
+
+	# Ruta 4: "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ShowSyncProviderNotifications"
+	$path4 = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+	$key4 = "ShowSyncProviderNotifications"
+	if (-not (Test-Path "$path4\$key4")) {
+		Write-Host "Creando propiedad $key4 en $path4"
+		New-ItemProperty -Path $path4 -Name $key4 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key4 ya existe en $path4"
+	}
+
+	# Ruta 5: "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" - "Enabled"
+	$path5 = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
+	$key5 = "Enabled"
+	if (-not (Test-Path "$path5\$key5")) {
+		Write-Host "Creando propiedad $key5 en $path5"
+		New-ItemProperty -Path $path5 -Name $key5 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key5 ya existe en $path5"
+	}
+
+	# Ruta 6: "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" - "HarvestContacts"
+	$path6 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore"
+	$key6 = "HarvestContacts"
+	if (-not (Test-Path "$path6\$key6")) {
+		Write-Host "Creando propiedad $key6 en $path6"
+		New-ItemProperty -Path $path6 -Name $key6 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key6 ya existe en $path6"
+	}
+
+
+	# Configura el Explorador de archivos para abrir "Este PC" en lugar de "Acceso rápido"
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -PropertyType DWord -Value 1 -Force
+
+	# Configura la visualización para el rendimiento
+	New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -PropertyType DWord -Value 1 -Force
+
+	# Al apagar, Windows cerrará automáticamente cualquier aplicación en ejecución
+	New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "AutoEndTasks" -PropertyType DWord -Value 1 -Force
+
+	# Establece el tiempo de espera del mouse en 400 milisegundos
+	New-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseHoverTime" -PropertyType String -Value "400" -Force
+
+	# Oculta el botón de "Meet Now" en la barra de tareas
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -PropertyType DWord -Value 1 -Force
+
+	# Desactiva la segunda experiencia de configuración de Windows (Out-Of-Box Experience)
+	if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement")) {
+		New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Force
+	}
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Name "ScoobeSystemSettingEnabled" -PropertyType DWord -Value 0 -Force
+
+
+	# Configura la visualización para el rendimiento - Verifica antes de aplicar
+
+	# Ruta 1: "HKCU:\Control Panel\Desktop" - "DragFullWindows"
+	$path1 = "HKCU:\Control Panel\Desktop"
+	$key1 = "DragFullWindows"
+	if (-not (Test-Path "$path1\$key1")) {
+		Write-Host "Creando propiedad $key1 en $path1"
+		New-ItemProperty -Path $path1 -Name $key1 -PropertyType String -Value "1" -Force
+	} else {
+		Write-Host "Propiedad $key1 ya existe en $path1"
+	}
+
+	# Ruta 2: "HKCU:\Control Panel\Desktop" - "MenuShowDelay"
+	$key2 = "MenuShowDelay"
+	if (-not (Test-Path "$path1\$key2")) {
+		Write-Host "Creando propiedad $key2 en $path1"
+		New-ItemProperty -Path $path1 -Name $key2 -PropertyType String -Value "200" -Force
+	} else {
+		Write-Host "Propiedad $key2 ya existe en $path1"
+	}
+
+	# Ruta 3: "HKCU:\Control Panel\Desktop\WindowMetrics" - "MinAnimate"
+	$path3 = "HKCU:\Control Panel\Desktop\WindowMetrics"
+	$key3 = "MinAnimate"
+	if (-not (Test-Path "$path3\$key3")) {
+		Write-Host "Creando propiedad $key3 en $path3"
+		New-ItemProperty -Path $path3 -Name $key3 -PropertyType String -Value "0" -Force
+	} else {
+		Write-Host "Propiedad $key3 ya existe en $path3"
+	}
+
+	# Ruta 4: "HKCU:\Control Panel\Keyboard" - "KeyboardDelay"
+	$path4 = "HKCU:\Control Panel\Keyboard"
+	$key4 = "KeyboardDelay"
+	if (-not (Test-Path "$path4\$key4")) {
+		Write-Host "Creando propiedad $key4 en $path4"
+		New-ItemProperty -Path $path4 -Name $key4 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key4 ya existe en $path4"
+	}
+
+	# Ruta 5: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ListviewAlphaSelect"
+	$path5 = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+	$key5 = "ListviewAlphaSelect"
+	if (-not (Test-Path "$path5\$key5")) {
+		Write-Host "Creando propiedad $key5 en $path5"
+		New-ItemProperty -Path $path5 -Name $key5 -PropertyType DWord -Value 1 -Force
+	} else {
+		Write-Host "Propiedad $key5 ya existe en $path5"
+	}
+
+	# Ruta 6: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ListviewShadow"
+	$key6 = "ListviewShadow"
+	if (-not (Test-Path "$path5\$key6")) {
+		Write-Host "Creando propiedad $key6 en $path5"
+		New-ItemProperty -Path $path5 -Name $key6 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key6 ya existe en $path5"
+	}
+
+	# Ruta 7: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarAnimations"
+	$key7 = "TaskbarAnimations"
+	if (-not (Test-Path "$path5\$key7")) {
+		Write-Host "Creando propiedad $key7 en $path5"
+		New-ItemProperty -Path $path5 -Name $key7 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key7 ya existe en $path5"
+	}
+
+	# Ruta 8: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarMn"
+	$key8 = "TaskbarMn"
+	if (-not (Test-Path "$path5\$key8")) {
+		Write-Host "Creando propiedad $key8 en $path5"
+		New-ItemProperty -Path $path5 -Name $key8 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key8 ya existe en $path5"
+	}
+
+	# Ruta 9: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarDa"
+	$key9 = "TaskbarDa"
+	if (-not (Test-Path "$path5\$key9")) {
+		Write-Host "Creando propiedad $key9 en $path5"
+		New-ItemProperty -Path $path5 -Name $key9 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key9 ya existe en $path5"
+	}
+
+	# Ruta 10: "HKCU:\Software\Microsoft\Windows\DWM" - "EnableAeroPeek"
+	$path10 = "HKCU:\Software\Microsoft\Windows\DWM"
+	$key10 = "EnableAeroPeek"
+	if (-not (Test-Path "$path10\$key10")) {
+		Write-Host "Creando propiedad $key10 en $path10"
+		New-ItemProperty -Path $path10 -Name $key10 -PropertyType DWord -Value 0 -Force
+	} else {
+		Write-Host "Propiedad $key10 ya existe en $path10"
+	}
+
+	#New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -PropertyType DWord -Value 3 -Force
+
+
+	# Configura las claves del registro para habilitar la opción "Finalizar tarea" con clic derecho
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDeveloperSettings" -PropertyType DWord -Value 1 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarEndTask" -PropertyType DWord -Value 1 -Force
+
+	# Habilita el modo oscuro
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -PropertyType DWord -Value 0 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "ColorPrevalence" -PropertyType DWord -Value 0 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "EnableTransparency" -PropertyType DWord -Value 1 -Force
+	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -PropertyType DWord -Value 0 -Force
+	Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize -Name AppsUseLightTheme -Value 0 -Type Dword -Force
+	Stop-Process -name explorer
+	Start-Sleep -s 2
+
+    Write-Host "Script ejecutado exitosamente en Windows 11."
 } else {
-    Write-Host "Propiedad $key2 ya existe en $path2"
-}
-
-# Ruta 3: "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" - "DisableWindowsConsumerFeatures"
-$key3 = "DisableWindowsConsumerFeatures"
-if (-not (Test-Path "$path2\$key3")) {
-    Write-Host "Creando propiedad $key3 en $path2"
-    New-ItemProperty -Path $path2 -Name $key3 -PropertyType DWord -Value 1 -Force
-} else {
-    Write-Host "Propiedad $key3 ya existe en $path2"
-}
-
-# Ruta 4: "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ShowSyncProviderNotifications"
-$path4 = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-$key4 = "ShowSyncProviderNotifications"
-if (-not (Test-Path "$path4\$key4")) {
-    Write-Host "Creando propiedad $key4 en $path4"
-    New-ItemProperty -Path $path4 -Name $key4 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key4 ya existe en $path4"
-}
-
-# Ruta 5: "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" - "Enabled"
-$path5 = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
-$key5 = "Enabled"
-if (-not (Test-Path "$path5\$key5")) {
-    Write-Host "Creando propiedad $key5 en $path5"
-    New-ItemProperty -Path $path5 -Name $key5 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key5 ya existe en $path5"
-}
-
-# Ruta 6: "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" - "HarvestContacts"
-$path6 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore"
-$key6 = "HarvestContacts"
-if (-not (Test-Path "$path6\$key6")) {
-    Write-Host "Creando propiedad $key6 en $path6"
-    New-ItemProperty -Path $path6 -Name $key6 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key6 ya existe en $path6"
+    Write-Host "El sistema operativo no es Windows 11 con una compilación 22000 o superior. El script se ha omitido."
 }
 
 
-# Configura el Explorador de archivos para abrir "Este PC" en lugar de "Acceso rápido"
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -PropertyType DWord -Value 1 -Force
-
-# Configura la visualización para el rendimiento
-New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -PropertyType DWord -Value 1 -Force
-
-# Al apagar, Windows cerrará automáticamente cualquier aplicación en ejecución
-New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "AutoEndTasks" -PropertyType DWord -Value 1 -Force
-
-# Establece el tiempo de espera del mouse en 400 milisegundos
-New-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseHoverTime" -PropertyType String -Value "400" -Force
-
-# Oculta el botón de "Meet Now" en la barra de tareas
-if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer")) {
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "HideSCAMeetNow" -PropertyType DWord -Value 1 -Force
-
-# Desactiva la segunda experiencia de configuración de Windows (Out-Of-Box Experience)
-if (-not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement")) {
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Force
-}
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" -Name "ScoobeSystemSettingEnabled" -PropertyType DWord -Value 0 -Force
-
-
-# Configura la visualización para el rendimiento - Verifica antes de aplicar
-
-# Ruta 1: "HKCU:\Control Panel\Desktop" - "DragFullWindows"
-$path1 = "HKCU:\Control Panel\Desktop"
-$key1 = "DragFullWindows"
-if (-not (Test-Path "$path1\$key1")) {
-    Write-Host "Creando propiedad $key1 en $path1"
-    New-ItemProperty -Path $path1 -Name $key1 -PropertyType String -Value "1" -Force
-} else {
-    Write-Host "Propiedad $key1 ya existe en $path1"
-}
-
-# Ruta 2: "HKCU:\Control Panel\Desktop" - "MenuShowDelay"
-$key2 = "MenuShowDelay"
-if (-not (Test-Path "$path1\$key2")) {
-    Write-Host "Creando propiedad $key2 en $path1"
-    New-ItemProperty -Path $path1 -Name $key2 -PropertyType String -Value "200" -Force
-} else {
-    Write-Host "Propiedad $key2 ya existe en $path1"
-}
-
-# Ruta 3: "HKCU:\Control Panel\Desktop\WindowMetrics" - "MinAnimate"
-$path3 = "HKCU:\Control Panel\Desktop\WindowMetrics"
-$key3 = "MinAnimate"
-if (-not (Test-Path "$path3\$key3")) {
-    Write-Host "Creando propiedad $key3 en $path3"
-    New-ItemProperty -Path $path3 -Name $key3 -PropertyType String -Value "0" -Force
-} else {
-    Write-Host "Propiedad $key3 ya existe en $path3"
-}
-
-# Ruta 4: "HKCU:\Control Panel\Keyboard" - "KeyboardDelay"
-$path4 = "HKCU:\Control Panel\Keyboard"
-$key4 = "KeyboardDelay"
-if (-not (Test-Path "$path4\$key4")) {
-    Write-Host "Creando propiedad $key4 en $path4"
-    New-ItemProperty -Path $path4 -Name $key4 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key4 ya existe en $path4"
-}
-
-# Ruta 5: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ListviewAlphaSelect"
-$path5 = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-$key5 = "ListviewAlphaSelect"
-if (-not (Test-Path "$path5\$key5")) {
-    Write-Host "Creando propiedad $key5 en $path5"
-    New-ItemProperty -Path $path5 -Name $key5 -PropertyType DWord -Value 1 -Force
-} else {
-    Write-Host "Propiedad $key5 ya existe en $path5"
-}
-
-# Ruta 6: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "ListviewShadow"
-$key6 = "ListviewShadow"
-if (-not (Test-Path "$path5\$key6")) {
-    Write-Host "Creando propiedad $key6 en $path5"
-    New-ItemProperty -Path $path5 -Name $key6 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key6 ya existe en $path5"
-}
-
-# Ruta 7: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarAnimations"
-$key7 = "TaskbarAnimations"
-if (-not (Test-Path "$path5\$key7")) {
-    Write-Host "Creando propiedad $key7 en $path5"
-    New-ItemProperty -Path $path5 -Name $key7 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key7 ya existe en $path5"
-}
-
-# Ruta 8: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarMn"
-$key8 = "TaskbarMn"
-if (-not (Test-Path "$path5\$key8")) {
-    Write-Host "Creando propiedad $key8 en $path5"
-    New-ItemProperty -Path $path5 -Name $key8 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key8 ya existe en $path5"
-}
-
-# Ruta 9: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarDa"
-$key9 = "TaskbarDa"
-if (-not (Test-Path "$path5\$key9")) {
-    Write-Host "Creando propiedad $key9 en $path5"
-    New-ItemProperty -Path $path5 -Name $key9 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key9 ya existe en $path5"
-}
-
-# Ruta 10: "HKCU:\Software\Microsoft\Windows\DWM" - "EnableAeroPeek"
-$path10 = "HKCU:\Software\Microsoft\Windows\DWM"
-$key10 = "EnableAeroPeek"
-if (-not (Test-Path "$path10\$key10")) {
-    Write-Host "Creando propiedad $key10 en $path10"
-    New-ItemProperty -Path $path10 -Name $key10 -PropertyType DWord -Value 0 -Force
-} else {
-    Write-Host "Propiedad $key10 ya existe en $path10"
-}
-
-#New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -PropertyType DWord -Value 3 -Force
-
-
-# Configura las claves del registro para habilitar la opción "Finalizar tarea" con clic derecho
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDeveloperSettings" -PropertyType DWord -Value 1 -Force
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarEndTask" -PropertyType DWord -Value 1 -Force
-
-# Habilita el modo oscuro
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -PropertyType DWord -Value 0 -Force
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "ColorPrevalence" -PropertyType DWord -Value 0 -Force
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "EnableTransparency" -PropertyType DWord -Value 1 -Force
-New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -PropertyType DWord -Value 0 -Force
-Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize -Name AppsUseLightTheme -Value 0 -Type Dword -Force
-Stop-Process -name explorer
-Start-Sleep -s 2
 Write-Output '18% Completado'
 # Deshabilitar el Análisis de Datos de AI en Copilot+ PC
 $windowsAIPath = "HKCU:\Software\Policies\Microsoft\Windows\WindowsAI"
