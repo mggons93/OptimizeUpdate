@@ -798,6 +798,24 @@ $buildNumber = [int]$os.BuildNumber
 if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -le 19045) {
     Write-Host "Sistema operativo Windows 10 detectado. Ejecutando el script..."
 
+	# Cambiar el fondo de pantalla a una imagen de Windows
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg" -Force
+	
+	# Asegurarse de que el estilo del fondo de pantalla esté configurado en llenar (2 es para llenar, 10 es para ajustar)
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
+	
+	# Deshabilitar GameDVR de Xbox
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" -Name "AllowGameDVR" -PropertyType DWord -Value 0 -Force
+	
+	# Desactivar el Modo Tableta
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ImmersiveShell" -Name "TabletMode" -PropertyType DWord -Value 0 -Force
+	
+	# Configurar siempre el modo de escritorio al iniciar sesión
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ImmersiveShell" -Name "SignInMode" -PropertyType DWord -Value 1 -Force
+	
+	# Desactivar "Usar mi información de inicio de sesión para finalizar la configuración automáticamente después de una actualización o reinicio"
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableAutomaticRestartSignOn" -PropertyType DWord -Value 1 -Force
+
     # Configuración para Windows 10 (puede ser la misma u otra según lo que desees)
     #Write-Host "Restringiendo Windows Update P2P solo a la red local..."
 
@@ -922,6 +940,51 @@ $versionWindows = [System.Environment]::OSVersion.Version
 # Verificar si la versión es Windows 11 con una compilación 22000 o superior
 if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
+
+	# Set desktop background to a normal Windows picture
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Windows\img19.jpg" -Force
+	
+	# Ensure the wallpaper style is set to fill (2 is for fill, 10 is for fit)
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
+	
+	# Prevents Dev Home Installation
+	if (Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate") {
+	    Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate" -Force
+	}
+	
+	# Prevents New Outlook for Windows Installation
+	if (Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate") {
+	    Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate" -Force
+	}
+	
+	# Prevents Chat Auto Installation and Removes Chat Icon
+	# Crear clave si no existe
+	if (-not (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications")) {
+	    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Force
+	}
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Name "ConfigureChatAutoInstall" -PropertyType DWord -Value 0 -Force
+	
+	# Crear clave si no existe
+	if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat")) {
+	    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Force
+	}
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Name "ChatIcon" -PropertyType DWord -Value 3 -Force
+	
+	# Prevents Chat Auto Installation and Removes Chat Icon
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Communications" -Name "ConfigureChatAutoInstall" -PropertyType DWord -Value 0 -Force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Chat" -Name "ChatIcon" -PropertyType DWord -Value 3 -Force
+	
+	# Disable Xbox GameDVR
+	#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" -Name "AllowGameDVR" -PropertyType DWord -Value 0 -Force
+	
+	# Disable Tablet Mode
+	#New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ImmersiveShell" -Name "TabletMode" -PropertyType DWord -Value 0 -Force
+	
+	# Always go to desktop mode on sign-in
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ImmersiveShell" -Name "SignInMode" -PropertyType DWord -Value 1 -Force
+	
+	# Disable "Use my sign-in info to automatically finish setting up my device after an update or restart"
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableAutomaticRestartSignOn" -PropertyType DWord -Value 1 -Force
 
     # Configuración para Windows 11
     #Write-Host "Restringiendo Windows Update P2P solo a la red local..."
