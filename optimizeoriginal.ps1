@@ -1056,41 +1056,88 @@ Write-Output '56% Completado'
 
 ############## Eliminar el autoinicio de microsoft Edge ####################
 # Definir el nombre que se buscarÃ¡
-$nombreABuscar = "MicrosoftEdgeAutoLaunch_"
+$nombreABuscar = "!BCILauncher"
 
 # Obtener todas las entradas en HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
-$entradas = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
+$entradas = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -ErrorAction SilentlyContinue
 
 # Verificar si hay entradas y eliminar aquellas que contienen el nombre buscado
 if ($entradas) {
     foreach ($entrada in $entradas.PSObject.Properties) {
         if ($entrada.Name -like "*$nombreABuscar*") {
             Write-Host "Eliminando entrada $($entrada.Name)"
-            Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $entrada.Name
+            Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -Name $entrada.Name
         }
     }
 } else {
     Write-Host "No se encontraron entradas en el Registro."
 }
-Write-Output '60% Completado'
-############## Eliminar el autoinicio de microsoft Edge ####################
+# Establecer la ruta de la clave de registro para Microsoft Edge
+$edgeRegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 
-# Ruta del registro para habilitar la instalación de extensiones en Edge
-$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallAllowlist"
-
-# Crear la clave si no existe
-if (-not (Test-Path $edgePolicyPath)) {
-    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ExtensionInstallAllowlist" -Force
+# Verificar si la clave de registro de Edge existe y, si no, crearla
+if (!(Test-Path $edgeRegistryPath)) {
+    New-Item -Path $edgeRegistryPath -Force | Out-Null
 }
 
-# ID de la extensión AdGuard (Ejemplo)
-$adguardExtensionID = "bgnkhhnnamicmpeenaelnjfhikgbkllg"
+# Deshabilitar "Startup Boost"
+Set-ItemProperty -Path $edgeRegistryPath -Name "StartupBoostEnabled" -Type DWord -Value 0
 
-# Añadir la extensión de AdGuard a la lista de permitidos
-Set-ItemProperty -Path $edgePolicyPath -Name "1" -Value $adguardExtensionID
+# Deshabilitar "Seguir ejecutando extensiones y aplicaciones en segundo plano mientras Edge esté cerrado"
+Set-ItemProperty -Path $edgeRegistryPath -Name "BackgroundModeEnabled" -Type DWord -Value 0
 
-Write-Host "La instalación de la extensión AdGuard ha sido habilitada exitosamente."
+Write-Host "Startup Boost y la ejecución en segundo plano de Microsoft Edge han sido deshabilitados."
 
+# Ruta al registro donde se almacena la configuración de bienvenida de Edge
+$EdgeRegistryPath = "HKCU:\Software\Microsoft\Edge"
+
+# Verificar si la clave 'Edge' existe en el registro, si no, crearla
+if (-not (Test-Path $EdgeRegistryPath)) {
+    New-Item -Path $EdgeRegistryPath -Force | Out-Null
+}
+
+# Crear o modificar el valor 'HideFirstRunExperience' para omitir la pantalla de bienvenida
+Set-ItemProperty -Path $EdgeRegistryPath -Name "HideFirstRunExperience" -Value 1 -Force
+
+# Verificar si se ha creado la configuración
+$HideFirstRun = Get-ItemProperty -Path $EdgeRegistryPath -Name "HideFirstRunExperience"
+
+if ($HideFirstRun.HideFirstRunExperience -eq 1) {
+    Write-Host "La pantalla de bienvenida de Microsoft Edge ha sido desactivada correctamente."
+} else {
+    Write-Host "No se pudo desactivar la pantalla de bienvenida de Microsoft Edge."
+}
+
+# ID de la extensión AdGuard
+$extensionID = "pdffkfellgipmhklpdmokmckkkfcopbh"
+# URL de actualización de la extensión (Microsoft Edge Web Store)
+$updateUrl = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+# Ruta de registro para instalar extensiones en Edge
+$registryPath = "HKLM:\Software\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+
+# Crear la clave de registro si no existe
+if (-not (Test-Path $registryPath)) {
+    New-Item -Path $registryPath -Force
+}
+# Agregar la extensión AdGuard al registro para que se instale automáticamente
+Set-ItemProperty -Path $registryPath -Name 1 -Value "$extensionID;$updateUrl"
+Write-Host "La extensión AdGuard ha sido configurada para instalarse automáticamente en Microsoft Edge."
+
+# Verificar si el proceso de Microsoft Edge estÃ¡ en ejecuciÃ³n y detenerlo
+$processName = "msedge"
+Start-Process "msedge.exe"
+Start-Sleep 60
+if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+    Write-Output "Deteniendo el proceso $processName..."
+
+    Get-Process -Name $processName | Stop-Process -Force
+    Write-Output "Proceso $processName detenido."
+} else {
+    Write-Output "El proceso $processName no esta en ejecucion."
+}
+
+Write-Output '60% Completado'
+############## Eliminar el autoinicio de microsoft Edge ####################
 # Definir el nombre que se buscarÃ¡
 $nombreABuscar = "!BCILauncher"
 
@@ -1144,34 +1191,33 @@ if ($HideFirstRun.HideFirstRunExperience -eq 1) {
     Write-Host "No se pudo desactivar la pantalla de bienvenida de Microsoft Edge."
 }
 
+# ID de la extensión AdGuard
+$extensionID = "pdffkfellgipmhklpdmokmckkkfcopbh"
+# URL de actualización de la extensión (Microsoft Edge Web Store)
+$updateUrl = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+# Ruta de registro para instalar extensiones en Edge
+$registryPath = "HKLM:\Software\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+
+# Crear la clave de registro si no existe
+if (-not (Test-Path $registryPath)) {
+    New-Item -Path $registryPath -Force
+}
+# Agregar la extensión AdGuard al registro para que se instale automáticamente
+Set-ItemProperty -Path $registryPath -Name 1 -Value "$extensionID;$updateUrl"
+Write-Host "La extensión AdGuard ha sido configurada para instalarse automáticamente en Microsoft Edge."
+
 # Verificar si el proceso de Microsoft Edge estÃ¡ en ejecuciÃ³n y detenerlo
 $processName = "msedge"
 Start-Process "msedge.exe"
-Start-Sleep 5
+Start-Sleep 60
 if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
-    Write-Host "Deteniendo el proceso $processName..."
+    Write-Output "Deteniendo el proceso $processName..."
 
     Get-Process -Name $processName | Stop-Process -Force
-    Write-Host "Proceso $processName detenido."
+    Write-Output "Proceso $processName detenido."
 } else {
-    Write-Host "El proceso $processName no esta en ejecucion."
+    Write-Output "El proceso $processName no esta en ejecucion."
 }
-
-# Ruta del registro para habilitar la instalación de extensiones en Edge
-$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallAllowlist"
-
-# Crear la clave si no existe
-if (-not (Test-Path $edgePolicyPath)) {
-    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ExtensionInstallAllowlist" -Force
-}
-
-# ID de la extensión AdGuard (Ejemplo)
-$adguardExtensionID = "bgnkhhnnamicmpeenaelnjfhikgbkllg"
-
-# Añadir la extensión de AdGuard a la lista de permitidos
-Set-ItemProperty -Path $edgePolicyPath -Name "1" -Value $adguardExtensionID
-
-Write-Host "La instalación de la extensión AdGuard ha sido habilitada exitosamente."
 
 Write-Output '64% Completado'
 ########################################### 11.MODULO DE OPTIMIZACION DE INTERNET ###########################################
