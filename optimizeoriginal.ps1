@@ -1389,12 +1389,14 @@ Write-Output '76% Completado'
 Write-Host "Deteniendo y deshabilitando el servicio de seguimiento de diagnósticos..."
 Stop-Service "DiagTrack" -WarningAction SilentlyContinue
 Set-Service "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
-
+# Indicador de progreso
+Write-Output '77% Completado' 
 # Deteniendo y deshabilitando el servicio WAP Push
 Write-Host "Deteniendo y deshabilitando WAP Push Service..."
 Stop-Service "dmwappushservice" -WarningAction SilentlyContinue
 Set-Service "dmwappushservice" -StartupType Disabled -ErrorAction SilentlyContinue
-
+# Indicador de progreso
+Write-Output '78% Completado' 
 # Deteniendo y deshabilitando los servicios de Grupos en el Hogar
 Write-Host "Deteniendo y deshabilitando Home Groups services..."
 $homeGroupServices = @("HomeGroupListener", "HomeGroupProvider")
@@ -1402,16 +1404,19 @@ foreach ($service in $homeGroupServices) {
     Stop-Service -Name $service -WarningAction SilentlyContinue
     Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
 }
-
+# Indicador de progreso
+Write-Output '79% Completado' 
 # Inhabilitando el sensor de almacenamiento
 Write-Host "Inhabilitando el sensor de almacenamiento..."
 Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Recurse -ErrorAction SilentlyContinue
-
+# Indicador de progreso
+Write-Output '80% Completado' 
 # Deteniendo y deshabilitando el servicio SysMain (Superfetch)
 Write-Host "Deteniendo y deshabilitando Superfetch service..."
 Stop-Service "SysMain" -WarningAction SilentlyContinue
 Set-Service "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
-
+# Indicador de progreso
+Write-Output '81% Completado' 
 # Desactivando la hibernación
 Write-Host "Desactivando Hibernación..."
 Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Power" -Name "HibernationEnabled" -Type DWord -Value 0
@@ -1440,10 +1445,11 @@ Write-Host "Icono de personas ocultas..."
 			New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People -Name PeopleBand -PropertyType DWord -Value 0 -Force
 
 # Deshabilitar informe de errores
+# Indicador de progreso
+Write-Output '82% Completado' 
 Write-Host "Deshabilitando informe de errores..."
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -Type DWord -Value 1
 Disable-ScheduledTask -TaskName "Microsoft\Windows\Windows Error Reporting\QueueReporting" | Out-Null
-Write-Output '78% Completado'
 
 # Detener y deshabilitar servicios
 $servicesToDisable = @("DiagTrack", "dmwappushservice", "HomeGroupListener", "HomeGroupProvider", "SysMain")
@@ -1457,7 +1463,8 @@ foreach ($service in $servicesToDisable) {
 # Inhabilitar el sensor de almacenamiento
 Write-Host "Inhabilitando el sensor de almacenamiento..."
 Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Recurse -ErrorAction SilentlyContinue
-
+# Indicador de progreso
+Write-Output '83% Completado' 
 # Desactivar hibernación
 Write-Host "Desactivando Hibernación..."
 Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Power" -Name "HibernationEnabled" -Type DWord -Value 0
@@ -1474,7 +1481,8 @@ Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer
 # Habilitar segundos en el reloj del sistema
 Write-Host "Activando segundos en el reloj del sistema..."
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSecondsInSystemClock" -PropertyType DWord -Value 1 -Force
-
+# Indicador de progreso
+Write-Output '84% Completado' 
 # Cambiar la vista predeterminada del Explorador a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
 $currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo"
@@ -1536,7 +1544,7 @@ Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAc
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Type String -Value "Allow"
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Type DWord -Value "1"
 
-Write-Output '80% Completado'
+Write-Output '86% Completado'
 # Asegúrate de ejecutar el script con privilegios administrativos
 
 Write-Host "Ocultar iconos de la bandeja..."
@@ -1561,7 +1569,8 @@ Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyCo
 
 # Network Tweaks
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "IRPStackSize" -Type DWord -Value 20
-
+# Indicador de progreso
+Write-Output '87% Completado' 
 Write-Host "Habilitando la oferta de controladores a través de Windows Update..."
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontPromptForWindowsUpdate" -ErrorAction SilentlyContinue
@@ -1592,7 +1601,8 @@ Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" -Name "LetAppsAccessLocation_ForceDenyTheseApps" -ErrorAction SilentlyContinue
 
 Write-Host "Done - Reverted to Stock Settings"
-
+# Indicador de progreso
+Write-Output '88% Completado' 
 # Iconos grandes del panel de control
 Write-Host "Configurando iconos grandes del panel de control..."
 if (-not (Test-Path -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ControlPanel)) {
@@ -1631,7 +1641,8 @@ Get-ChildItem -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAc
     New-ItemProperty -Path $_.PsPath -Name Disabled -PropertyType DWord -Value 1 -Force
     New-ItemProperty -Path $_.PsPath -Name DisabledByUser -PropertyType DWord -Value 1 -Force
 }
-
+# Indicador de progreso
+Write-Output '89% Completado' 
 # Detener el servicio Windows Installer
 Write-Host "Deteniendo el servicio Windows Installer..."
 Stop-Service -Name msiserver -Force
