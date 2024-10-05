@@ -1221,15 +1221,6 @@ if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
 
 Write-Output '64% Completado'
 ########################################### 11.MODULO DE OPTIMIZACION DE INTERNET ###########################################
-Write-Host "Restringiendo Windows Update P2P solo a la red local..."
-    If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config")) {
-        New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" | Out-Null
-    }
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
-
-	New-ItemProperty -Path Registry::HKEY_USERS\S-1-5-20\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Settings -Name DownloadMode -PropertyType DWord -Value 0 -Force
-			Delete-DeliveryOptimizationCache -Force
-
 Write-Host "Deshabilitando Cortana..."
 
 # Ensure Personalization Settings Path Exists
