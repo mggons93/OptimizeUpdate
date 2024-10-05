@@ -1457,12 +1457,12 @@ Set-Service "dmwappushservice" -StartupType Disabled -ErrorAction SilentlyContin
 # Indicador de progreso
 Write-Output '78% Completado' 
 # Deteniendo y deshabilitando los servicios de Grupos en el Hogar
-Write-Host "Deteniendo y deshabilitando Home Groups services..."
-$homeGroupServices = @("HomeGroupListener", "HomeGroupProvider")
-foreach ($service in $homeGroupServices) {
-    Stop-Service -Name $service -WarningAction SilentlyContinue
-    Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
-}
+#Write-Host "Deteniendo y deshabilitando Home Groups services..."
+#$homeGroupServices = @("HomeGroupListener", "HomeGroupProvider")
+#foreach ($service in $homeGroupServices) {
+#    Stop-Service -Name $service -WarningAction SilentlyContinue
+#    Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+#}
 # Indicador de progreso
 Write-Output '79% Completado' 
 # Inhabilitando el sensor de almacenamiento
