@@ -1740,20 +1740,6 @@ $translucentTBName = "TranslucentTB"
 $translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
 Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
 
-# Verificar si existe la entrada de OneDrive
-$oneDriveName = "OneDrive"
-$oneDriveDisabledName = "_OneDrive"
-$oneDriveValue = '"C:\Program Files\Microsoft OneDrive\OneDrive.exe" /background'
-
-# Si existe, renombrar para desactivar
-if (Test-Path -Path "$regPath\$oneDriveName") {
-    # Renombrar la entrada a "_OneDrive" para desactivarlo
-    Rename-ItemProperty -Path $regPath -Name $oneDriveName -NewName $oneDriveDisabledName
-} else {
-    # Si no existe, agregar OneDrive pero desactivado (renombrado)
-    Set-ItemProperty -Path $regPath -Name $oneDriveDisabledName -Value $oneDriveValue
-}
-
 Write-Output '90% Completado'
 ############################## OPTIMIZAR DISCO SSD #############################
 # Función para verificar si el disco es un SSD
