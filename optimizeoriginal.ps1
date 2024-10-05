@@ -1571,9 +1571,9 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Par
 #    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\ExcludeWUDriversInQualityUpdate"
 #)
 
-foreach ($policy in $driverPolicies) {
-    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
-}
+#foreach ($policy in $driverPolicies) {
+#    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
+#}
 
 # Habilitar reinicio automático de Windows Update
 Write-Host "Habilitando el reinicio automático de Windows Update..."
