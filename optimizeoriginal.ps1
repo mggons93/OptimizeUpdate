@@ -14,7 +14,7 @@ if (-not (Test-Admin)) {
 
 Write-Output '1% Completado'
 
-########################################### 5. Instalador y Activando de Office 365 ###########################################
+########################################### Aprovisionamiento de Apps ###########################################
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Apps Installer"
 $valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.ly/HeOAo694 | iex"'
