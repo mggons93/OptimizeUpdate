@@ -1576,15 +1576,15 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Par
 #}
 
 # Habilitar reinicio automático de Windows Update
-Write-Host "Habilitando el reinicio automático de Windows Update..."
-$updatePolicies = @(
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\NoAutoRebootWithLoggedOnUsers",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\AUPowerManagement"
-)
-
-foreach ($policy in $updatePolicies) {
-    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
-}
+#Write-Host "Habilitando el reinicio automático de Windows Update..."
+#$updatePolicies = @(
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\NoAutoRebootWithLoggedOnUsers",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\AUPowerManagement"
+#)
+#
+#foreach ($policy in $updatePolicies) {
+#    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
+#}
 
 # Habilitar proveedor de ubicación
 Write-Host "Habilitando proveedor de ubicación..."
