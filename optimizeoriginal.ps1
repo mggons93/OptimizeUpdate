@@ -1871,5 +1871,5 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 
 Write-Output '100% Completado'
 
-shutdown -r -t 3
+shutdown -r -t 9
 #############################################################################################################################
