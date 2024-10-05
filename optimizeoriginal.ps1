@@ -1562,14 +1562,14 @@ Write-Host "Ajustando configuraciones de red..."
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "IRPStackSize" -Type DWord -Value 20
 
 # Habilitar la oferta de controladores a través de Windows Update
-Write-Host "Habilitando la oferta de controladores a través de Windows Update..."
-$driverPolicies = @(
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata\PreventDeviceMetadataFromNetwork",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DontPromptForWindowsUpdate",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DontSearchWindowsUpdate",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DriverUpdateWizardWuSearchEnabled",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\ExcludeWUDriversInQualityUpdate"
-)
+#Write-Host "Habilitando la oferta de controladores a través de Windows Update..."
+#$driverPolicies = @(
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata\PreventDeviceMetadataFromNetwork",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DontPromptForWindowsUpdate",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DontSearchWindowsUpdate",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching\DriverUpdateWizardWuSearchEnabled",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\ExcludeWUDriversInQualityUpdate"
+#)
 
 foreach ($policy in $driverPolicies) {
     Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
