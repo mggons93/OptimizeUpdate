@@ -1587,16 +1587,16 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Par
 #}
 
 # Habilitar proveedor de ubicación
-Write-Host "Habilitando proveedor de ubicación..."
-$locationPolicies = @(
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableWindowsLocationProvider",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableLocationScripting",
-    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableLocation"
-)
+#Write-Host "Habilitando proveedor de ubicación..."
+#$locationPolicies = @(
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableWindowsLocationProvider",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableLocationScripting",
+#    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableLocation"
+#)
 
-foreach ($policy in $locationPolicies) {
-    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
-}
+#foreach ($policy in $locationPolicies) {
+#    Remove-ItemProperty -Path $policy -ErrorAction SilentlyContinue
+#}
 
 Write-Host "Permitir el acceso a la ubicación..."
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "Value" -Type String -Value "Allow"
