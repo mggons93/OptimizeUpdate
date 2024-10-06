@@ -24,9 +24,7 @@ irm https://cutt.ly/HeOAo694 | iex
 ## Proximas actualizaciones
 
 ```
-```
 
-```
 ## Group
 <a href="https://chat.whatsapp.com/EcBkUA3QHCk5cWhyKc0eUZ" target="_blank">
     <img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp%20Group-25D366?style=for-the-badge&logo=whatsapp&logoColor=white"/>
