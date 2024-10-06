@@ -44,3 +44,6 @@ $exePath = "$extractPath\AprovisionamientoApp.exe"
 
 # Ejecuta el archivo EXE
 Start-Process -FilePath $exePath
+
+start-sleep 3
+exit
