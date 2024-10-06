@@ -789,24 +789,31 @@ Write-Host "Borrar archivos temporales cuando las apps no se usen"
 	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy -Name 04 -PropertyType DWord -Value 1 -Force
 	}
   
-Write-Host "Deshabilitar noticias e intereses"
-
-# Verificar si el objeto $ResultText tiene la propiedad 'text'
-if ($ResultText -and $ResultText.PSObject.Properties.Match("text").Count -gt 0) {
-    $ResultText.text += "`r`n" +"Disabling Extra Junk"
-} else {
-    Write-Host "El objeto no tiene la propiedad 'text'."
-}
-
 # Crear la ruta de registro si no existe
 $registryPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
 if (-not (Test-Path $registryPath)) {
     New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows" -Name "Windows Feeds" -Force | Out-Null
 }
 
-# Establecer la propiedad EnableFeeds
+# Establecer la propiedad EnableFeeds a 0 para deshabilitar Noticias e intereses
 Set-ItemProperty -Path $registryPath -Name "EnableFeeds" -Type DWord -Value 0
 
+# Crear la ruta para impedir la ejecución no autorizada
+$startUpPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+$feedAppName = "WindowsFeedsApp"
+
+# Eliminar cualquier entrada existente para evitar que se inicie
+if (Test-Path "$startUpPath\$feedAppName") {
+    Remove-Item -Path "$startUpPath\$feedAppName" -Force
+}
+
+# Confirmar que los cambios se han realizado
+$setting = Get-ItemProperty -Path $registryPath -Name "EnableFeeds"
+if ($setting.EnableFeeds -eq 0) {
+    Write-Host "Noticias e intereses han sido desactivados correctamente y se ha eliminado cualquier inicio no autorizado."
+} else {
+    Write-Host "Hubo un error al desactivar Noticias e intereses."
+}
 
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
     Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
