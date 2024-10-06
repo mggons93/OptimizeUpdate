@@ -1727,10 +1727,10 @@ Write-Host "Reiniciando el servicio Windows Installer..."
 Start-Service -Name msiserver
 
 # Limpiar el Historial de Windows Update
-Write-Host "Limpiando el historial de Windows Update..."
-Stop-Service -Name wuauserv -Force
-Remove-Item -Path "C:\Windows\SoftwareDistribution\DataStore\*.*" -Recurse -Force
-Start-Service -Name wuauserv
+#Write-Host "Limpiando el historial de Windows Update..."
+#Stop-Service -Name wuauserv -Force
+#Remove-Item -Path "C:\Windows\SoftwareDistribution\DataStore\*.*" -Recurse -Force
+#Start-Service -Name wuauserv
 
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
