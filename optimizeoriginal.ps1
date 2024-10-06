@@ -1740,7 +1740,7 @@ $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
 # Agregar TranslucentTB al inicio
 $translucentTBName = "TranslucentTB"
-$translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
+$translucentTBValue = 'Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"Start-Process explorer.exe shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB`"" -NoNewWindow'
 Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
 
 Write-Output '90% Completado'
