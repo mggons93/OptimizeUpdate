@@ -22,7 +22,10 @@ $valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.
 # Agregar la entrada al registro
 Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 
-
+$maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
+$guid = [regex]::Match($maxPerformanceScheme, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').Value
+powercfg -setactive $guid
+  
 # Agregar excepciones
 Add-MpPreference -ExclusionPath "C:\Windows\Setup\FilesU"
 Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.ps1"
@@ -251,50 +254,7 @@ if (Test-Path -Path $destinationPath1) {
     start-sleep 5
 }
 Write-Output '9% Completado'
-################################################ 6. Activando Windows 10/11 ##################################################
-$outputPath1 = "$env:TEMP\MAS_31F7FD1E.cmd"
-
-# URL del archivo a descargar
-$url1 = "https://raw.githubusercontent.com/mggons93/Mggons/main/Validate/MAS_AIO.cmd"
-
-# Función para obtener el estado de activación de Windows
-function Get-WindowsActivationStatus {
-    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey <> null AND LicenseFamily <> null").LicenseStatus
-    return $licenseStatus -eq 1
-}
-
-# Función para habilitar la activación de Windows
-function Enable-WindowsActivation {
-    # Descargando archivo de activación automática
-    Write-Host "Activando Windows"
-    
-    # Descargar el archivo
-    Write-Host "Descargando Activación"
-    Invoke-WebRequest -Uri $url1 -OutFile $outputPath1 > $null
-
-    # Ejecutar el archivo de activación
-    Start-Process -FilePath $outputPath1 /HWID -Wait
-    Remove-Item -Path $outputPath1 -Force
-}
-
-# Verificar si Windows está activado
-if (Get-WindowsActivationStatus) {
-    Write-Host "Windows está activado."
-    Start-Sleep 2
-} else {
-    Write-Host "Windows no está activado. Intentando activar..."
-    Start-Sleep 2
-    Enable-WindowsActivation
-}
-
-# Verificar nuevamente después de intentar activar
-if (Get-WindowsActivationStatus) {
-    Write-Host "Windows ha sido activado exitosamente."
-    Start-Sleep 2
-} else {
-    Write-Host "La activación de Windows ha fallado. Verifica la clave de producto y vuelve a intentarlo."
-}
-  
+start-sleep 5
 Write-Output '13% Completado'
 ########################################### Nuevas optimizaciones ###########################################
 
@@ -789,24 +749,31 @@ Write-Host "Borrar archivos temporales cuando las apps no se usen"
 	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy -Name 04 -PropertyType DWord -Value 1 -Force
 	}
   
-Write-Host "Deshabilitar noticias e intereses"
-
-# Verificar si el objeto $ResultText tiene la propiedad 'text'
-if ($ResultText -and $ResultText.PSObject.Properties.Match("text").Count -gt 0) {
-    $ResultText.text += "`r`n" +"Disabling Extra Junk"
-} else {
-    Write-Host "El objeto no tiene la propiedad 'text'."
-}
-
 # Crear la ruta de registro si no existe
 $registryPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
 if (-not (Test-Path $registryPath)) {
     New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows" -Name "Windows Feeds" -Force | Out-Null
 }
 
-# Establecer la propiedad EnableFeeds
+# Establecer la propiedad EnableFeeds a 0 para deshabilitar Noticias e intereses
 Set-ItemProperty -Path $registryPath -Name "EnableFeeds" -Type DWord -Value 0
 
+# Crear la ruta para impedir la ejecución no autorizada
+$startUpPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+$feedAppName = "WindowsFeedsApp"
+
+# Eliminar cualquier entrada existente para evitar que se inicie
+if (Test-Path "$startUpPath\$feedAppName") {
+    Remove-Item -Path "$startUpPath\$feedAppName" -Force
+}
+
+# Confirmar que los cambios se han realizado
+$setting = Get-ItemProperty -Path $registryPath -Name "EnableFeeds"
+if ($setting.EnableFeeds -eq 0) {
+    Write-Host "Noticias e intereses han sido desactivados correctamente y se ha eliminado cualquier inicio no autorizado."
+} else {
+    Write-Host "Hubo un error al desactivar Noticias e intereses."
+}
 
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
     Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
@@ -851,6 +818,7 @@ try {
 Write-Host "Ocultar cuadro/boton de busqueda..."
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 4
 Write-Output '42% Completado'
+
 ################################### Configuracion de Windows 10 Menu inicio ###################################
 # Verificar la versión del sistema operativo
 $versionWindows = (Get-CimInstance Win32_OperatingSystem).Version
@@ -887,13 +855,14 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value 2
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "JPEGImportQuality" -Value 256
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value $WallPaperPath
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'LockScreenImage' -Value 'C:\Windows\Web\Wallpaper\Windows\img19.jpg'
+	#Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
+	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'LockScreenImage' -Value 'C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg'
 	#Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "NoLockScreenCamera" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "LockScreenOverlaysDisabled" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "NoChangingLockScreen" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "DisableAcrylicBackgroundOnLogon" -Value 1
+
     # Configuración para Windows 10 (puede ser la misma u otra según lo que desees)
     #Write-Host "Restringiendo Windows Update P2P solo a la red local..."
 
@@ -1020,7 +989,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
 
 	# Set desktop background to a normal Windows picture
-	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Windows\img19.jpg" -Force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg" -Force
 	
 	# Ensure the wallpaper style is set to fill (2 is for fill, 10 is for fit)
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
@@ -1064,17 +1033,18 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	# Disable "Use my sign-in info to automatically finish setting up my device after an update or restart"
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableAutomaticRestartSignOn" -PropertyType DWord -Value 1 -Force
 
-	$WallPaperPath = "C:\Windows\Web\Wallpaper\Windows\img19.jpg"
+	$WallPaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value 2
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "JPEGImportQuality" -Value 256
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value $WallPaperPath
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'LockScreenImage' -Value 'C:\Windows\Web\Wallpaper\Windows\img19.jpg'
+	#Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
+	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -Name 'LockScreenImage' -Value 'C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg'
 	#Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value 0 -Force
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "NoLockScreenCamera" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "LockScreenOverlaysDisabled" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "NoChangingLockScreen" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "DisableAcrylicBackgroundOnLogon" -Value 1
+ 
     # Configuración para Windows 10 (puede ser la misma u otra según lo que desees)
 
     # Configuración para Windows 11
@@ -1145,7 +1115,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Write-Host "Los datos del OEM han sido actualizados en el registro."
 
 	# Set desktop background to a normal Windows picture
-	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Windows\img19.jpg" -Force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg" -Force
 	
 	# Ensure the wallpaper style is set to fill (2 is for fill, 10 is for fit)
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
@@ -1739,6 +1709,50 @@ $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $translucentTBName = "TranslucentTB"
 $translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
 Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
+
+################################################ 6. Activando Windows 10/11 ##################################################
+$outputPath1 = "$env:TEMP\MAS_31F7FD1E.cmd"
+
+# URL del archivo a descargar
+$url1 = "https://raw.githubusercontent.com/mggons93/Mggons/main/Validate/MAS_AIO.cmd"
+
+# Función para obtener el estado de activación de Windows
+function Get-WindowsActivationStatus {
+    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey <> null AND LicenseFamily <> null").LicenseStatus
+    return $licenseStatus -eq 1
+}
+
+# Función para habilitar la activación de Windows
+function Enable-WindowsActivation {
+    # Descargando archivo de activación automática
+    Write-Host "Activando Windows"
+    
+    # Descargar el archivo
+    Write-Host "Descargando Activación"
+    Invoke-WebRequest -Uri $url1 -OutFile $outputPath1 > $null
+
+    # Ejecutar el archivo de activación
+    Start-Process -FilePath $outputPath1 /HWID -Wait
+    Remove-Item -Path $outputPath1 -Force
+}
+
+# Verificar si Windows está activado
+if (Get-WindowsActivationStatus) {
+    Write-Host "Windows está activado."
+    Start-Sleep 2
+} else {
+    Write-Host "Windows no está activado. Intentando activar..."
+    Start-Sleep 2
+    Enable-WindowsActivation
+}
+
+# Verificar nuevamente después de intentar activar
+if (Get-WindowsActivationStatus) {
+    Write-Host "Windows ha sido activado exitosamente."
+    Start-Sleep 2
+} else {
+    Write-Host "La activación de Windows ha fallado. Verifica la clave de producto y vuelve a intentarlo."
+}
 
 Write-Output '90% Completado'
 ############################## OPTIMIZAR DISCO SSD #############################
