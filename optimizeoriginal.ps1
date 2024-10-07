@@ -1076,7 +1076,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	# Disable "Use my sign-in info to automatically finish setting up my device after an update or restart"
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableAutomaticRestartSignOn" -PropertyType DWord -Value 1 -Force
 
-	$WallPaperPath = "C:\Windows\Web\Wallpaper\Windows\img19.jpg"
+	$WallPaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value 2
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "JPEGImportQuality" -Value 256
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value $WallPaperPath
@@ -1158,7 +1158,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Write-Host "Los datos del OEM han sido actualizados en el registro."
 
 	# Set desktop background to a normal Windows picture
-	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Windows\img19.jpg" -Force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -PropertyType String -Value "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg" -Force
 	
 	# Ensure the wallpaper style is set to fill (2 is for fill, 10 is for fit)
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -PropertyType String -Value "2" -Force
