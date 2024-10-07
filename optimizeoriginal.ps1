@@ -254,50 +254,7 @@ if (Test-Path -Path $destinationPath1) {
     start-sleep 5
 }
 Write-Output '9% Completado'
-################################################ 6. Activando Windows 10/11 ##################################################
-$outputPath1 = "$env:TEMP\MAS_31F7FD1E.cmd"
-
-# URL del archivo a descargar
-$url1 = "https://raw.githubusercontent.com/mggons93/Mggons/main/Validate/MAS_AIO.cmd"
-
-# Función para obtener el estado de activación de Windows
-function Get-WindowsActivationStatus {
-    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey <> null AND LicenseFamily <> null").LicenseStatus
-    return $licenseStatus -eq 1
-}
-
-# Función para habilitar la activación de Windows
-function Enable-WindowsActivation {
-    # Descargando archivo de activación automática
-    Write-Host "Activando Windows"
-    
-    # Descargar el archivo
-    Write-Host "Descargando Activación"
-    Invoke-WebRequest -Uri $url1 -OutFile $outputPath1 > $null
-
-    # Ejecutar el archivo de activación
-    Start-Process -FilePath $outputPath1 /HWID -Wait
-    Remove-Item -Path $outputPath1 -Force
-}
-
-# Verificar si Windows está activado
-if (Get-WindowsActivationStatus) {
-    Write-Host "Windows está activado."
-    Start-Sleep 2
-} else {
-    Write-Host "Windows no está activado. Intentando activar..."
-    Start-Sleep 2
-    Enable-WindowsActivation
-}
-
-# Verificar nuevamente después de intentar activar
-if (Get-WindowsActivationStatus) {
-    Write-Host "Windows ha sido activado exitosamente."
-    Start-Sleep 2
-} else {
-    Write-Host "La activación de Windows ha fallado. Verifica la clave de producto y vuelve a intentarlo."
-}
-  
+start-sleep 5
 Write-Output '13% Completado'
 ########################################### Nuevas optimizaciones ###########################################
 
@@ -1752,6 +1709,50 @@ $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $translucentTBName = "TranslucentTB"
 $translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
 Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
+
+################################################ 6. Activando Windows 10/11 ##################################################
+$outputPath1 = "$env:TEMP\MAS_31F7FD1E.cmd"
+
+# URL del archivo a descargar
+$url1 = "https://raw.githubusercontent.com/mggons93/Mggons/main/Validate/MAS_AIO.cmd"
+
+# Función para obtener el estado de activación de Windows
+function Get-WindowsActivationStatus {
+    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey <> null AND LicenseFamily <> null").LicenseStatus
+    return $licenseStatus -eq 1
+}
+
+# Función para habilitar la activación de Windows
+function Enable-WindowsActivation {
+    # Descargando archivo de activación automática
+    Write-Host "Activando Windows"
+    
+    # Descargar el archivo
+    Write-Host "Descargando Activación"
+    Invoke-WebRequest -Uri $url1 -OutFile $outputPath1 > $null
+
+    # Ejecutar el archivo de activación
+    Start-Process -FilePath $outputPath1 /HWID -Wait
+    Remove-Item -Path $outputPath1 -Force
+}
+
+# Verificar si Windows está activado
+if (Get-WindowsActivationStatus) {
+    Write-Host "Windows está activado."
+    Start-Sleep 2
+} else {
+    Write-Host "Windows no está activado. Intentando activar..."
+    Start-Sleep 2
+    Enable-WindowsActivation
+}
+
+# Verificar nuevamente después de intentar activar
+if (Get-WindowsActivationStatus) {
+    Write-Host "Windows ha sido activado exitosamente."
+    Start-Sleep 2
+} else {
+    Write-Host "La activación de Windows ha fallado. Verifica la clave de producto y vuelve a intentarlo."
+}
 
 Write-Output '90% Completado'
 ############################## OPTIMIZAR DISCO SSD #############################
