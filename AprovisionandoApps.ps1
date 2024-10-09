@@ -14,6 +14,24 @@ if (-not (Test-Admin)) {
 
 Write-Output '1% Completado'
 
+# Ruta de la clave de inicio en el registro
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+
+# Obtener todas las propiedades (valores) en la ruta del registro
+$keys = Get-ItemProperty -Path $regPath
+$keys | Format-List
+
+# Nombre de la entrada que quieres eliminar
+$translucentTBName = "TranslucentTB"
+
+# Verificar si el nombre exacto está en las propiedades
+if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
+    Remove-ItemProperty -Path $regPath -Name $translucentTBName
+    Write-Host "La entrada TranslucentTB ha sido eliminada del inicio."
+} else {
+    Write-Host "No se encontró la entrada TranslucentTB en el registro."
+}
+
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Office Installer"

@@ -61,6 +61,8 @@ Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -
 
 Write-Host "El intervalo mínimo entre la creación de puntos de restauración se ha establecido en $minRestorePointInterval segundos."
 
+
+########################################### 1. MODULO DE TARJETAS DE ETHERNET ###########################################
 # Obtener todas las tarjetas de red
 # Obtener todas las tarjetas de red (sin filtrar por estado)
 $networkAdapters = Get-NetAdapter
@@ -128,7 +130,9 @@ $rutaRegistro = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager"
 Dism /Online /Set-ReservedStorageState /State:Disabled
 
  Write-Output '2% Completado'
+ 
 ########################################### 2. MODULO DE OPTIMIZACION DE INTERNET ###########################################
+
 # Define la URL de descarga y la ruta de destino
 $wgetUrl = "https://eternallybored.org/misc/wget/releases/wget-1.21.4-win64.zip"
 $zipPath = "C:\wget.zip"
@@ -193,8 +197,10 @@ try {
 } catch {
     Write-Host "Error al establecer el estado del almacenamiento reservado: $($_.Exception.Message)"
 }
+
 Write-Output '5% Completado'
 ########################################### 3. Verificado Servers de Script ###########################################
+
 $title = "Descargando Datos, Espere..."
 $host.ui.RawUI.WindowTitle = $title
 
@@ -260,41 +266,41 @@ Write-Output '13% Completado'
 
 # Disable Windows Spotlight and set the normal Windows Picture as the desktop background
 # Disable Windows Spotlight on the lock screen
-#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsSpotlightOnLockScreen" -PropertyType DWord -Value 1 -Force
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsSpotlightOnLockScreen" -PropertyType DWord -Value 1 -Force
 
-# Disable Windows Spotlight suggestions, tips, tricks, and more on the lock screen
-#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -PropertyType DWord -Value 1 -Force
 
 # Disable Windows Spotlight on Settings
-#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsSpotlightActiveUser" -PropertyType DWord -Value 1 -Force
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsSpotlightActiveUser" -PropertyType DWord -Value 1 -Force
 
 # Disables OneDrive Automatic Backups of Important Folders (Documents, Pictures etc.)
-#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\OneDrive" -Name "KFMBlockOptIn" -PropertyType DWord -Value 1 -Force
-#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -PropertyType DWord -Value 1 -Force
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\OneDrive" -Name "KFMBlockOptIn" -PropertyType DWord -Value 1 -Force
+New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -PropertyType DWord -Value 1 -Force
 
 # Deshabilitar la pantalla de bloqueo con imágenes rotativas
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenEnabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenOverlayEnabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenEnabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "RotatingLockScreenOverlayEnabled" -Value 0 -PropertyType DWord
 
 # Deshabilitar la experiencia de bienvenida de Windows
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SoftLandingEnabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContentEnabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SoftLandingEnabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContentEnabled" -Value 0 -PropertyType DWord
 
 # Desactivar contenido suscrito que entrega Microsoft en el sistema
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-310093Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338387Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338388Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338389Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338393Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353698Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353694Enabled" -Value 0 -PropertyType DWord
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353696Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-310093Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338387Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338388Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338389Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338393Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353698Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353694Enabled" -Value 0 -PropertyType DWord
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-353696Enabled" -Value 0 -PropertyType DWord
 
 # Eliminar claves relacionadas con suscripciones y sugerencias de aplicaciones
-#Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\Subscriptions" -Force
-#Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps" -Force
+Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\Subscriptions" -Force
+Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps" -Force
+
 
 ################################## Configuracion de Windows 10 Menu inicio ###################################
+
 # Verificar la versión del sistema operativo
 $versionWindows = (Get-CimInstance Win32_OperatingSystem).Version
 
@@ -457,9 +463,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	# Configura el Explorador de archivos para abrir "Este PC" en lugar de "Acceso rápido"
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -PropertyType DWord -Value 1 -Force
 
-	# Configura la visualización para el rendimiento
-	New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -PropertyType DWord -Value 1 -Force
-
 	# Al apagar, Windows cerrará automáticamente cualquier aplicación en ejecución
 	New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "AutoEndTasks" -PropertyType DWord -Value 1 -Force
 
@@ -557,15 +560,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 		Write-Host "Propiedad $key8 ya existe en $path5"
 	}
 
-	# Ruta 9: "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" - "TaskbarDa"
-	$key9 = "TaskbarDa"
-	if (-not (Test-Path "$path5\$key9")) {
-		Write-Host "Creando propiedad $key9 en $path5"
-		New-ItemProperty -Path $path5 -Name $key9 -PropertyType DWord -Value 0 -Force
-	} else {
-		Write-Host "Propiedad $key9 ya existe en $path5"
-	}
-
 	# Ruta 10: "HKCU:\Software\Microsoft\Windows\DWM" - "EnableAeroPeek"
 	$path10 = "HKCU:\Software\Microsoft\Windows\DWM"
 	$key10 = "EnableAeroPeek"
@@ -588,9 +582,9 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "ColorPrevalence" -PropertyType DWord -Value 0 -Force
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "EnableTransparency" -PropertyType DWord -Value 1 -Force
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -PropertyType DWord -Value 0 -Force
-	Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize -Name AppsUseLightTheme -Value 0 -Type Dword -Force
-	Stop-Process -name explorer
-	Start-Sleep -s 2
+	
+	#Stop-Process -name explorer
+	#Start-Sleep -s 2
 
     Write-Host "Script ejecutado exitosamente en Windows 11."
 } else {
@@ -641,15 +635,13 @@ if (Test-Path $rutaArchivo) {
 }
 ########################################### 9. MODULO DE OPTIMIZACION DE INTERNET ###########################################
 # Otorgar permisos a los administradores
-#icacls "$env:windir\Web\Screen\img100.jpg" /grant Administradores:F
-# Tomar posesiÂ¨Â®n del archivo
-#takeown /f "$env:windir\Web\Screen\img100.jpg" /A
-#Remove-Item -Path "$env:windir\Web\Screen\img100.jpg" -Force
+icacls "$env:windir\Web\Screen\img100.jpg" /grant Administradores:F
+# Tomar posesion del archivo
+takeown /f "$env:windir\Web\Screen\img100.jpg" /A
+Remove-Item -Path "$env:windir\Web\Screen\img100.jpg" -Force
 # Copiar el archivo de un lugar a otro
-#Copy-Item "$env:windir\Web\Wallpaper\Abstract\Abstract1.jpg" "$env:windir\Web\Screen\img100.jpg"
+Copy-Item "$env:windir\Web\Wallpaper\Abstract\Abstract1.jpg" "$env:windir\Web\Screen\img100.jpg"
 
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\CredSSP\Parameters" -Name "AllowEncryptionOracle" -Value 2
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
 
 # Crear rutas de registro si no existen
@@ -801,7 +793,6 @@ Write-Host "Disabling Search, Cortana, Start menu search... Please Wait"
 try {
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "BingSearchEnabled" -Type DWord -Value 0
     New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowCortanaButton -PropertyType DWord -Value 0 -Force
-    New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 2 -Force
     New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowTaskViewButton -PropertyType DWord -Value 0 -Force
 
     if (-not (Test-Path -Path "Registry::HKEY_CLASSES_ROOT\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\Microsoft.549981C3F5F10_8wekyb3d8bbwe\CortanaStartupId")) {
@@ -866,11 +857,10 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Configuración para Windows 10 (puede ser la misma u otra según lo que desees)
     #Write-Host "Restringiendo Windows Update P2P solo a la red local..."
 
-    #If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config")) {
-    #    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" | Out-Null
-    #}
-
-    #Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
+    If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config")) {
+        New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" | Out-Null
+    }
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
 
     # Aplicar la configuración para el servicio de red (S-1-5-20)
     #If (Test-Path "Registry::HKEY_USERS\S-1-5-20\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Settings") {
@@ -939,8 +929,8 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Reiniciar Explorer, abrir el menú de inicio y esperar unos segundos para que se procese
     Stop-Process -name explorer
     Start-Sleep -s 5
-    $wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')
-    Start-Sleep -s 5
+    #$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')
+    #Start-Sleep -s 5
 
     # Habilitar la capacidad de anclar elementos nuevamente al deshabilitar "LockedStartLayout"
     foreach ($regAlias in $regAliases) {
@@ -1045,16 +1035,14 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" -Name "NoChangingLockScreen" -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "DisableAcrylicBackgroundOnLogon" -Value 1
  
-    # Configuración para Windows 10 (puede ser la misma u otra según lo que desees)
-
     # Configuración para Windows 11
     #Write-Host "Restringiendo Windows Update P2P solo a la red local..."
 
-    #If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config")) {
-    #    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" | Out-Null
-    #}
+    If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config")) {
+        New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" | Out-Null
+    }
 
-    #Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
 
     # Aplicar la configuración para el servicio de red (S-1-5-20)
     #If (Test-Path "Registry::HKEY_USERS\S-1-5-20\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Settings") {
@@ -1367,10 +1355,6 @@ if (-not (Test-Path $cloudContentPath)) {
     New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows" -Name "CloudContent" -Force | Out-Null
 }
 
-# Configurar la propiedad DisableWindowsConsumerFeatures
-# Configurar la propiedad DisableWindowsConsumerFeatures
-Set-ItemProperty -Path $cloudContentPath -Name "DisableWindowsConsumerFeatures" -Type DWord -Value 1
-
 # Inhabilitando las actualizaciones automáticas de Maps
 Write-Host "Inhabilitando las actualizaciones automáticas de Maps..."
 $mapsPath = "HKLM:\SYSTEM\Maps"
@@ -1470,9 +1454,6 @@ Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer
 
 powercfg.exe /h off
 
-Write-Host "Ocultar el botÃ³n Vista de tareas..."
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Type DWord -Value 0
-
 Write-Host "Icono de personas ocultas..."
     If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People")) {
         New-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" | Out-Null
@@ -1527,13 +1508,6 @@ Write-Output '84% Completado'
 # Cambiar la vista predeterminada del Explorador a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
 $currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo"
-
-if ($currentValue.LaunchTo -ne 1) {
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Type DWord -Value 1
-    Write-Host "La vista predeterminada del Explorador se ha cambiado a 'Esta PC'."
-} else {
-    Write-Host "La vista predeterminada del Explorador ya está configurada en 'Esta PC'."
-}
 
 # Ocultar el ícono de Objetos 3D de Esta PC
 Write-Host "Ocultando el ícono de Objetos 3D de Esta PC..."
@@ -1597,13 +1571,6 @@ New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\
 # Verificar y cambiar la vista predeterminada del Explorador de Windows a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
 $currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -ErrorAction SilentlyContinue
-
-if ($currentValue.LaunchTo -ne 1) {
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Type DWord -Value 1
-    Write-Host "La vista predeterminada del Explorador se ha cambiado a 'Esta PC'."
-} else {
-    Write-Host "La vista predeterminada del Explorador ya está configurada en 'Esta PC'."
-}
 
 Write-Host "Ocultando el ícono de Objetos 3D de Esta PC..."
 Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}" -Recurse -ErrorAction SilentlyContinue
