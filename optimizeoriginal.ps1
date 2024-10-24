@@ -13,7 +13,6 @@ if (-not (Test-Admin)) {
 }
 
 Write-Output '1% Completado'
-
 ########################################### Aprovisionamiento de Apps ###########################################
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Apps Installer"
@@ -39,28 +38,29 @@ Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
 Write-Host "Exclusiones de proceso:"
 Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
 
+######################  Punto de Restauracion ######################
 # Establece el intervalo mínimo entre la creación de puntos de restauración en segundos.
 # El valor predeterminado es 14400 segundos (24 horas).
 $minRestorePointInterval = 0
-
 # Ruta del registro
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
-
 # Nombre de la clave del registro
 $regName = "SystemRestorePointCreationFrequency"
-
 # Comprobar si la clave ya existe
 if (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue) {
     Write-Host "La clave ya existe. Actualizando el valor..."
 } else {
     Write-Host "La clave no existe. Creándola..."
 }
-
 # Establecer el nuevo valor
 Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
-
 Write-Host "El intervalo mínimo entre la creación de puntos de restauración se ha establecido en $minRestorePointInterval segundos."
-
+# Nombre del punto de restauración
+$restorePointName = "OptimizacionS&A"
+# Crear un punto de restauración
+Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
+Write-Host "Se ha creado el punto de restauración: $restorePointName"
+######################  Punto de Restauracion ######################
 
 ########################################### 1. MODULO DE TARJETAS DE ETHERNET ###########################################
 # Obtener todas las tarjetas de red
