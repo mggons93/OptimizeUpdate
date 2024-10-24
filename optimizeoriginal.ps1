@@ -669,31 +669,8 @@ if (-not (Get-ItemProperty -Path $registryPath -Name $valueName -ErrorAction Sil
 }
 
 ########################################### 11.Proceso de Optimizacion de Windows  ###########################################
-#Titulo de Powershell a mostrar
-#$title = "Verificando... Espere."
-#$host.ui.RawUI.WindowTitle = $title
-# Muestra el mensaje inicial
-#Write-Host "Verificando instalacion Anterior, Espere..."
-# Establece el tiempo inicial en segundos
-#$tiempoInicial = 5
-# Bucle regresivo
-#while ($tiempoInicial -ge 0) {
-    # Borra la lÃ­nea anterior
-#    Write-Host "`r" -NoNewline
-    # Muestra el nuevo nÃºmero
-#    Write-Host "Tiempo de espera : $tiempoInicial segundo" -NoNewline
-    # Espera un segundo
-#    Start-Sleep -Seconds 1
-    # Decrementa el tiempo
-#    $tiempoInicial--
-#}
-#Titulo de Powershell a mostrar
-$title = "Optimizando Windows 10/11... Espere."
-$host.ui.RawUI.WindowTitle = $title
 ########################################### 12.MODULO DE OPTIMIZACION DE INTERNET ###########################################
 Write-Output '38% Completado'
-
-
 Write-Host "Establezca el factor de calidad de los fondos de escritorio JPEG al maximo"
 	New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name JPEGImportQuality -PropertyType DWord -Value 100 -Force
 
@@ -769,7 +746,7 @@ try {
 }
 	
 Write-Host "Ocultar cuadro/boton de busqueda..."
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 4
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 2
 Write-Output '42% Completado'
 
 ################################### Configuracion de Windows 10 Menu inicio ###################################
@@ -843,45 +820,6 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Establece el valor del almacenamiento reservado
     Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0
     Write-Host "El almacenamiento reservado en Windows 10 se ha desactivado correctamente."
-
-    # Código para eliminación de mosaicos del menú Inicio
-    $defaultLayoutsPath = 'C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\DefaultLayouts.xml'
-    $layoutXmlContent = @"
-    <LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
-        <LayoutOptions StartTileGroupCellWidth="6" />
-        <DefaultLayoutOverride>
-            <StartLayoutCollection>
-                <defaultlayout:StartLayout GroupCellWidth="6" />
-            </StartLayoutCollection>
-        </DefaultLayoutOverride>
-    </LayoutModificationTemplate>
-"@
-
-    # Crear o sobreescribir el archivo de diseño predeterminado
-    $layoutXmlContent | Out-File $defaultLayoutsPath -Encoding ASCII
-
-    $layoutFile = "C:\Windows\StartMenuLayout.xml"
-
-    # Eliminar archivo de diseño si ya existe
-    If (Test-Path $layoutFile) {
-        Remove-Item $layoutFile
-    }
-
-    # Crear el archivo de diseño en blanco
-    $layoutXmlContent | Out-File $layoutFile -Encoding ASCII
-
-    $regAliases = @("HKLM", "HKCU")
-
-    # Asignar el diseño de inicio y forzar su aplicación con "LockedStartLayout" tanto a nivel de máquina como de usuario
-    foreach ($regAlias in $regAliases) {
-        $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
-        $keyPath = $basePath + "\Explorer"
-        IF (!(Test-Path -Path $keyPath)) {
-            New-Item -Path $basePath -Name "Explorer"
-        }
-        Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 1
-        Set-ItemProperty -Path $keyPath -Name "StartLayoutFile" -Value $layoutFile
-    }
 
     # Desactivar la sección "Agregadas recientemente" en el menú Inicio
     $recentlyAddedPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
