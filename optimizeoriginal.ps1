@@ -276,7 +276,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Habilitar anclar elementos
     $regAliases = "HKLM", "HKCU" # Define aliases, adapt as necessary
     foreach ($alias in $regAliases) {
-        Set-ItemProperty -Path "$alias:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "LockedStartLayout" -Value 0
+    Set-ItemProperty -Path "${alias}:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "LockedStartLayout" -Value 0
     }
     Write-Host "Ajustes de búsqueda y menú de inicio completos."
     # Configuración de OEM
