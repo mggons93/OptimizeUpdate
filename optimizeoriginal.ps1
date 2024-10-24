@@ -466,7 +466,8 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
 	# Install the PSWindowsUpdate module automatically
 	Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false
-	Get-WindowsUpdate -InstalledUpdates
+ 	Import-Module PSWindowsUpdate
+	#Get-WindowsUpdate -InstalledUpdates
  	# Hide Updates
 	Hide-WindowsUpdate -KBArticleID KB5044284
 	Hide-WindowsUpdate -KBArticleID KB5043080
