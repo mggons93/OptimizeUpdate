@@ -236,6 +236,11 @@ function Install-7Zip {
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
+function Install-Notepad++ {
+    Write-Host "Instalando Notepad."
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+}
+
 # Llamar a las funciones según sea necesario
 Install-VCLibsDesktop14
 Install-VCRedist2005x64
@@ -263,6 +268,7 @@ Install-DotNetDesktopRuntime8
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
+Install-Notepad++
 
     }
 
@@ -389,6 +395,10 @@ function Install-7Zip {
 	Write-Output '28% Completado'
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
 }
+function Install-Notepad++ {
+    Write-Host "Instalando Notepad."
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+}
 
 # Llamar a las funciones según sea necesario
 Install-VCLibsDesktop14
@@ -411,6 +421,7 @@ Install-DotNetDesktopRuntime8
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
+Install-Notepad++
 
     }
 
