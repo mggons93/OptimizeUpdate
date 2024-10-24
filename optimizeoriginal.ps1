@@ -461,16 +461,16 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 
 
 	# Install NuGet provider automatically without confirmation
-	Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Confirm:$false
+	#Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Confirm:$false
 	# Trust the PowerShell Gallery repository
-	Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+	#Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
 	# Install the PSWindowsUpdate module automatically
-	Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false
- 	Import-Module PSWindowsUpdate
+	#Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false
+ 	#Import-Module PSWindowsUpdate
 	#Get-WindowsUpdate -InstalledUpdates
  	# Hide Updates
-	Hide-WindowsUpdate -KBArticleID KB5044284
-	Hide-WindowsUpdate -KBArticleID KB5043080
+	#Hide-WindowsUpdate -KBArticleID KB5044284
+	#Hide-WindowsUpdate -KBArticleID KB5043080
 
 	# Configura el Explorador de archivos para abrir "Este PC" en lugar de "Acceso rápido"
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -PropertyType DWord -Value 1 -Force
