@@ -236,7 +236,7 @@ function Install-7Zip {
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
-function Install-Notepad++ {
+function Install-Notepadplus {
     Write-Host "Instalando Notepad."
     winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
 }
@@ -268,7 +268,7 @@ Install-DotNetDesktopRuntime8
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
-Install-Notepad++
+Install-Notepadplus
 
     }
 
@@ -395,7 +395,7 @@ function Install-7Zip {
 	Write-Output '28% Completado'
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
 }
-function Install-Notepad++ {
+function Install-Notepadplus {
     Write-Host "Instalando Notepad."
     winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
 }
@@ -421,7 +421,7 @@ Install-DotNetDesktopRuntime8
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
-Install-Notepad++
+Install-Notepadplus
 
     }
 
