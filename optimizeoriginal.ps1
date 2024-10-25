@@ -460,6 +460,7 @@ $feedAppName = "WindowsFeedsApp"
 if (Test-Path "$startUpPath\$feedAppName") {
     Remove-Item -Path "$startUpPath\$feedAppName" -Force
 }
+New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 2 -Force
 # Confirmar que los cambios se han realizado
 $setting = Get-ItemProperty -Path $registryPath -Name "EnableFeeds"
 if ($setting.EnableFeeds -eq 0) {
@@ -469,7 +470,7 @@ if ($setting.EnableFeeds -eq 0) {
 }
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
 Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
-New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 0 -Force
+
 	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
 		{
 New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
@@ -636,6 +637,14 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     } else {
         Write-Host "La carpeta $folderPath no existe. Omitiendo eliminación."
     }
+    # Verificar si la clave de registro para Policies existe
+	$policyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+	if (-not (Test-Path -Path $policyPath)) {
+	    New-Item -Path $policyPath -Force
+	}
+
+# Crear o modificar el valor para deshabilitar widgets
+New-ItemProperty -Path $policyPath -Name "NoWidget" -PropertyType DWord -Value 1 -Force
 
     Write-Host "Script ejecutado exitosamente en Windows 11."
 } else {
