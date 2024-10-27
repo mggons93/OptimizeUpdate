@@ -109,6 +109,24 @@ if ($lanAdapters.Count -eq 0 -and $wifiAdapters.Count -eq 0) {
 Write-Output '2% Completado' 
 ############################
 
+	# Guardar la configuración regional actual
+	# Obtener la configuración regional actual
+	$CurrentLocale = Get-WinSystemLocale
+
+	# Comprobar si $CurrentLocale y su propiedad SystemLocale son válidos
+	if ($CurrentLocale -and $CurrentLocale.SystemLocale) {
+    Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
+    
+    # Establecer la nueva configuración regional
+    $newLocale = "en-US"
+    Set-WinSystemLocale -SystemLocale $newLocale
+    Write-Host "La configuración regional se ha cambiado a: $newLocale"
+	} else {
+    Write-Host "La configuración regional actual no está disponible. No se puede cambiar."
+	}
+	winget install --id CharlesMilette.TranslucentTB -e --silent --disable-interactivity --accept-source-agreements > $null
+
+
 # Continuar con el resto del script
 # Establecer la poli­tica de ejecucion en Bypass
 try {
@@ -276,7 +294,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Habilitar anclar elementos
     $regAliases = "HKLM", "HKCU" # Define aliases, adapt as necessary
     foreach ($alias in $regAliases) {
-    Set-ItemProperty -Path "${alias}:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "LockedStartLayout" -Value 0
+        Set-ItemProperty -Path "${alias}:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "LockedStartLayout" -Value 0
     }
     Write-Host "Ajustes de búsqueda y menú de inicio completos."
     # Configuración de OEM
@@ -460,7 +478,6 @@ $feedAppName = "WindowsFeedsApp"
 if (Test-Path "$startUpPath\$feedAppName") {
     Remove-Item -Path "$startUpPath\$feedAppName" -Force
 }
-New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 2 -Force
 # Confirmar que los cambios se han realizado
 $setting = Get-ItemProperty -Path $registryPath -Name "EnableFeeds"
 if ($setting.EnableFeeds -eq 0) {
@@ -470,7 +487,7 @@ if ($setting.EnableFeeds -eq 0) {
 }
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
 Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
-
+New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 0 -Force
 	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
 		{
 New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
@@ -628,6 +645,21 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" "DWord" 1
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" "SystemUsesLightTheme" "DWord" 0
 
+	# Configuración de OEM
+    $oemRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
+    if (-not (Test-Path -Path $oemRegPath)) {
+        New-Item -Path $oemRegPath -Force | Out-Null
+    }
+    $oemValues = @{
+        Manufacturer = "Mggons Support Center"
+        Model = "Windows 11 - Update 2024 - S&A"
+        SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
+        SupportURL = "https://wa.me/+573144182071"
+    }
+    foreach ($name in $oemValues.Keys) {
+        Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
+    }
+    Write-Host "Los datos del OEM han sido actualizados en el registro."
     # Eliminar la carpeta Windows.old si existe
     $folderPath = "C:\Windows.old"
     if (Test-Path -Path $folderPath) {
@@ -637,14 +669,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     } else {
         Write-Host "La carpeta $folderPath no existe. Omitiendo eliminación."
     }
-    # Verificar si la clave de registro para Policies existe
-	$policyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-	if (-not (Test-Path -Path $policyPath)) {
-	    New-Item -Path $policyPath -Force
-	}
-
-# Crear o modificar el valor para deshabilitar widgets
-New-ItemProperty -Path $policyPath -Name "NoWidget" -PropertyType DWord -Value 1 -Force
 
     Write-Host "Script ejecutado exitosamente en Windows 11."
 } else {
@@ -1114,6 +1138,8 @@ Start-Service -Name msiserver
 #Stop-Service -Name wuauserv -Force
 #Remove-Item -Path "C:\Windows\SoftwareDistribution\DataStore\*.*" -Recurse -Force
 #Start-Service -Name wuauserv
+
+winget install CharlesMilette.TranslucentTB -h
 
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
