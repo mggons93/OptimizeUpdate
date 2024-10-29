@@ -516,8 +516,8 @@ if (Test-Path -Path $destinationPath1) {
     # URL del archivo a descargar
     $ecmExeUrl = "http://$fileContent/files/ECM.exe"
     $ecmRegUrl = "http://$fileContent/files/ECM.reg"
-    $outputExePath = "C:\ECM.exe"
-    $outputRegPath = "C:\ECM.reg"
+    $outputExePath = "$env:TEMP\ECM.exe"
+    $outputRegPath = "$env:TEMP\ECM.reg"
 
     # Descargar ECM.exe
     try {
@@ -621,7 +621,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     # Descargar Nitro PDF 14 Pro
     try {
         Write-Output '71% Completado'
-        Invoke-WebRequest -Uri $nitroUrl -OutFile "C:\ODT\nitro_pro14_x64.msi"
+        Invoke-WebRequest -Uri $nitroUrl -OutFile "$env:TEMP\nitro_pro14_x64.msi"
 	Write-Host "Nitro PDF 14 Pro descargado correctamente."
     } catch {
         Write-Host "Error al descargar Nitro PDF 14 Pro: $_"
@@ -631,7 +631,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     # Descargar el parche
     Write-Host "Descargando activador"
     try {
-        Invoke-WebRequest -Uri $patchUrl -OutFile "C:\ODT\Patch.exe"
+        Invoke-WebRequest -Uri $patchUrl -OutFile "$env:TEMP\Patch.exe"
 	Write-Output '79% Completado'
         Write-Host "Parche descargado correctamente."
     } catch {
@@ -645,11 +645,11 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Start-Sleep 3
     # Instalar Nitro PDF
     Write-Output '89% Completado'
-    Start-Process -FilePath "C:\ODT\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
+    Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
     Start-Sleep 3
     
     Write-Host "Parcheando Nitro PDF 14 Pro"
-    Start-Process -FilePath "C:\ODT\Patch.exe" -ArgumentList "/s" -Wait
+    Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
 	Write-Output '91% Completado'
 	Start-Sleep 5
 }
