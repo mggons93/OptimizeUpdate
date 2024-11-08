@@ -240,7 +240,6 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Expandiendo archivos OEM"
 
     # Ejecutar el instalador de forma silenciosa
-    Write-Output '31% Completado'
     Start-Process -FilePath $outputPath -ArgumentList "/s" -Wait
 
     # Esperar un momento para asegurar que la instalación haya finalizado
