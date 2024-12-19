@@ -1,3 +1,5 @@
+Set-ExecutionPolicy Bypass -Scope CurrentUser
+
 # Verificar si el script se está ejecutando como administrador
 function Test-Admin {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
