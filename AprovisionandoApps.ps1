@@ -589,12 +589,10 @@ if (Test-Path -Path $destinationPath1) {
         exit 1
     }
 	Write-Output '61% Completado'
-    Start-Sleep 5
-
+ 
     # Eliminar el archivo ZIP
     Remove-Item -Path $outputZipPath -Force
     Write-Host "Archivo OOSU10.zip eliminado."
-
 	
     # Ejecutar OOSU10.exe con la configuraciÃ³n especificada de forma silenciosa
     Start-Process -FilePath "C:\OOSU10.exe" -ArgumentList "C:\ooshutup10.cfg", "/quiet" -NoNewWindow -Wait
