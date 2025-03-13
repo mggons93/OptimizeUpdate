@@ -219,9 +219,16 @@ function Install-DotNetDesktopRuntime8 {
 }
 
 function Install-RustDesk {
-    Write-Host "Instalando RustDesk."
-	Write-Output '27% Completado'
-    winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+    $appName = "RustDesk"
+    $installed = winget list --id RustDesk.RustDesk -e | Select-String $appName
+
+    if ($installed) {
+        Write-Host "RustDesk ya está instalado. Omitiendo instalación."
+    } else {
+        Write-Host "Instalando RustDesk..."
+        Write-Output '27% Completado'
+        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+    }
 }
 
 function Install-WindowsTerminal {
@@ -379,10 +386,18 @@ function Install-DotNetDesktopRuntime8 {
 }
 
 function Install-RustDesk {
-    Write-Host "Instalando RustDesk."
-	Write-Output '26% Completado'
-    winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+    $appName = "RustDesk"
+    $installed = winget list --id RustDesk.RustDesk -e | Select-String $appName
+
+    if ($installed) {
+        Write-Host "RustDesk ya está instalado. Omitiendo instalación."
+    } else {
+        Write-Host "Instalando RustDesk..."
+        Write-Output '26% Completado'
+        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+    }
 }
+
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
