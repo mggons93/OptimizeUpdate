@@ -1207,10 +1207,10 @@ Set-ItemProperty -Path $regkey -Name Wallpaper -Value $imagePath
 Set-ItemProperty -Path $regkey -Name WallpaperStyle -Value 5 
 
 ################################################ 6. Activando Windows 10/11 ##################################################
-$outputPath1 = "$env:TEMP\MAS_31F7FD1E.cmd"
-
-# URL del archivo a descargar
-$url1 = "https://raw.githubusercontent.com/mggons93/Mggons/main/Validate/MAS_AIO.cmd"
+ $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
+ $url = $url -replace "%blank%", ""
+ $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
+ $outputPath1 = $outputPath1 -replace "%blank%", ""
 
 # Función para obtener el estado de activación de Windows
 function Get-WindowsActivationStatus {
@@ -1225,10 +1225,10 @@ function Enable-WindowsActivation {
     
     # Descargar el archivo
     Write-Host "Descargando Activación"
-    Invoke-WebRequest -Uri $url1 -OutFile $outputPath1 > $null
+    Invoke-WebRequest -Uri $url -OutFile $outputPath1 > $null
 
     # Ejecutar el archivo de activación
-    Start-Process -FilePath $outputPath1 /HWID -Wait
+    Start-Process -FilePath $outputPath1 /HWID -WindowStyle Hidden -Wait -Verb RunAs
     Remove-Item -Path $outputPath1 -Force
 }
 
