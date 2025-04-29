@@ -517,64 +517,6 @@ if (Test-Path -Path $destinationPath1) {
 
 #########################################################################################
      
-    if (Get-Command "C:\Program Files\Easy Context Menu\EcMenu.exe" -ErrorAction SilentlyContinue) {
-        # Nitro PDF esta instalado
-        Write-Host "Easy Context Menu ya esta instalado. Omitiendo."
-		Write-Output '33% Completado'
-        Write-Host "---------------------------------"
-        start-sleep 2
-    } else {    
-        Write-Host "---------------------------------"
-        Write-Host "Descargando en segundo plano Archivos de instalación ECM"
-	Write-Output '33% Completado'
-	start-sleep 2
-    # URL del archivo a descargar
-    $ecmExeUrl = "http://$fileContent/files/ECM.exe"
-    $ecmRegUrl = "http://$fileContent/files/ECM.reg"
-    $outputExePath = "$env:TEMP\ECM.exe"
-    $outputRegPath = "$env:TEMP\ECM.reg"
-
-    # Descargar ECM.exe
-    try {
-	Write-Output '34% Completado'
-        Invoke-WebRequest -Uri $ecmExeUrl -OutFile $outputExePath
-        Write-Host "Archivo ECM.exe descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar ECM.exe: $_"
-        exit 1
-    }
-    Start-Sleep 2
-    Write-Output '35% Completado'
-    # Descargar ECM.reg
-    try {
-		Write-Output '34% Completado'
-        Invoke-WebRequest -Uri $ecmRegUrl -OutFile $outputRegPath
-        Write-Host "Archivo ECM.reg descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar ECM.reg: $_"
-        exit 1
-    }
-
-    Write-Host "Expandiendo archivos ECM a Archivos de Programa"
-
-    # Ejecutar el instalador de forma silenciosa
-    Start-Process -FilePath $outputExePath -ArgumentList "/s" -Wait
-
-    # Ejecutar el archivo .reg para aplicar cambios en el registro
-    Start-Process "regedit.exe" -ArgumentList "/s $outputRegPath" -Wait
-
-    # Establecer atributos de la carpeta como ocultos
-    Set-ItemProperty -Path "C:\Program Files\Easy Context Menu" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
-	Write-Output '36% Completado'
-    Write-Host "Aplicando cambios"
-    Start-Sleep 5
-
-    # Eliminar los archivos descargados
-    Remove-Item -Path $outputExePath -Force
-    Remove-Item -Path $outputRegPath -Force
-
-    Write-Host "---------------------------------"
-    }
     Write-Output '42% Completado'
 	Start-Sleep 5
 #########################################################################################
