@@ -508,6 +508,39 @@ if (Test-Path $imgPath) {
 }
 # Copiar el archivo de un lugar a otro
 Copy-Item -Path $rutaArchivo -Destination $imgPath
+
+# --- Cambiar fondo de pantalla inmediatamente ---
+$code = @"
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+Add-Type $code
+
+$pathWallpaper = "$env:windir\Web\Wallpaper\Abstract\Abstract1.jpg"
+[Wallpaper]::SystemParametersInfo(20, 0, $pathWallpaper, 3)
+Write-Host "Fondo de escritorio actualizado correctamente."
+
+# --- Guardar configuración en el registro para que sea permanente ---
+function Set-RegistryValue {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [string]$Type,
+        [object]$Value
+    )
+    if (!(Test-Path $Path)) {
+        New-Item -Path $Path -Force | Out-Null
+    }
+    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+}
+
+$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "2"
+Write-Host "Configuración de registro actualizada correctamente."
 ###################### Wallpaper Modificacion de rutina ######################
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
 # Crear rutas de registro si no existen
