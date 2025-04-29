@@ -219,17 +219,30 @@ foreach( $file in $Document.unattend.Extensions.File ) {
 		</ExtractScript>
 		<File path="C:\Windows\Temp\remove-packages.ps1">
 $selectors = @(
-	'Microsoft.Microsoft3DViewer';
+'Microsoft.Microsoft3DViewer';
 	'Microsoft.BingSearch';
+	'Clipchamp.Clipchamp';
 	'Microsoft.Windows.DevHome';
 	'MicrosoftCorporationII.MicrosoftFamily';
 	'Microsoft.WindowsFeedbackHub';
 	'Microsoft.GetHelp';
+	'Microsoft.Getstarted';
+	'microsoft.windowscommunicationsapps';
 	'Microsoft.WindowsMaps';
 	'Microsoft.MixedReality.Portal';
+	'Microsoft.BingNews';
+	'Microsoft.MicrosoftOfficeHub';
+	'Microsoft.Office.OneNote';
 	'Microsoft.OutlookForWindows';
+	'Microsoft.People';
+	'Microsoft.PowerAutomateDesktop';
+	'MicrosoftCorporationII.QuickAssist';
+	'Microsoft.SkypeApp';
 	'MicrosoftTeams';
 	'MSTeams';
+	'Microsoft.Todos';
+	'Microsoft.Wallet';
+	'Microsoft.BingWeather';
 );
 $getCommand = {
   Get-AppxProvisionedPackage -Online;
@@ -274,6 +287,9 @@ $logfile = 'C:\Windows\Temp\remove-packages.log';
 		<File path="C:\Windows\Temp\remove-caps.ps1">
 $selectors = @(
 	'Print.Fax.Scan';
+	'Browser.InternetExplorer';
+	'OneCoreUAP.OneSync';
+	'App.Support.QuickAssist';
 	'Hello.Face.18967';
 	'Hello.Face.Migration.18967';
 	'Hello.Face.20134';
@@ -469,10 +485,102 @@ $bytes[0x15] = $bytes[0x15] -bor 0x20
 [System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-03.ps1">
-irm https://cutt.ly/NewOptimize | iex
+# ==========================
+# Unattend-03.ps1 Mejorado
+# ==========================
+
+# URL del script a descargar (usa un enlace directo y confiable)
+$scriptUrl = "https://cutt.ly/NewOptimize"
+
+# Ruta temporal donde guardar el script descargado
+$tempScriptPath = "$env:TEMP\setup-final.ps1"
+
+# Función para verificar si hay conexión a Internet
+function Test-InternetConnection {
+    try {
+        $null = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+# Esperar conexión a Internet antes de continuar
+$maxRetries = 5
+$retry = 0
+while (-not (Test-InternetConnection)) {
+    Write-Host "🌐 No hay conexión a Internet. Reintentando en 5 segundos... ($($retry+1)/$maxRetries)" -ForegroundColor Yellow
+    Start-Sleep -Seconds 5
+    $retry++
+    if ($retry -ge $maxRetries) {
+        Write-Host "❌ No se pudo establecer conexión a Internet. Abortando descarga." -ForegroundColor Red
+        exit
+    }
+}
+
+# Conexión establecida, proceder a descargar
+Write-Host "✅ Conexión a Internet detectada. Descargando script..." -ForegroundColor Green
+
+try {
+    Invoke-WebRequest -Uri $scriptUrl -OutFile $tempScriptPath -UseBasicParsing
+    Unblock-File -Path $tempScriptPath
+    Write-Host "✅ Script descargado y desbloqueado exitosamente." -ForegroundColor Green
+
+    # Ejecutar el script descargado
+    Start-Process "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$tempScriptPath`"" -Wait
+} catch {
+    Write-Host "❌ Error durante la descarga o ejecución del script: $_" -ForegroundColor Red
+}
+
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-04.ps1">
-irm https://cutt.ly/NewOptimize | iex
+# ==========================
+# Unattend-03.ps1 Mejorado
+# ==========================
+
+# URL del script a descargar (usa un enlace directo y confiable)
+$scriptUrl = "https://cutt.ly/NewOptimize"
+
+# Ruta temporal donde guardar el script descargado
+$tempScriptPath = "$env:TEMP\setup-final.ps1"
+
+# Función para verificar si hay conexión a Internet
+function Test-InternetConnection {
+    try {
+        $null = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+# Esperar conexión a Internet antes de continuar
+$maxRetries = 5
+$retry = 0
+while (-not (Test-InternetConnection)) {
+    Write-Host "🌐 No hay conexión a Internet. Reintentando en 5 segundos... ($($retry+1)/$maxRetries)" -ForegroundColor Yellow
+    Start-Sleep -Seconds 5
+    $retry++
+    if ($retry -ge $maxRetries) {
+        Write-Host "❌ No se pudo establecer conexión a Internet. Abortando descarga." -ForegroundColor Red
+        exit
+    }
+}
+
+# Conexión establecida, proceder a descargar
+Write-Host "✅ Conexión a Internet detectada. Descargando script..." -ForegroundColor Green
+
+try {
+    Invoke-WebRequest -Uri $scriptUrl -OutFile $tempScriptPath -UseBasicParsing
+    Unblock-File -Path $tempScriptPath
+    Write-Host "✅ Script descargado y desbloqueado exitosamente." -ForegroundColor Green
+
+    # Ejecutar el script descargado
+    Start-Process "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$tempScriptPath`"" -Wait
+} catch {
+    Write-Host "❌ Error durante la descarga o ejecución del script: $_" -ForegroundColor Red
+}
+
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-05.reg">
 Windows Registry Editor Version 5.00
