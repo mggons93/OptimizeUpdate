@@ -20,32 +20,65 @@ function Start-ProcessAsAdmin {
     Start-Process -FilePath $file -ArgumentList $arguments -Verb RunAs
 }
 
-#irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/optimizeoriginal.ps1 | iex
+################################################################################################################
+function DescargarYExtraer-Zip {
+    param (
+        [string]$url,
+        [string]$nombreArchivoZip,
+        [string]$nombreCarpetaDestino,
+        [switch]$EjecutarExe
+    )
 
-# Define la URL del archivo ZIP
-$url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/OptimizingWindowsApp.zip"
+    $rutaZip = "$env:TEMP\$nombreArchivoZip"
+    $rutaUsuario = "$env:USERPROFILE\$nombreCarpetaDestino"
 
-# Define la ruta temporal donde se descargará el archivo ZIP
-$tempZipPath = "$env:TEMP\OptimizingWindowsApp.zip"
-# Define la ruta donde se extraerá el contenido
-$extractPath = "$env:TEMP\OptimzeWindows"
+    $webclient = New-Object System.Net.WebClient
 
-# Descarga el archivo ZIP
-Invoke-WebRequest -Uri $url -OutFile $tempZipPath
+    $webclient.DownloadProgressChanged += {
+        $totalMB = "{0:N2}" -f ($_.TotalBytesToReceive / 1MB)
+        $receivedMB = "{0:N2}" -f ($_.BytesReceived / 1MB)
+        Write-Progress -Activity "Descargando $nombreArchivoZip" `
+                       -Status "$receivedMB MB de $totalMB MB" `
+                       -PercentComplete $_.ProgressPercentage
+    }
 
-# Crea la carpeta de destino si no existe
-if (-Not (Test-Path -Path $extractPath)) {
-    New-Item -ItemType Directory -Path $extractPath
+    Write-Output "Iniciando descarga de $nombreArchivoZip..."
+    $webclient.DownloadFileAsync($url, $rutaZip)
+
+    while ($webclient.IsBusy) {
+        Start-Sleep -Milliseconds 500
+    }
+
+    if (-Not (Test-Path -Path $rutaUsuario)) {
+        New-Item -ItemType Directory -Path $rutaUsuario | Out-Null
+    }
+
+    Write-Output "Extrayendo en $rutaUsuario..."
+    Expand-Archive -Path $rutaZip -DestinationPath $rutaUsuario -Force
+
+    if ($EjecutarExe) {
+        $exePath = Join-Path $rutaUsuario "OptimizingWindowsApp.exe"
+        if (Test-Path $exePath) {
+            Write-Output "Ejecutando $exePath..."
+            Start-Process -FilePath $exePath
+            Start-Sleep -Seconds 3
+            exit
+        } else {
+            Write-Warning "El ejecutable $exePath no se encontró."
+        }
+    }
 }
 
-# Extrae el contenido del archivo ZIP
-Expand-Archive -Path $tempZipPath -DestinationPath $extractPath -Force
+# Descargar y extraer AprovisionamientoApp.zip
+DescargarYExtraer-Zip `
+    -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/AprovisionamientoApp.zip" `
+    -nombreArchivoZip "AprovisionamientoApp.zip" `
+    -nombreCarpetaDestino "AprovisionamientoApp"
 
-# Ruta del ejecutable que deseas ejecutar
-$exePath = "$extractPath\OptimizingWindowsApp.exe"
-
-# Ejecuta el archivo EXE
-Start-Process -FilePath $exePath
-
-start-sleep 3
-exit
+# Descargar, extraer y ejecutar OptimizingWindowsApp.exe
+DescargarYExtraer-Zip `
+    -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/OptimizingWindowsApp.zip" `
+    -nombreArchivoZip "OptimizingWindowsApp.zip" `
+    -nombreCarpetaDestino "OptimizeWindows" `
+    -EjecutarExe
+################################################################################################################
