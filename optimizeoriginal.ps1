@@ -1293,10 +1293,10 @@ $translucentTBName = "TranslucentTB"
 $translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
 Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
 
-$regkey = 'HKCU:\Control Panel\Desktop'
-$imagePath = 'C:\Windows\Web\Wallpaper\CustomWallpaper.jpg' 
-Set-ItemProperty -Path $regkey -Name Wallpaper -Value $imagePath
-Set-ItemProperty -Path $regkey -Name WallpaperStyle -Value 5 
+#$regkey = 'HKCU:\Control Panel\Desktop'
+#$imagePath = 'C:\Windows\Web\Wallpaper\CustomWallpaper.jpg' 
+#Set-ItemProperty -Path $regkey -Name Wallpaper -Value $imagePath
+#Set-ItemProperty -Path $regkey -Name WallpaperStyle -Value 5 
 
 ################################################ 6. Activando Windows 10/11 ##################################################
  $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
