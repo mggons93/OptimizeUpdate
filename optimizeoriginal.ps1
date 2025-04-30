@@ -25,7 +25,8 @@ Write-Output '1% Completado'
 ########################################### Aprovisionamiento de Apps ###########################################
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Apps Installer"
-$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
+$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/aprovisionamientoapps.ps1 | iex"'
+#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
 
 # Agregar la entrada al registro
 Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
