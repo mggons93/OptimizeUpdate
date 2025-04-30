@@ -320,6 +320,13 @@ Write-Output '13% Completado'
 #############################
 
 
+# Guardar la configuración regional original
+$originalLocale = Get-WinSystemLocale
+$originalUILanguage = Get-WinUILanguageOverride
+
+Write-Host "Configuración regional original: $($originalLocale.SystemLocale)"
+Write-Host "Idioma de la interfaz original: $($originalUILanguage)"
+
 # Cambiar la configuración regional a en-US para permitir la instalación silenciosa
 $newLocale = "en-US"
 Write-Host "Cambiando la configuración regional a: $newLocale"
@@ -352,6 +359,22 @@ Write-Host "Versión actual de winget: $wingetVersion"
 $appId = "CharlesMilette.TranslucentTB"
 Write-Host "Iniciando la instalación silenciosa de la aplicación $appId..."
 winget install --id $appId --silent --accept-package-agreements --accept-source-agreements
+
+# Esperar a que la instalación termine
+Start-Sleep -Seconds 5
+
+# Restablecer la configuración regional original
+Write-Host "Restableciendo la configuración regional al valor original: $($originalLocale.SystemLocale)"
+Set-WinSystemLocale -SystemLocale $originalLocale.SystemLocale
+Set-WinUILanguageOverride -Language $originalUILanguage
+
+# Verificar que la configuración regional se haya restaurado correctamente
+$restoredLocale = Get-WinSystemLocale
+if ($restoredLocale.SystemLocale -eq $originalLocale.SystemLocale) {
+    Write-Host "La configuración regional se ha restaurado correctamente a: $($originalLocale.SystemLocale)"
+} else {
+    Write-Host "No se pudo restaurar la configuración regional."
+}
 
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
