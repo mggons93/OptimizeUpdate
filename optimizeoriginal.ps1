@@ -337,6 +337,17 @@ start-sleep 5
 Write-Output '13% Completado'
 #############################
 
+winget install CharlesMilette.TranslucentTB -h
+
+# Ruta de la clave de inicio en el registro
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+
+# Agregar TranslucentTB al inicio
+$translucentTBName = "TranslucentTB"
+$translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
+Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
+
+
 ###################### Configuracion de Windows 10 Menu inicio ######################
 # Verificar la versión del sistema operativo
 $os = Get-CimInstance Win32_OperatingSystem
@@ -1266,32 +1277,22 @@ Write-Output '89% Completado'
 #############################
 
 # Detener el servicio Windows Installer
-Write-Host "Deteniendo el servicio Windows Installer..."
-Stop-Service -Name msiserver -Force
+#Write-Host "Deteniendo el servicio Windows Installer..."
+#Stop-Service -Name msiserver -Force
 
 # Agregar entrada en el registro para configurar MaxPatchCacheSize a 0
-Write-Host "Configurando MaxPatchCacheSize a 0..."
-New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name MaxPatchCacheSize -PropertyType DWord -Value 0 -Force
+#Write-Host "Configurando MaxPatchCacheSize a 0..."
+#New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name MaxPatchCacheSize -PropertyType DWord -Value 0 -Force
 
 # Reiniciar el servicio de Windows Installer
-Write-Host "Reiniciando el servicio Windows Installer..."
-Start-Service -Name msiserver
+#Write-Host "Reiniciando el servicio Windows Installer..."
+#Start-Service -Name msiserver
 
 # Limpiar el Historial de Windows Update
 #Write-Host "Limpiando el historial de Windows Update..."
 #Stop-Service -Name wuauserv -Force
 #Remove-Item -Path "C:\Windows\SoftwareDistribution\DataStore\*.*" -Recurse -Force
 #Start-Service -Name wuauserv
-
-winget install CharlesMilette.TranslucentTB -h
-
-# Ruta de la clave de inicio en el registro
-$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-
-# Agregar TranslucentTB al inicio
-$translucentTBName = "TranslucentTB"
-$translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
-Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
 
 #$regkey = 'HKCU:\Control Panel\Desktop'
 #$imagePath = 'C:\Windows\Web\Wallpaper\CustomWallpaper.jpg' 
