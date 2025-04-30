@@ -115,25 +115,7 @@ if ($lanAdapters.Count -eq 0 -and $wifiAdapters.Count -eq 0) {
 ############################
 Write-Output '2% Completado' 
 ############################
-
-	# Guardar la configuración regional actual
-	# Obtener la configuración regional actual
-	$CurrentLocale = Get-WinSystemLocale
-
-	# Comprobar si $CurrentLocale y su propiedad SystemLocale son válidos
-	if ($CurrentLocale -and $CurrentLocale.SystemLocale) {
-    Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
-    
-    # Establecer la nueva configuración regional
-    $newLocale = "en-US"
-    Set-WinSystemLocale -SystemLocale $newLocale
-    Write-Host "La configuración regional se ha cambiado a: $newLocale"
-	} else {
-    Write-Host "La configuración regional actual no está disponible. No se puede cambiar."
-	}
-	winget install --id CharlesMilette.TranslucentTB -e --silent --disable-interactivity --accept-source-agreements > $null
-
-
+	
 # Continuar con el resto del script
 # Establecer la poli­tica de ejecucion en Bypass
 try {
@@ -337,7 +319,40 @@ start-sleep 5
 Write-Output '13% Completado'
 #############################
 
-winget install CharlesMilette.TranslucentTB --silent --accept-package-agreements --accept-source-agreements
+
+# Cambiar la configuración regional a en-US para permitir la instalación silenciosa
+$newLocale = "en-US"
+Write-Host "Cambiando la configuración regional a: $newLocale"
+Set-WinSystemLocale -SystemLocale $newLocale
+Set-WinUILanguageOverride -Language $newLocale
+
+# Verificar que la configuración regional se haya cambiado correctamente
+$CurrentLocale = Get-WinSystemLocale
+if ($CurrentLocale.SystemLocale -eq $newLocale) {
+    Write-Host "La configuración regional se ha cambiado correctamente a: $newLocale"
+} else {
+    Write-Host "No se pudo cambiar la configuración regional."
+}
+
+# Esperar para asegurarse de que la configuración regional se haya actualizado
+Start-Sleep -Seconds 5
+
+# Actualizar winget (Microsoft.DesktopAppInstaller)
+Write-Host "Intentando actualizar winget..."
+winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent
+
+# Esperar un poco para asegurarse de que winget se haya actualizado
+Start-Sleep -Seconds 5
+
+# Verificar la versión de winget para asegurarse de que está actualizada
+$wingetVersion = winget --version
+Write-Host "Versión actual de winget: $wingetVersion"
+
+# Instalar la aplicación (CharlesMilette.TranslucentTB) de forma silenciosa
+$appId = "CharlesMilette.TranslucentTB"
+Write-Host "Iniciando la instalación silenciosa de la aplicación $appId..."
+winget install --id $appId --silent --accept-package-agreements --accept-source-agreements
+
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
