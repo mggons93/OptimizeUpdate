@@ -21,6 +21,8 @@ function Start-ProcessAsAdmin {
 }
 
 ################################################################################################################
+
+# Función para descargar y extraer archivos ZIP
 function DescargarYExtraer-Zip {
     param (
         [string]$url,
@@ -61,6 +63,11 @@ function DescargarYExtraer-Zip {
     if ($EjecutarAlReiniciar) {
         $exePath = Join-Path $rutaUsuario "AprovisionamientoApp.exe"
         if (Test-Path $exePath) {
+            $username = $env:USERNAME
+            $exePath = "C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe"
+            
+            # Registrar en la clave RunOnce del registro
+            Write-Host "Registrando AprovisionamientoApp.exe para ejecución después del reinicio."
             New-ItemProperty `
                 -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce" `
                 -Name "AprovisionamientoApp" `
@@ -86,4 +93,3 @@ DescargarYExtraer-Zip `
     -EjecutarExe
 
 ################################################################################################################
-
