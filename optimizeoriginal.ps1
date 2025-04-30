@@ -359,7 +359,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
         }
         New-ItemProperty -Path $path -Name $name -PropertyType $type -Value $value -Force | Out-Null
     }
-    $wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
+    #$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
     $regPaths = @(
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR",
@@ -537,7 +537,7 @@ function Set-RegistryValue {
     Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
 }
 
-$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
+#$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
 Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
 Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "2"
 Write-Host "Configuración de registro actualizada correctamente."
@@ -709,7 +709,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     }
 
     # Configuración de fondo de escritorio y estilo
-    $wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
+    #$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
     Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
     Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "2"
 
