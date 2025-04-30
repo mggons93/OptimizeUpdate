@@ -23,13 +23,13 @@ Write-Output '1% Completado'
 ############################
 
 ########################################### Aprovisionamiento de Apps ###########################################
-$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-$valueName = "Apps Installer"
-$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/aprovisionamientoapps.ps1 | iex"'
+#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+#$valueName = "Apps Installer"
+#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/aprovisionamientoapps.ps1 | iex"'
 #$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
 
 # Agregar la entrada al registro
-Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+#Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 
 $maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
 $guid = [regex]::Match($maxPerformanceScheme, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').Value
