@@ -337,8 +337,7 @@ start-sleep 5
 Write-Output '13% Completado'
 #############################
 
-winget install CharlesMilette.TranslucentTB -h
-
+winget install CharlesMilette.TranslucentTB --silent --accept-package-agreements --accept-source-agreements
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
