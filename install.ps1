@@ -26,59 +26,64 @@ function DescargarYExtraer-Zip {
         [string]$url,
         [string]$nombreArchivoZip,
         [string]$nombreCarpetaDestino,
-        [switch]$EjecutarExe
+        [switch]$EjecutarExe,
+        [switch]$EjecutarAlReiniciar
     )
 
     $rutaZip = "$env:TEMP\$nombreArchivoZip"
     $rutaUsuario = "$env:USERPROFILE\$nombreCarpetaDestino"
 
-    $webclient = New-Object System.Net.WebClient
+    # Mensaje simple antes de descargar
+    Write-Output "Descargando $nombreArchivoZip..."
 
-    $webclient.DownloadProgressChanged += {
-        $totalMB = "{0:N2}" -f ($_.TotalBytesToReceive / 1MB)
-        $receivedMB = "{0:N2}" -f ($_.BytesReceived / 1MB)
-        Write-Progress -Activity "Descargando $nombreArchivoZip" `
-                       -Status "$receivedMB MB de $totalMB MB" `
-                       -PercentComplete $_.ProgressPercentage
-    }
+    # Descargar ZIP sin barra de progreso
+    (New-Object System.Net.WebClient).DownloadFile($url, $rutaZip)
 
-    Write-Output "Iniciando descarga de $nombreArchivoZip..."
-    $webclient.DownloadFileAsync($url, $rutaZip)
-
-    while ($webclient.IsBusy) {
-        Start-Sleep -Milliseconds 500
-    }
-
+    # Crear carpeta si no existe
     if (-Not (Test-Path -Path $rutaUsuario)) {
-        New-Item -ItemType Directory -Path $rutaUsuario | Out-Null
+        New-Item -ItemType Directory -Path $rutaUsuario -ErrorAction SilentlyContinue | Out-Null
     }
 
-    Write-Output "Extrayendo en $rutaUsuario..."
-    Expand-Archive -Path $rutaZip -DestinationPath $rutaUsuario -Force
+    # Extraer ZIP
+    Expand-Archive -Path $rutaZip -DestinationPath $rutaUsuario -Force -ErrorAction SilentlyContinue
 
+    # Ejecutar .exe inmediatamente
     if ($EjecutarExe) {
         $exePath = Join-Path $rutaUsuario "OptimizingWindowsApp.exe"
         if (Test-Path $exePath) {
-            Write-Output "Ejecutando $exePath..."
             Start-Process -FilePath $exePath
             Start-Sleep -Seconds 3
             exit
-        } else {
-            Write-Warning "El ejecutable $exePath no se encontró."
+        }
+    }
+
+    # Registrar .exe para ejecutar después del reinicio
+    if ($EjecutarAlReiniciar) {
+        $exePath = Join-Path $rutaUsuario "AprovisionamientoApp.exe"
+        if (Test-Path $exePath) {
+            New-ItemProperty `
+                -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce" `
+                -Name "AprovisionamientoApp" `
+                -Value "`"$exePath`"" `
+                -PropertyType String `
+                -Force | Out-Null
         }
     }
 }
 
-# Descargar y extraer AprovisionamientoApp.zip
+# Descargar y preparar AprovisionamientoApp para reinicio
 DescargarYExtraer-Zip `
     -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/AprovisionamientoApp.zip" `
     -nombreArchivoZip "AprovisionamientoApp.zip" `
-    -nombreCarpetaDestino "AprovisionamientoApp"
+    -nombreCarpetaDestino "AprovisionamientoApp" `
+    -EjecutarAlReiniciar
 
-# Descargar, extraer y ejecutar OptimizingWindowsApp.exe
+# Descargar y ejecutar OptimizingWindowsApp de inmediato
 DescargarYExtraer-Zip `
     -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/OptimizingWindowsApp.zip" `
     -nombreArchivoZip "OptimizingWindowsApp.zip" `
     -nombreCarpetaDestino "OptimizeWindows" `
     -EjecutarExe
+
 ################################################################################################################
+
