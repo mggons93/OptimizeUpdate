@@ -603,7 +603,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
     Start-Sleep 3
     
-    Write-Host "Parcheando Nitro PDF 14 Pro"
+    Write-Host "Activando Nitro PDF 14 Pro"
     Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
 	Write-Output '91% Completado'
 	Start-Sleep 5
