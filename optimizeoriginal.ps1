@@ -151,7 +151,7 @@ Disable-ReservedStorage
 ############################
 Write-Output '5% Completado'
 ############################
-
+Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
 $primaryServer = "http://181.57.227.194:8001/files/server.txt"
