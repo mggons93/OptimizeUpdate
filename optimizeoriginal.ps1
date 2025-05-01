@@ -28,7 +28,7 @@ $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Apps Installer"
 $valueData = "powershell.exe -ExecutionPolicy Bypass -Command `"C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe`""
 # Agregar la entrada al registro
-#Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 
 
 #$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
@@ -320,87 +320,6 @@ start-sleep 5
 #############################
 Write-Output '13% Completado'
 #############################
-
-# Guardar configuración regional original
-$originalLocaleObj = Get-WinSystemLocale
-$originalLocale = $originalLocaleObj.Name  # "es-ES", "en-US", etc.
-
-$originalUILanguage = Get-WinUILanguageOverride
-if (-not $originalUILanguage) {
-    $originalUILanguage = (Get-Culture).Name  # Fallback en caso de null
-}
-
-Write-Host "Configuración regional original: $originalLocale"
-Write-Host "Idioma de la interfaz original: $originalUILanguage"
-
-# Cambiar a en-US para evitar problemas con winget
-$newLocale = "en-US"
-Write-Host "Cambiando la configuración regional a: $newLocale"
-Set-WinSystemLocale -SystemLocale $newLocale
-Set-WinUILanguageOverride -Language $newLocale
-
-# Verificar cambio
-$CurrentLocale = (Get-WinSystemLocale).Name
-if ($CurrentLocale -eq $newLocale) {
-    Write-Host "Configuración regional cambiada a: $newLocale"
-} else {
-    Write-Host "⚠️ No se pudo cambiar la configuración regional."
-}
-
-Start-Sleep -Seconds 5
-
-# Actualizar winget
-Write-Host "Actualizando winget..."
-$upgradeResult = winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent > $nul
-Write-Host "Resultado actualización winget: $upgradeResult"
-
-Start-Sleep -Seconds 5
-
-# Verificar versión
-$wingetVersion = winget --version
-Write-Host "Versión actual de winget: $wingetVersion"
-
-# Instalar TranslucentTB
-$appId = "CharlesMilette.TranslucentTB"
-Write-Host "Instalando $appId de forma silenciosa..."
-$installResult = winget install --id $appId --silent --accept-package-agreements --accept-source-agreements > $nul
-Write-Host "Resultado de la instalación: $installResult"
-
-Start-Sleep -Seconds 5
-
-# Restaurar configuración regional original
-Write-Host "Restaurando configuración regional original: $originalLocale"
-if ($originalLocale) {
-    Set-WinSystemLocale -SystemLocale $originalLocale
-}
-
-if ($originalUILanguage) {
-    Set-WinUILanguageOverride -Language $originalUILanguage
-} else {
-    Set-WinUILanguageOverride -Language ""
-}
-
-$restoredLocale = (Get-WinSystemLocale).Name
-if ($restoredLocale -eq $originalLocale) {
-    Write-Host "✅ Configuración regional restaurada correctamente."
-} else {
-    Write-Host "⚠️ No se pudo restaurar la configuración regional."
-}
-
-# Configurar inicio automático usando tarea programada
-$taskName = "Launch TranslucentTB"
-$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
-
-try {
-    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
-    Write-Host "✅ Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
-} catch {
-    Write-Host "❌ Error al crear la tarea programada: $_"
-}
-
-Write-Host "⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
-
 
 ###################### Configuracion de Windows 10 Menu inicio ######################
 # Verificar la versión del sistema operativo
