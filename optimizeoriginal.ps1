@@ -323,19 +323,32 @@ Write-Output '13% Completado'
 $originalLocale = Get-WinSystemLocale
 $originalUILanguage = Get-WinUILanguageOverride
 
-Write-Host "Configuración regional original: $($originalLocale.SystemLocale)"
-Write-Host "Idioma de la interfaz original: $($originalUILanguage)"
+if ($originalLocale) {
+    Write-Host "Configuración regional original: $($originalLocale.SystemLocale)"
+} else {
+    Write-Host "⚠️ No se pudo obtener la configuración regional original."
+}
+
+if ($originalUILanguage) {
+    Write-Host "Idioma de la interfaz original: $originalUILanguage"
+} else {
+    Write-Host "Idioma de la interfaz original: (no definido o heredado del sistema)"
+}
 
 # Cambiar a en-US para evitar problemas con winget
 $newLocale = "en-US"
 Write-Host "Cambiando la configuración regional a: $newLocale"
-Set-WinSystemLocale -SystemLocale $newLocale
-Set-WinUILanguageOverride -Language $newLocale
+try {
+    Set-WinSystemLocale -SystemLocale $newLocale
+    Set-WinUILanguageOverride -Language $newLocale
+} catch {
+    Write-Host "⚠️ Error al intentar cambiar la configuración regional: $_"
+}
 
 # Verificar cambio (nota: puede requerir reinicio para aplicar completamente)
 $CurrentLocale = Get-WinSystemLocale
 if ($CurrentLocale.SystemLocale -eq $newLocale) {
-    Write-Host "Configuración regional cambiada a: $newLocale (puede requerir reinicio para aplicar completamente)"
+    Write-Host "✅ Configuración regional cambiada a: $newLocale (puede requerir reinicio para aplicar completamente)"
 } else {
     Write-Host "⚠️ No se pudo cambiar la configuración regional."
 }
@@ -378,7 +391,7 @@ if ($restoredLocale.SystemLocale -eq $originalLocale.SystemLocale) {
     Write-Host "⚠️ No se pudo restaurar la configuración regional."
 }
 
-# Configurar inicio automático usando tarea programada (más confiable que registro)
+# Crear tarea programada para iniciar TranslucentTB al inicio
 $taskName = "Launch TranslucentTB"
 $Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -390,8 +403,8 @@ try {
     Write-Host "❌ Error al crear la tarea programada: $_"
 }
 
-Write-Host "⚠️ Recuerda que algunos cambios pueden requerir reinicio manual para aplicarse completamente."
-
+# Aviso final
+Write-Host "`n⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
 
 ###################### Configuracion de Windows 10 Menu inicio ######################
 # Verificar la versión del sistema operativo
