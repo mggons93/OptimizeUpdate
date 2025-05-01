@@ -23,13 +23,15 @@ Write-Output '1% Completado'
 ############################
 
 ########################################### Aprovisionamiento de Apps ###########################################
-#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-#$valueName = "Apps Installer"
-#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/aprovisionamientoapps.ps1 | iex"'
-#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
-
+$username = $env:USERNAME
+$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+$valueName = "Apps Installer"
+$valueData = "powershell.exe -ExecutionPolicy Bypass -Command `"C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe`""
 # Agregar la entrada al registro
 #Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+
+
+#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
 
 $maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
 $guid = [regex]::Match($maxPerformanceScheme, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').Value
@@ -349,7 +351,7 @@ Start-Sleep -Seconds 5
 
 # Actualizar winget
 Write-Host "Actualizando winget..."
-$upgradeResult = winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent
+$upgradeResult = winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent > $nul
 Write-Host "Resultado actualización winget: $upgradeResult"
 
 Start-Sleep -Seconds 5
@@ -361,7 +363,7 @@ Write-Host "Versión actual de winget: $wingetVersion"
 # Instalar TranslucentTB
 $appId = "CharlesMilette.TranslucentTB"
 Write-Host "Instalando $appId de forma silenciosa..."
-$installResult = winget install --id $appId --silent --accept-package-agreements --accept-source-agreements
+$installResult = winget install --id $appId --silent --accept-package-agreements --accept-source-agreements > $nul
 Write-Host "Resultado de la instalación: $installResult"
 
 Start-Sleep -Seconds 5
