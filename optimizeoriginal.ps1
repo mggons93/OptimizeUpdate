@@ -320,35 +320,27 @@ Write-Output '13% Completado'
 #############################
 
 # Guardar configuración regional original
-$originalLocale = Get-WinSystemLocale
+$originalLocaleObj = Get-WinSystemLocale
+$originalLocale = $originalLocaleObj.Name  # "es-ES", "en-US", etc.
+
 $originalUILanguage = Get-WinUILanguageOverride
-
-if ($originalLocale) {
-    Write-Host "Configuración regional original: $($originalLocale.SystemLocale)"
-} else {
-    Write-Host "⚠️ No se pudo obtener la configuración regional original."
+if (-not $originalUILanguage) {
+    $originalUILanguage = (Get-Culture).Name  # Fallback en caso de null
 }
 
-if ($originalUILanguage) {
-    Write-Host "Idioma de la interfaz original: $originalUILanguage"
-} else {
-    Write-Host "Idioma de la interfaz original: (no definido o heredado del sistema)"
-}
+Write-Host "Configuración regional original: $originalLocale"
+Write-Host "Idioma de la interfaz original: $originalUILanguage"
 
 # Cambiar a en-US para evitar problemas con winget
 $newLocale = "en-US"
 Write-Host "Cambiando la configuración regional a: $newLocale"
-try {
-    Set-WinSystemLocale -SystemLocale $newLocale
-    Set-WinUILanguageOverride -Language $newLocale
-} catch {
-    Write-Host "⚠️ Error al intentar cambiar la configuración regional: $_"
-}
+Set-WinSystemLocale -SystemLocale $newLocale
+Set-WinUILanguageOverride -Language $newLocale
 
-# Verificar cambio (nota: puede requerir reinicio para aplicar completamente)
-$CurrentLocale = Get-WinSystemLocale
-if ($CurrentLocale.SystemLocale -eq $newLocale) {
-    Write-Host "✅ Configuración regional cambiada a: $newLocale (puede requerir reinicio para aplicar completamente)"
+# Verificar cambio
+$CurrentLocale = (Get-WinSystemLocale).Name
+if ($CurrentLocale -eq $newLocale) {
+    Write-Host "Configuración regional cambiada a: $newLocale"
 } else {
     Write-Host "⚠️ No se pudo cambiar la configuración regional."
 }
@@ -375,8 +367,10 @@ Write-Host "Resultado de la instalación: $installResult"
 Start-Sleep -Seconds 5
 
 # Restaurar configuración regional original
-Write-Host "Restaurando configuración regional original: $($originalLocale.SystemLocale)"
-Set-WinSystemLocale -SystemLocale $originalLocale.SystemLocale
+Write-Host "Restaurando configuración regional original: $originalLocale"
+if ($originalLocale) {
+    Set-WinSystemLocale -SystemLocale $originalLocale
+}
 
 if ($originalUILanguage) {
     Set-WinUILanguageOverride -Language $originalUILanguage
@@ -384,14 +378,14 @@ if ($originalUILanguage) {
     Set-WinUILanguageOverride -Language ""
 }
 
-$restoredLocale = Get-WinSystemLocale
-if ($restoredLocale.SystemLocale -eq $originalLocale.SystemLocale) {
+$restoredLocale = (Get-WinSystemLocale).Name
+if ($restoredLocale -eq $originalLocale) {
     Write-Host "✅ Configuración regional restaurada correctamente."
 } else {
     Write-Host "⚠️ No se pudo restaurar la configuración regional."
 }
 
-# Crear tarea programada para iniciar TranslucentTB al inicio
+# Configurar inicio automático usando tarea programada
 $taskName = "Launch TranslucentTB"
 $Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -403,8 +397,8 @@ try {
     Write-Host "❌ Error al crear la tarea programada: $_"
 }
 
-# Aviso final
-Write-Host "`n⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
+Write-Host "⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
+
 
 ###################### Configuracion de Windows 10 Menu inicio ######################
 # Verificar la versión del sistema operativo
