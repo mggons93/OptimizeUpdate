@@ -77,9 +77,17 @@ Write-Output '3% Completado'
         return $architecture
     }
 
-    # Función para instalar todos los Microsoft Visual C++ Redistributable en x64
-    function Install-AllVCRedistx64 {
+# Función para instalar todos los Microsoft Visual C++ Redistributable en x64
+function Install-AllVCRedistx64 {
         # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
+function Install-WingetUpdate {
+	Write-Host "Actualizando Winget"
+	winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
+function Install-TranslucentTB {
+	Write-Host "Actualizando TranslucentTB"
+	winget upgrade --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
 	Write-Output '4% Completado'
@@ -249,6 +257,8 @@ function Install-Notepadplus {
 }
 
 # Llamar a las funciones según sea necesario
+Install-WingetUpdate
+Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x64
 Install-VCRedist2008x64
@@ -279,9 +289,19 @@ Install-Notepadplus
 
     }
 
-    # Función para instalar todos los Microsoft Visual C++ Redistributable en x86
-    function Install-AllVCRedistx32 {
-        # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
+# Función para instalar todos los Microsoft Visual C++ Redistributable en x86
+function Install-AllVCRedistx32 {
+
+# Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
+function Install-WingetUpdate {
+	Write-Host "Actualizando Winget"
+	winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
+function Install-TranslucentTB {
+	Write-Host "Actualizando TranslucentTB"
+	winget upgrade --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
+
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
 	Write-Output '4% Completado'
@@ -398,7 +418,6 @@ function Install-RustDesk {
     }
 }
 
-
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
 	Write-Output '27% Completado'
@@ -416,6 +435,8 @@ function Install-Notepadplus {
 }
 
 # Llamar a las funciones según sea necesario
+Install-WingetUpdate
+Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x86
 Install-VCRedist2008x86
@@ -456,10 +477,20 @@ Install-Notepadplus
         Write-Host "Winget no está instalado en el sistema."
     }
 
-    Write-Host "---------------------------------"
+# Configurar inicio automático usando tarea programada
+$taskName = "Launch TranslucentTB"
+$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
 
-    # Restaurar la configuración regional original
-   # Set-WinSystemLocale -SystemLocale $CurrentLocale.SystemLocale
+try {
+    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
+    Write-Host "✅ Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
+} catch {
+    Write-Host "❌ Error al crear la tarea programada: $_"
+}
+
+Write-Host "⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
+
 #########################################################################################
 # Define las URLs de los servidores y la ruta de destino
 $primaryServer = "http://181.57.227.194:8001/files/server.txt"
