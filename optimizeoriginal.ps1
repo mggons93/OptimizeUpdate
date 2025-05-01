@@ -319,70 +319,78 @@ start-sleep 5
 Write-Output '13% Completado'
 #############################
 
-
-# Guardar la configuración regional original
+# Guardar configuración regional original
 $originalLocale = Get-WinSystemLocale
 $originalUILanguage = Get-WinUILanguageOverride
 
 Write-Host "Configuración regional original: $($originalLocale.SystemLocale)"
 Write-Host "Idioma de la interfaz original: $($originalUILanguage)"
 
-# Cambiar la configuración regional a en-US para permitir la instalación silenciosa
+# Cambiar a en-US para evitar problemas con winget
 $newLocale = "en-US"
 Write-Host "Cambiando la configuración regional a: $newLocale"
 Set-WinSystemLocale -SystemLocale $newLocale
 Set-WinUILanguageOverride -Language $newLocale
 
-# Verificar que la configuración regional se haya cambiado correctamente
+# Verificar cambio (nota: puede requerir reinicio para aplicar completamente)
 $CurrentLocale = Get-WinSystemLocale
 if ($CurrentLocale.SystemLocale -eq $newLocale) {
-    Write-Host "La configuración regional se ha cambiado correctamente a: $newLocale"
+    Write-Host "Configuración regional cambiada a: $newLocale (puede requerir reinicio para aplicar completamente)"
 } else {
-    Write-Host "No se pudo cambiar la configuración regional."
+    Write-Host "⚠️ No se pudo cambiar la configuración regional."
 }
 
-# Esperar para asegurarse de que la configuración regional se haya actualizado
 Start-Sleep -Seconds 5
 
-# Actualizar winget (Microsoft.DesktopAppInstaller)
-Write-Host "Intentando actualizar winget..."
-winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent
+# Actualizar winget
+Write-Host "Actualizando winget..."
+$upgradeResult = winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent
+Write-Host "Resultado actualización winget: $upgradeResult"
 
-# Esperar un poco para asegurarse de que winget se haya actualizado
 Start-Sleep -Seconds 5
 
-# Verificar la versión de winget para asegurarse de que está actualizada
+# Verificar versión
 $wingetVersion = winget --version
 Write-Host "Versión actual de winget: $wingetVersion"
 
-# Instalar la aplicación (CharlesMilette.TranslucentTB) de forma silenciosa
+# Instalar TranslucentTB
 $appId = "CharlesMilette.TranslucentTB"
-Write-Host "Iniciando la instalación silenciosa de la aplicación $appId..."
-winget install --id $appId --silent --accept-package-agreements --accept-source-agreements
+Write-Host "Instalando $appId de forma silenciosa..."
+$installResult = winget install --id $appId --silent --accept-package-agreements --accept-source-agreements
+Write-Host "Resultado de la instalación: $installResult"
 
-# Esperar a que la instalación termine
 Start-Sleep -Seconds 5
 
-# Restablecer la configuración regional original
-Write-Host "Restableciendo la configuración regional al valor original: $($originalLocale.SystemLocale)"
+# Restaurar configuración regional original
+Write-Host "Restaurando configuración regional original: $($originalLocale.SystemLocale)"
 Set-WinSystemLocale -SystemLocale $originalLocale.SystemLocale
-Set-WinUILanguageOverride -Language $originalUILanguage
 
-# Verificar que la configuración regional se haya restaurado correctamente
-$restoredLocale = Get-WinSystemLocale
-if ($restoredLocale.SystemLocale -eq $originalLocale.SystemLocale) {
-    Write-Host "La configuración regional se ha restaurado correctamente a: $($originalLocale.SystemLocale)"
+if ($originalUILanguage) {
+    Set-WinUILanguageOverride -Language $originalUILanguage
 } else {
-    Write-Host "No se pudo restaurar la configuración regional."
+    Set-WinUILanguageOverride -Language ""
 }
 
-# Ruta de la clave de inicio en el registro
-$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+$restoredLocale = Get-WinSystemLocale
+if ($restoredLocale.SystemLocale -eq $originalLocale.SystemLocale) {
+    Write-Host "✅ Configuración regional restaurada correctamente."
+} else {
+    Write-Host "⚠️ No se pudo restaurar la configuración regional."
+}
 
-# Agregar TranslucentTB al inicio
-$translucentTBName = "TranslucentTB"
-$translucentTBValue = 'powershell.exe -Command "explorer shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"'
-Set-ItemProperty -Path $regPath -Name $translucentTBName -Value $translucentTBValue
+# Configurar inicio automático usando tarea programada (más confiable que registro)
+$taskName = "Launch TranslucentTB"
+$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
+
+try {
+    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
+    Write-Host "✅ Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
+} catch {
+    Write-Host "❌ Error al crear la tarea programada: $_"
+}
+
+Write-Host "⚠️ Recuerda que algunos cambios pueden requerir reinicio manual para aplicarse completamente."
 
 
 ###################### Configuracion de Windows 10 Menu inicio ######################
