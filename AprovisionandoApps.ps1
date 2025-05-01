@@ -86,7 +86,7 @@ function Install-WingetUpdate {
 }
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
-	winget upgrade --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
 }
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
