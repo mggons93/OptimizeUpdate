@@ -58,24 +58,6 @@ function DescargarYExtraer-Zip {
             exit
         }
     }
-
-    # Registrar .exe para ejecutar después del reinicio
-    if ($EjecutarAlReiniciar) {
-        $exePath = Join-Path $rutaUsuario "AprovisionamientoApp.exe"
-        if (Test-Path $exePath) {
-            $username = $env:USERNAME
-            $exePath = "C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe"
-            
-            # Registrar en la clave RunOnce del registro
-            Write-Host "Registrando AprovisionamientoApp.exe para ejecución después del reinicio."
-            New-ItemProperty `
-                -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce" `
-                -Name "AprovisionamientoApp" `
-                -Value "`"$exePath`"" `
-                -PropertyType String `
-                -Force | Out-Null
-        }
-    }
 }
 
 # Descargar y preparar AprovisionamientoApp para reinicio
