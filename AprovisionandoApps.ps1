@@ -41,15 +41,45 @@ $valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.
 Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 ########################################### Aprovisionando Apps ###########################################
 
-Write-Output '3% Completado'
-   
-    # Guardar la configuración regional actual
-	# Obtener la configuración regional actual
-	$CurrentLocale = Get-WinSystemLocale
+Write-Output '2% Completado'
+# Script para instalar winget (Windows Package Manager) desde GitHub
+Write-Host "Iniciando la descarga e instalación de winget..." -ForegroundColor Cyan
 
-	# Comprobar si $CurrentLocale y su propiedad SystemLocale son válidos
-	if ($CurrentLocale -and $CurrentLocale.SystemLocale) {
-    Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
+# 1. Establecer URL del paquete .msixbundle
+$wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+
+# 2. Definir ruta de descarga temporal
+$destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+
+# 3. Descargar el archivo
+Write-Host "Descargando paquete desde GitHub..." -ForegroundColor Yellow
+Invoke-WebRequest -Uri $wingetUrl -OutFile $destination
+
+# 4. Instalar el paquete
+Write-Host "Instalando paquete..." -ForegroundColor Yellow
+Add-AppxPackage -Path $destination
+
+# 5. Verificar instalación
+Write-Host "`Verificando instalación de winget..." -ForegroundColor Green
+try {
+    $version = winget --version
+    Write-Host "winget instalado correctamente. Versión: $version" -ForegroundColor Green
+} catch {
+    Write-Host "Error: winget no se pudo instalar correctamente." -ForegroundColor Red
+}
+
+# 6. Eliminar archivo temporal
+Remove-Item -Path $destination -Force
+
+Write-Output '3% Completado'
+
+# Guardar la configuración regional actual
+# Obtener la configuración regional actual
+$CurrentLocale = Get-WinSystemLocale
+
+# Comprobar si $CurrentLocale y su propiedad SystemLocale son válidos
+if ($CurrentLocale -and $CurrentLocale.SystemLocale) {
+Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
     
     # Establecer la nueva configuración regional
     $newLocale = "en-US"
