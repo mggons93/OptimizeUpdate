@@ -80,7 +80,6 @@ $officeUrl = "https://github.com/mggons93/Mggons/raw/refs/heads/main/officeinsta
 $officeExe = "$env:USERPROFILE\OfficeInstaller.ps1"
 
 # Descargar el archivo
-Write-Output "Descargando OfficeInstaller.exe..."
 Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe
 
 
