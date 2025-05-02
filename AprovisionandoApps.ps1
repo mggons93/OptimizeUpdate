@@ -33,12 +33,21 @@ if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
 }
 
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
+# Ruta del registro RunOnce
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-$valueName = "Office Installer"
-$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.ly/OfficeOnlineInstall | iex"'
+$valueName = "OfficeInstallerOnce"
+# Comando a ejecutar tras reinicio
+$valueData = 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command "& {iwr -useb https://cutt.ly/OfficeOnlineInstall | iex}"'
+# Crear la entrada en RunOnce
+New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
+Write-Host "✅ Instalador configurado para ejecutarse una sola vez después del reinicio." -ForegroundColor Green
+
+#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+#$valueName = "Office Installer"
+#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.ly/OfficeOnlineInstall | iex"'
 
 # Agregar la entrada al registro
-Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+#Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 ########################################### Aprovisionando Apps ###########################################
 
 Write-Output '2% Completado'
