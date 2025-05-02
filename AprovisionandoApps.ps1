@@ -80,10 +80,7 @@ Write-Output '3% Completado'
 # Función para instalar todos los Microsoft Visual C++ Redistributable en x64
 function Install-AllVCRedistx64 {
         # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
-function Install-WingetUpdate {
-	Write-Host "Actualizando Winget"
-	winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
 	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
@@ -257,7 +254,6 @@ function Install-Notepadplus {
 }
 
 # Llamar a las funciones según sea necesario
-Install-WingetUpdate
 Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x64
@@ -293,10 +289,7 @@ Install-Notepadplus
 function Install-AllVCRedistx32 {
 
 # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
-function Install-WingetUpdate {
-	Write-Host "Actualizando Winget"
-	winget upgrade --id Microsoft.DesktopAppInstaller --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
 	winget upgrade --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
@@ -435,7 +428,6 @@ function Install-Notepadplus {
 }
 
 # Llamar a las funciones según sea necesario
-Install-WingetUpdate
 Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x86
