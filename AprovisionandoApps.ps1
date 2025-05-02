@@ -658,25 +658,23 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
 Remove-Item -Path "$env:TEMP\server.txt" -Force
 
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
-# Ruta del registro RunOnce
+# Ruta del script .cmd intermedio
+$cmdPath = "$env:USERPROFILE\OfficeInstaller.cmd"
+# Contenido del .cmd
+$cmdContent = '@echo off
+powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%USERPROFILE%\OfficeInstaller.ps1"'
+# Guardar el .cmd
+Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII
+# Registrar en RunOnce
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "OfficeInstallerOnce"
-
-# Ruta al script descargado
-$scriptPath = "$env:USERPROFILE\OfficeInstaller.ps1"
-
-# Comando para ejecutar el script con PowerShell tras reinicio
-$valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
-
-# Crear la entrada en RunOnce
+$valueData = "`"$cmdPath`""
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
-Write-Host "✅ Script OfficeInstaller.ps1 configurado para ejecutarse una sola vez después del reinicio." -ForegroundColor Green
-
+Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
 
 #$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 #$valueName = "Office Installer"
 #$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.ly/OfficeOnlineInstall | iex"'
-
 # Agregar la entrada al registro
 #Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 
