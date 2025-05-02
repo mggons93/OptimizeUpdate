@@ -74,4 +74,14 @@ DescargarYExtraer-Zip `
     -nombreCarpetaDestino "OptimizeWindows" `
     -EjecutarExe
 
+
+# Descargar OfficeInstaller.exe directamente en el perfil del usuario (sin subcarpeta)
+$officeUrl = "https://github.com/mggons93/Mggons/raw/refs/heads/main/officeinstaller.ps1"
+$officeExe = "$env:USERPROFILE\OfficeInstaller.ps1"
+
+# Descargar el archivo
+Write-Output "Descargando OfficeInstaller.exe..."
+Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe
+
+
 ################################################################################################################
