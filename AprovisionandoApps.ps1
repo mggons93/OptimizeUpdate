@@ -666,7 +666,7 @@ $valueName = "OfficeInstallerOnce"
 $scriptPath = "$env:USERPROFILE\OfficeInstaller.ps1"
 
 # Comando para ejecutar el script con PowerShell tras reinicio
-$valueData = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+$valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
 
 # Crear la entrada en RunOnce
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
