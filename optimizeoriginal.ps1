@@ -14,6 +14,9 @@ if (-not (Test-Admin)) {
     exit
 }
 
+# Silenciar errores en PowerShell
+$ErrorActionPreference = "SilentlyContinue"
+
 # Ruta del Registro
 $rutaRegistro = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager"
 Dism /Online /Set-ReservedStorageState /State:Disabled
@@ -76,8 +79,15 @@ Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
 # Crear un punto de restauración
 #Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
 #Write-Host "Se ha creado el punto de restauración: $restorePointName"
-######################  Punto de Restauracion ######################
-
+######################  Desactivar Widgets ######################
+# Crear clave de política y desactivar Widgets
+Try {
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Force | Out-Null
+    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name "AllowNewsAndInterests" -Value 0 -PropertyType DWord -Force
+    Write-Output "Widgets desactivados por política."
+} Catch {
+    Write-Warning "Error al aplicar política: $_"
+}
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 # Obtener todas las tarjetas de red
 $networkAdapters = Get-NetAdapter
@@ -545,7 +555,7 @@ foreach ($regPath in $regPaths) {
     }
 }
 # Establecer propiedades en las rutas de registro
-Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 1
+#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 1
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Microsoft Edge\TabPreloader" -Name "AllowPrelaunch" -Value 0
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Microsoft Edge\TabPreloader" -Name "AllowTabPreloading" -Value 0
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\PCHC" -Name "PreviousUninstall" -Value 1
@@ -620,7 +630,7 @@ if ($setting.EnableFeeds -eq 0) {
 }
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
 Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
-New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 0 -Force
+#New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 0 -Force
 	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
 		{
 New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
@@ -651,7 +661,7 @@ try {
     Write-Host "Ocurrió un error: $_"
 }
 Write-Host "Ocultar cuadro/boton de busqueda..."
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 2
+#Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 2
 
 #############################
 Write-Output '42% Completado'
