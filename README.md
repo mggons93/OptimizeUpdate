@@ -59,15 +59,85 @@ Este script de PowerShell está diseñado para realizar una serie de ajustes y l
 9. Elimina archivos temporales del sistema (`C:\Windows\Temp`).
 10. Elimina archivos temporales del usuario (`%temp%`).
 11. Detiene servicios de actualizaciones:
-    - `wuauserv` (Windows Update)
-    - `bits` (Transferencia Inteligente en Segundo Plano)
-    - `dosvc` (Optimización de Entrega)
-12. Borra la caché de actualizaciones de Windows (`SoftwareDistribution`).
-13. Realiza pausas entre operaciones críticas para asegurar su correcta aplicación.
-14. Reinicia el sistema tras 5 segundos de finalizar todos los pasos.
+    - `wuauserv` (Windows Update) Se Optimiza
+    - `bits` (Transferencia Inteligente en Segundo Plano) Se Optimiza
+    - `dosvc` (Optimización de Entrega) Se Optimiza
+12. Se reinicia servicios de actualizaciones
+13. Borra la caché de actualizaciones de Windows (`SoftwareDistribution`).
+14. Realiza pausas entre operaciones críticas para asegurar su correcta aplicación.
+15. Reinicia el sistema tras 5 segundos de finalizar todos los pasos.
 
 ---
 
+# 🧰 Script de Instalacion de apps para Windows (`AprovisionandoApps.ps1`)
+
+Script de aprovisionamiento para entornos Windows. Automatiza tareas comunes de instalación, configuración inicial y limpieza de entradas de inicio. Diseñado para ejecutarse con privilegios elevados y simplificar la preparación de un entorno de trabajo.
+
+---
+
+## 📋 Acciones que Realiza el Script
+
+1. 🧹 Limpieza de entradas de inicio del registro
+   - Elimina la entrada `TranslucentTB` de:
+     ```
+     HKCU:\Software\Microsoft\Windows\CurrentVersion\Run
+     ```
+
+2. 📦 Instalación de Winget
+   - Descarga la última versión del instalador `.msixbundle` desde GitHub Releases de Microsoft.
+   - Usa PowerShell para instalar el paquete de forma silenciosa.
+
+3. 🧰 Aprovisionamiento con Winget (planificado para futuras líneas)
+   - Instala TranslucentTB, una herramienta para personalizar la barra de tareas de Windows (efecto transparente o borroso).
+   - Instala Windows Terminal, el nuevo terminal moderno de Microsoft compatible con PowerShell, CMD y WSL.
+
+### 🔧 Redistribuibles de Visual C++
+Instalan las librerías necesarias para ejecutar muchas aplicaciones en C++:
+
+   - VCRedist2005x64
+   - VCRedist2008x64
+   - VCRedist2010x64
+   - VCRedist2012x64
+   - VCRedist2013x6
+   - VCRedist2015x64
+#### Versiones x86:
+   - VCRedist2005x86
+   - VCRedist2008x86
+   - VCRedist2010x86
+   - VCRedist2012x86
+   - VCRedist2013x86
+   - VCRedist2015x86
+---
+### 🧩 .NET Runtime
+Instalan versiones necesarias de .NET para ejecutar aplicaciones modernas:
+
+#### Solo runtime:
+    - DotNetRuntime31 → .NET Core 3.1  
+    - DotNetRuntime5 → .NET 5  
+    - DotNetRuntime6 → .NET 6  
+    - DotNetRuntime7 → .NET 7  
+    - DotNetRuntime8 → .NET 8  
+#### Desktop runtime:
+    - DotNetDesktopRuntime31
+    - DotNetDesktopRuntime5
+    - DotNetDesktopRuntime6
+    - DotNetDesktopRuntime7
+    - DotNetDesktopRuntime8 
+Permiten ejecutar aplicaciones de escritorio hechas con WinForms o WPF.
+
+---
+
+### 🛠️ Otras utilidades
+  - VCLibsDesktop14  
+  Instala las Microsoft Visual C++ Runtime Libraries (v14), requeridas por muchas aplicaciones modernas.
+  - RustDesk  
+  Instala RustDesk, una alternativa libre y segura a TeamViewer para control remoto.
+  - 7Zip  
+  Instala el famoso compresor de archivos 7-Zip.
+  - Notepadplus  
+  Instala Notepad++, un editor de texto avanzado para desarrolladores.
+  - Nitro PDF  
+  Instala Nitro PDF, un vidor y editor de PDF avanzado.
 
 ```
 ## Group
