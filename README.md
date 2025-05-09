@@ -23,6 +23,8 @@ irm https://cutt.ly/HeOAo694 | iex
 ## Upcoming updates
 ## Proximas actualizaciones
 
+Vuelve la interfaz de Optimizacion y Instalacion de Apps. 29/04/20205
+
 ```
 
 ## Group
