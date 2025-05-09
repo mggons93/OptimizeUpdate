@@ -68,7 +68,8 @@ Este script de PowerShell está diseñado para realizar una serie de ajustes y l
 15. Reinicia el sistema tras 5 segundos de finalizar todos los pasos.
 
 ---
-
+```
+```
 # 🧰 Script de Instalacion de apps para Windows (`AprovisionandoApps.ps1`)
 
 Script de aprovisionamiento para entornos Windows. Automatiza tareas comunes de instalación, configuración inicial y limpieza de entradas de inicio. Diseñado para ejecutarse con privilegios elevados y simplificar la preparación de un entorno de trabajo.
