@@ -26,6 +26,15 @@ irm https://cutt.ly/HeOAo694 | iex
 Vuelve la interfaz de Optimizacion y Instalacion de Apps. 29/04/20205
 
 ```
+## Imagen de Muestra Optimizando Windows
+<p align="center">
+<a href=></a><img src="https://github.com/mggons93/OptimizeUpdate/blob/main/Optimizando.gif"/>
+</p>
+
+## Imagen de Muestra Instalando Apps
+<p align="center">
+<a href=></a><img src="https://github.com/mggons93/OptimizeUpdate/blob/main/Installapps.gif"/>
+</p>
 
 ## Group
 <a href="https://chat.whatsapp.com/EcBkUA3QHCk5cWhyKc0eUZ" target="_blank">
