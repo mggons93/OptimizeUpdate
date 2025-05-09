@@ -95,6 +95,7 @@ Script de aprovisionamiento para entornos Windows. Automatiza tareas comunes de 
 ### 🔧 Redistribuibles de Visual C++
 Instalan las librerías necesarias para ejecutar muchas aplicaciones en C++:
 
+#### Versiones x64:
    - VCRedist2005x64
    - VCRedist2008x64
    - VCRedist2010x64
@@ -108,7 +109,7 @@ Instalan las librerías necesarias para ejecutar muchas aplicaciones en C++:
    - VCRedist2012x86
    - VCRedist2013x86
    - VCRedist2015x86
----
+
 ### 🧩 .NET Runtime
 Instalan versiones necesarias de .NET para ejecutar aplicaciones modernas:
 
@@ -126,8 +127,6 @@ Instalan versiones necesarias de .NET para ejecutar aplicaciones modernas:
     - DotNetDesktopRuntime8 
 Permiten ejecutar aplicaciones de escritorio hechas con WinForms o WPF.
 
----
-
 ### 🛠️ Otras utilidades
   - VCLibsDesktop14  
   Instala las Microsoft Visual C++ Runtime Libraries (v14), requeridas por muchas aplicaciones modernas.
@@ -139,7 +138,7 @@ Permiten ejecutar aplicaciones de escritorio hechas con WinForms o WPF.
   Instala Notepad++, un editor de texto avanzado para desarrolladores.
   - Nitro PDF  
   Instala Nitro PDF, un vidor y editor de PDF avanzado.
-
+---
 ```
 ## Group
 <a href="https://chat.whatsapp.com/EcBkUA3QHCk5cWhyKc0eUZ" target="_blank">
