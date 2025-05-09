@@ -138,6 +138,7 @@ Permiten ejecutar aplicaciones de escritorio hechas con WinForms o WPF.
   Instala Notepad++, un editor de texto avanzado para desarrolladores.
   - Nitro PDF  
   Instala Nitro PDF, un vidor y editor de PDF avanzado.
+4. Reinicia el sistema tras 5 segundos de finalizar todos los pasos.
 ---
 ```
 ## Group
