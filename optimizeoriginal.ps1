@@ -25,6 +25,7 @@ Dism /Online /Set-ReservedStorageState /State:Disabled
 Write-Output '1% Completado'
 ############################
 
+
 ########################################### Aprovisionamiento de Apps ###########################################
 $username = $env:USERNAME
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
@@ -88,6 +89,29 @@ Try {
 } Catch {
     Write-Warning "Error al aplicar política: $_"
 }
+
+Try {
+    # Desactivar archivos recomendados en Inicio
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackDocs" -Value 0 -PropertyType DWord -Force
+    Write-Output "Recomendaciones del menú Inicio desactivadas."
+
+    # Desactivar archivos recientes en el explorador
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "ShowRecent" -Value 0 -PropertyType DWord -Force
+    Write-Output "Archivos recientes en el Explorador desactivados."
+
+    # Desactivar elementos recientes en Jump Lists (listas de acceso rápido)
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -PropertyType DWord -Force
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_JumpListItems" -Value 0 -PropertyType DWord -Force
+    Write-Output "Listas de accesos directos (Jump Lists) desactivadas."
+
+    # Opcional: limpiar historial existente
+    Remove-Item "$env:APPDATA\Microsoft\Windows\Recent" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Output "Historial reciente eliminado."
+
+} Catch {
+    Write-Warning "Error al aplicar configuraciones: $_"
+}
+
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 # Obtener todas las tarjetas de red
 #$networkAdapters = Get-NetAdapter
@@ -631,10 +655,8 @@ Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" 
 	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
 		{
 New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
-New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Force
 		}
 New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name EnableFeeds -PropertyType DWord -Value 0 -Force
-New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name AllowNewAndInterests -PropertyType DWord -Value 0 -Force
 Write-Host "Iconos en el area de notificacion"
 New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name EnableAutoTray -PropertyType DWord -Value 1 -Force
 Write-Host "Meet now"
