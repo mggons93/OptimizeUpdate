@@ -568,7 +568,7 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Descargando OOSU10"
 	Write-Output '55% Completado'
     # URL del archivo a descargar
-    $oosu10Url = "http://$fileContent/files/OOSU10.zip"
+    $oosu10Url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OOSU10.zip"
     $outputZipPath = "C:\OOSU10.zip"
 
     # Descargar OOSU10.zip
@@ -665,6 +665,28 @@ Try {
     Write-Output "Widgets desactivados por política."
 } Catch {
     Write-Warning "Error al aplicar política: $_"
+}
+
+Try {
+    # Desactivar archivos recomendados en Inicio
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackDocs" -Value 0 -PropertyType DWord -Force
+    Write-Output "Recomendaciones del menú Inicio desactivadas."
+
+    # Desactivar archivos recientes en el explorador
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "ShowRecent" -Value 0 -PropertyType DWord -Force
+    Write-Output "Archivos recientes en el Explorador desactivados."
+
+    # Desactivar elementos recientes en Jump Lists (listas de acceso rápido)
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -PropertyType DWord -Force
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_JumpListItems" -Value 0 -PropertyType DWord -Force
+    Write-Output "Listas de accesos directos (Jump Lists) desactivadas."
+
+    # Opcional: limpiar historial existente
+    Remove-Item "$env:APPDATA\Microsoft\Windows\Recent" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Output "Historial reciente eliminado."
+
+} Catch {
+    Write-Warning "Error al aplicar configuraciones: $_"
 }
 
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
