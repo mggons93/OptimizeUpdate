@@ -657,38 +657,6 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
 # Eliminando Archivo Server -> Proceso Final
 Remove-Item -Path "$env:TEMP\server.txt" -Force
 
-######################  Desactivar Widgets ######################
-# Crear clave de política y desactivar Widgets
-Try {
-    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Force | Out-Null
-    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name "AllowNewsAndInterests" -Value 0 -PropertyType DWord -Force
-    Write-Output "Widgets desactivados por política."
-} Catch {
-    Write-Warning "Error al aplicar política: $_"
-}
-
-Try {
-    # Desactivar archivos recomendados en Inicio
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackDocs" -Value 0 -PropertyType DWord -Force
-    Write-Output "Recomendaciones del menú Inicio desactivadas."
-
-    # Desactivar archivos recientes en el explorador
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "ShowRecent" -Value 0 -PropertyType DWord -Force
-    Write-Output "Archivos recientes en el Explorador desactivados."
-
-    # Desactivar elementos recientes en Jump Lists (listas de acceso rápido)
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -PropertyType DWord -Force
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_JumpListItems" -Value 0 -PropertyType DWord -Force
-    Write-Output "Listas de accesos directos (Jump Lists) desactivadas."
-
-    # Opcional: limpiar historial existente
-    Remove-Item "$env:APPDATA\Microsoft\Windows\Recent" -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Output "Historial reciente eliminado."
-
-} Catch {
-    Write-Warning "Error al aplicar configuraciones: $_"
-}
-
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
 # Ruta del script .cmd intermedio
 $cmdPath = "$env:USERPROFILE\OfficeInstaller.cmd"
