@@ -359,7 +359,6 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
         }
         New-ItemProperty -Path $path -Name $name -PropertyType $type -Value $value -Force | Out-Null
     }
-    #$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
     $regPaths = @(
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR",
@@ -488,7 +487,7 @@ if (Test-Path $rutaArchivo) {
     Write-Host "El archivo se encuentra, no es necesario aplicar."
 } else {
     # Descargar el archivo
-    $url = "http://$fileContent/files/Abstract.zip"
+    $url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
     $outputPath = "$env:TEMP\Abstract.zip"
     
     Write-Host "Descargando fotos para la personalización..."
@@ -536,10 +535,8 @@ function Set-RegistryValue {
     }
     Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
 }
-
-#$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
 Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
-Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "2"
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "10"
 Write-Host "Configuración de registro actualizada correctamente."
 ###################### Wallpaper Modificacion de rutina ######################
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
@@ -660,8 +657,6 @@ try {
 } catch {
     Write-Host "Ocurrió un error: $_"
 }
-Write-Host "Ocultar cuadro/boton de busqueda..."
-#Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Type DWord -Value 2
 
 #############################
 Write-Output '42% Completado'
@@ -709,7 +704,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     }
 
     # Configuración de fondo de escritorio y estilo
-    #$wallpaperPath = "C:\Windows\Web\Wallpaper\Abstract\Abstract1.jpg"
     Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
     Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "2"
 
