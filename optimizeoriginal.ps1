@@ -90,38 +90,38 @@ Try {
 }
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 # Obtener todas las tarjetas de red
-$networkAdapters = Get-NetAdapter
+#$networkAdapters = Get-NetAdapter
 # Mostrar todos los adaptadores detectados
-Write-Host "Adaptadores de red detectados:"
-$networkAdapters | ForEach-Object {
-    Write-Host "Nombre: $($_.Name) - Estado: $($_.Status) - Descripción: $($_.InterfaceDescription)"
-}
+#Write-Host "Adaptadores de red detectados:"
+#$networkAdapters | ForEach-Object {
+#    Write-Host "Nombre: $($_.Name) - Estado: $($_.Status) - Descripción: $($_.InterfaceDescription)"
+#}
 # Filtrar adaptadores LAN y Wi-Fi
-$lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
-$wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' }
+#$lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
+#$wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' }
 # Función para aplicar configuración a adaptadores
-function Configure-Adapters {
-    param (
-        [string]$type,
-        [array]$adapters
-    )
-    if ($adapters.Count -gt 0) {
-        Write-Host "Aplicando configuración para adaptadores $type"
-        foreach ($adapter in $adapters) {
-            Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($adapter.Name)"
-            Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
-            Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6'
-        }
-    }
-}
+#function Configure-Adapters {
+#    param (
+#        [string]$type,
+#        [array]$adapters
+#    )
+#   if ($adapters.Count -gt 0) {
+#        Write-Host "Aplicando configuración para adaptadores $type"
+#        foreach ($adapter in $adapters) {
+#            Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($adapter.Name)"
+#            Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
+#            Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6'
+#        }
+#    }
+#}
 # Aplicar configuración según la disponibilidad de adaptadores
-if ($lanAdapters.Count -eq 0 -and $wifiAdapters.Count -eq 0) {
-    Write-Host "No se encontraron adaptadores de red disponibles, omitiendo acción."
-} else {
-    Configure-Adapters -type "LAN" -adapters $lanAdapters
-    Configure-Adapters -type "Wi-Fi" -adapters $wifiAdapters
-    ipconfig /flushdns
-}
+#if ($lanAdapters.Count -eq 0 -and $wifiAdapters.Count -eq 0) {
+#    Write-Host "No se encontraron adaptadores de red disponibles, omitiendo acción."
+#} else {
+#    Configure-Adapters -type "LAN" -adapters $lanAdapters
+#    Configure-Adapters -type "Wi-Fi" -adapters $wifiAdapters
+#    ipconfig /flushdns
+#}
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 
 ############################
