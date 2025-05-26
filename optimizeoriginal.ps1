@@ -227,7 +227,7 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Descargando en segundo plano Archivos de instalación OEM"
 	
     # URL del archivo a descargar
-    $oemUrl = "http://$fileContent/files/OEM.exe"
+    $oemUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OEM.exe"
     $outputPath = "C:\OEM.exe"
 
     # Descargar el archivo OEM
