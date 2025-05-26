@@ -31,38 +31,72 @@ if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
 } else {
     Write-Host "No se encontró la entrada TranslucentTB en el registro."
 }
-########################################### Aprovisionando Apps ###########################################
+########################################### Instalando la ultima version de Winget ###########################################
 
 Write-Output '2% Completado'
 # Script para instalar winget (Windows Package Manager) desde GitHub
-Write-Host "Iniciando la descarga e instalación de winget..." -ForegroundColor Cyan
+Write-Host "Iniciando verificación e instalación de winget (Windows Package Manager)..." -ForegroundColor Cyan
 
-# 1. Establecer URL del paquete .msixbundle
-$wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+Try {
+    # Obtener versión instalada (si no está, asumimos 0.0.0)
+    try {
+        $currentVersionRaw = winget --version
+        Write-Host "Versión actual de winget: $currentVersionRaw"
 
-# 2. Definir ruta de descarga temporal
-$destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        # Quitar cualquier prefijo no numérico como "v"
+        $currentVersionClean = $currentVersionRaw -replace '^[^\d]*', ''
+    }
+    catch {
+        Write-Host "winget no está instalado. Se procederá a instalar." -ForegroundColor Yellow
+        $currentVersionClean = "0.0.0"
+    }
 
-# 3. Descargar el archivo
-Write-Host "Descargando paquete desde GitHub..." -ForegroundColor Yellow
-Invoke-WebRequest -Uri $wingetUrl -OutFile $destination
+    # Obtener la última versión disponible desde GitHub API
+    $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+    $latestRelease = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' }
 
-# 4. Instalar el paquete
-Write-Host "Instalando paquete..." -ForegroundColor Yellow
-Add-AppxPackage -Path $destination
+    # Quitar prefijo "v" o similares
+    $latestVersionRaw = $latestRelease.tag_name
+    $latestVersionClean = $latestVersionRaw -replace '^[^\d]*', ''
+    Write-Host "Última versión disponible: $latestVersionClean"
 
-# 5. Verificar instalación
-Write-Host "`Verificando instalación de winget..." -ForegroundColor Green
-try {
-    $version = winget --version
-    Write-Host "winget instalado correctamente. Versión: $version" -ForegroundColor Green
-} catch {
-    Write-Host "Error: winget no se pudo instalar correctamente." -ForegroundColor Red
+    # Comparar versiones
+    if ([version]$latestVersionClean -gt [version]$currentVersionClean) {
+        Write-Host "Hay una versión más reciente. Descargando e instalando..." -ForegroundColor Yellow
+
+        $wingetUrl = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1 | Select-Object -ExpandProperty browser_download_url
+        $destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+
+        Try {
+            # Descargar archivo
+            Invoke-WebRequest -Uri $wingetUrl -OutFile $destination -ErrorAction Stop
+
+            # Instalar paquete
+            Add-AppxPackage -Path $destination -ErrorAction Stop
+
+            Write-Host "winget actualizado correctamente a la versión $latestVersionClean" -ForegroundColor Green
+        }
+        Catch {
+            Write-Warning "❌ Ocurrió un error durante la descarga o instalación de winget: $_"
+            Write-Host "Se omite el error y se continúa con la ejecución del script."
+        }
+        Finally {
+            # Eliminar archivo temporal si existe
+            if (Test-Path $destination) {
+                Remove-Item -Path $destination -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    else {
+        Write-Host "La versión instalada de winget está actualizada." -ForegroundColor Green
+    }
+}
+Catch {
+    Write-Warning "❌ Error inesperado: $_"
+    Write-Host "Se omite el error y se continúa con la ejecución del script."
 }
 
-# 6. Eliminar archivo temporal
-Remove-Item -Path $destination -Force
-
+########################################### Aprovisionando Apps ###########################################
 Write-Output '3% Completado'
 
 # Guardar la configuración regional actual
