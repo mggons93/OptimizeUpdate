@@ -298,15 +298,15 @@ function Install-WindowsTerminal {
     winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
+function Install-Notepadplus {
+    Write-Host "Instalando Notepad."
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+}
+
 function Install-7Zip {
     Write-Host "Instalando 7zip."
 	Write-Output '29% Completado'
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
-}
-
-function Install-Notepadplus {
-    Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
 # Llamar a las funciones según sea necesario
@@ -348,7 +348,7 @@ function Install-AllVCRedistx32 {
 
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
-	winget upgrade --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
 }
 
 function Install-VCLibsDesktop14 {
@@ -356,7 +356,6 @@ function Install-VCLibsDesktop14 {
 	Write-Output '4% Completado'
     winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements > $null
 }
-
 
 function Install-VCRedist2005x86 {
     Write-Host "Instalando Microsoft.VCRedist.2005.x86."
@@ -473,14 +472,15 @@ function Install-WindowsTerminal {
     winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
+function Install-Notepadplus {
+    Write-Host "Instalando Notepad."
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+}
+
 function Install-7Zip {
     Write-Host "Instalando 7zip."
 	Write-Output '28% Completado'
     winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
-}
-function Install-Notepadplus {
-    Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
 }
 
 # Llamar a las funciones según sea necesario
