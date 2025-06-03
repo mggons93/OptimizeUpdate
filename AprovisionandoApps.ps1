@@ -139,7 +139,7 @@ function Install-AllVCRedistx64 {
 
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
-	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+	winget install --id CharlesMilette.TranslucentTB -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
 }
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
@@ -304,9 +304,17 @@ function Install-Notepadplus {
 }
 
 function Install-7Zip {
-    Write-Host "Instalando 7zip."
-	Write-Output '29% Completado'
-    winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
+    Write-Host "Instalando 7zip..."
+    Write-Output '29% Completado'
+
+    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ 7zip instalado correctamente."
+    } else {
+        Write-Host "❌ Error al instalar 7zip:"
+        Write-Output $result
+    }
 }
 
 # Llamar a las funciones según sea necesario
@@ -478,9 +486,17 @@ function Install-Notepadplus {
 }
 
 function Install-7Zip {
-    Write-Host "Instalando 7zip."
-	Write-Output '28% Completado'
-    winget install --id 7zip.7Zip -e --silent --disable-interactivity --accept-source-agreements > $null
+    Write-Host "Instalando 7zip..."
+    Write-Output '28% Completado'
+
+    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ 7zip instalado correctamente."
+    } else {
+        Write-Host "❌ Error al instalar 7zip:"
+        Write-Output $result
+    }
 }
 
 # Llamar a las funciones según sea necesario
