@@ -310,7 +310,7 @@ Write-Output '9% Completado'
 	start-sleep 2
     # URL del archivo a descargar
     $ecmExeUrl = "http://$fileContent/files/ECM.exe"
-    $ecmRegUrl = "http://$fileContent/files/ECM.reg"
+    $ecmRegUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
     $outputExePath = "$env:TEMP\ECM.exe"
     $outputRegPath = "$env:TEMP\ECM.reg"
 
