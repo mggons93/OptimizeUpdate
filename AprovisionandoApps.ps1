@@ -35,66 +35,66 @@ if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
 
 Write-Output '2% Completado'
 # Script para instalar winget (Windows Package Manager) desde GitHub
-Write-Host "Iniciando verificación e instalación de winget (Windows Package Manager)..." -ForegroundColor Cyan
+#Write-Host "Iniciando verificación e instalación de winget (Windows Package Manager)..." -ForegroundColor Cyan
 
-Try {
-    # Obtener versión instalada (si no está, asumimos 0.0.0)
-    try {
-        $currentVersionRaw = winget --version
-        Write-Host "Versión actual de winget: $currentVersionRaw"
+#Try {
+#    # Obtener versión instalada (si no está, asumimos 0.0.0)
+#    try {
+#        $currentVersionRaw = winget --version
+#        Write-Host "Versión actual de winget: $currentVersionRaw"
 
-        # Quitar cualquier prefijo no numérico como "v"
-        $currentVersionClean = $currentVersionRaw -replace '^[^\d]*', ''
-    }
-    catch {
-        Write-Host "winget no está instalado. Se procederá a instalar." -ForegroundColor Yellow
-        $currentVersionClean = "0.0.0"
-    }
+#        # Quitar cualquier prefijo no numérico como "v"
+#        $currentVersionClean = $currentVersionRaw -replace '^[^\d]*', ''
+#    }
+#    catch {
+#        Write-Host "winget no está instalado. Se procederá a instalar." -ForegroundColor Yellow
+#        $currentVersionClean = "0.0.0"
+#    }
 
-    # Obtener la última versión disponible desde GitHub API
-    $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-    $latestRelease = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' }
+#    # Obtener la última versión disponible desde GitHub API
+#    $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+#    $latestRelease = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' }
 
-    # Quitar prefijo "v" o similares
-    $latestVersionRaw = $latestRelease.tag_name
-    $latestVersionClean = $latestVersionRaw -replace '^[^\d]*', ''
-    Write-Host "Última versión disponible: $latestVersionClean"
+#    # Quitar prefijo "v" o similares
+#    $latestVersionRaw = $latestRelease.tag_name
+#    $latestVersionClean = $latestVersionRaw -replace '^[^\d]*', ''
+#    Write-Host "Última versión disponible: $latestVersionClean"
 
-    # Comparar versiones
-    if ([version]$latestVersionClean -gt [version]$currentVersionClean) {
-        Write-Host "Hay una versión más reciente. Descargando e instalando..." -ForegroundColor Yellow
+#    # Comparar versiones
+#    if ([version]$latestVersionClean -gt [version]$currentVersionClean) {
+#        Write-Host "Hay una versión más reciente. Descargando e instalando..." -ForegroundColor Yellow
 
-        $wingetUrl = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1 | Select-Object -ExpandProperty browser_download_url
-        $destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+#        $wingetUrl = $latestRelease.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1 | Select-Object -ExpandProperty browser_download_url
+#        $destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
 
-        Try {
-            # Descargar archivo
-            Invoke-WebRequest -Uri $wingetUrl -OutFile $destination -ErrorAction Stop
+#        Try {
+#            # Descargar archivo
+#            Invoke-WebRequest -Uri $wingetUrl -OutFile $destination -ErrorAction Stop
 
-            # Instalar paquete
-            Add-AppxPackage -Path $destination -ErrorAction Stop
+#            # Instalar paquete
+#            Add-AppxPackage -Path $destination -ErrorAction Stop
 
-            Write-Host "winget actualizado correctamente a la versión $latestVersionClean" -ForegroundColor Green
-        }
-        Catch {
-            Write-Warning "❌ Ocurrió un error durante la descarga o instalación de winget: $_"
-            Write-Host "Se omite el error y se continúa con la ejecución del script."
-        }
-        Finally {
+#            Write-Host "winget actualizado correctamente a la versión $latestVersionClean" -ForegroundColor Green
+#        }
+#        Catch {
+#            Write-Warning "❌ Ocurrió un error durante la descarga o instalación de winget: $_"
+#            Write-Host "Se omite el error y se continúa con la ejecución del script."
+#        }
+#        Finally {
             # Eliminar archivo temporal si existe
-            if (Test-Path $destination) {
-                Remove-Item -Path $destination -Force -ErrorAction SilentlyContinue
-            }
-        }
-    }
-    else {
-        Write-Host "La versión instalada de winget está actualizada." -ForegroundColor Green
-    }
-}
-Catch {
-    Write-Warning "❌ Error inesperado: $_"
-    Write-Host "Se omite el error y se continúa con la ejecución del script."
-}
+#            if (Test-Path $destination) {
+#                Remove-Item -Path $destination -Force -ErrorAction SilentlyContinue
+#            }
+#        }
+#    }
+#    else {
+#        Write-Host "La versión instalada de winget está actualizada." -ForegroundColor Green
+#    }
+#}
+#Catch {
+#    Write-Warning "❌ Error inesperado: $_"
+#    Write-Host "Se omite el error y se continúa con la ejecución del script."
+#}
 
 ########################################### Aprovisionando Apps ###########################################
 Write-Output '3% Completado'
