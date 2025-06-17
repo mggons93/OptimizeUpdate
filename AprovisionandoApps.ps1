@@ -730,5 +730,8 @@ Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD
 
 Write-Output '100% Completado'
 
-shutdown -r -t 5 > $null
+Start-Sleep -Seconds 5 
+
+# Reinicio silencioso
+(Get-WmiObject -Class Win32_OperatingSystem -EnableAllPrivileges).Win32Shutdown(6)
 #############################################################################################################################
