@@ -56,25 +56,41 @@ Write-Host "Exclusiones de proceso:"
 Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
 
 ######################  Punto de Restauracion ######################
-# Reducir el intervalo entre puntos de restauración
-$minRestorePointInterval = 0
-$regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
-$regName = "SystemRestorePointCreationFrequency"
+# Reduccio de Tiempo al crear un punto de restauracion 
+# Detectar si el disco del sistema (C:) es SSD o HDD
+$systemDrive = (Get-WmiObject Win32_OperatingSystem).SystemDrive
+$partition = Get-Partition -DriveLetter $systemDrive.TrimEnd(":")
+$diskNumber = $partition.DiskNumber
+$disk = Get-PhysicalDisk | Where-Object { $_.DeviceId -eq $diskNumber }
 
-# Crear la clave si no existe
-if (-not (Test-Path $regPath)) {
-    New-Item -Path $regPath -Force | Out-Null
+if ($disk.MediaType -eq "SSD") {
+    Write-Host "💾 Disco del sistema: SSD detectado. Aplicando optimizaciones..."
+
+    # Establecer intervalo mínimo entre puntos de restauración
+    $minRestorePointInterval = 0
+    $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+    $regName = "SystemRestorePointCreationFrequency"
+
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+
+    Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
+    Write-Host "🛠 Intervalo mínimo entre puntos de restauración ajustado."
+} elseif ($disk.MediaType -eq "HDD") {
+    Write-Host "💽 Disco del sistema: HDD detectado. Continuando sin optimizaciones."
+} else {
+    Write-Host "❓ No se pudo determinar si el disco es SSD o HDD. Continuando..."
 }
-
-# Establecer el valor
-Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
-Write-Host "🛠 Intervalo mínimo entre puntos de restauración establecido en $minRestorePointInterval segundos."
 
 # Crear el punto de restauración
 $restorePointName = "OptimizacionS&A"
-Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
-Write-Host "✅ Punto de restauración creado: $restorePointName"
-
+try {
+    Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
+    Write-Host "✅ Punto de restauración creado: $restorePointName"
+} catch {
+    Write-Host "❌ Error al crear el punto de restauración: $_"
+}
 ######################  Desactivar Widgets ######################
 # Crear clave de política y desactivar Widgets
 Try {
