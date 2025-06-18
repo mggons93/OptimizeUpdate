@@ -64,7 +64,7 @@ $diskNumber = $partition.DiskNumber
 $disk = Get-PhysicalDisk | Where-Object { $_.DeviceId -eq $diskNumber }
 
 if ($disk.MediaType -eq "SSD") {
-    Write-Host "💾 Disco del sistema: SSD detectado. Aplicando optimizaciones..."
+    Write-Host "Disco del sistema: SSD detectado. Aplicando optimizaciones..."
 
     # Establecer intervalo mínimo entre puntos de restauración
     $minRestorePointInterval = 0
@@ -76,20 +76,20 @@ if ($disk.MediaType -eq "SSD") {
     }
 
     Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
-    Write-Host "🛠 Intervalo mínimo entre puntos de restauración ajustado."
+    Write-Host "Intervalo mínimo entre puntos de restauración ajustado."
 } elseif ($disk.MediaType -eq "HDD") {
-    Write-Host "💽 Disco del sistema: HDD detectado. Continuando sin optimizaciones."
+    Write-Host "Disco del sistema: HDD detectado. Continuando sin optimizaciones."
 } else {
-    Write-Host "❓ No se pudo determinar si el disco es SSD o HDD. Continuando..."
+    Write-Host "No se pudo determinar si el disco es SSD o HDD. Continuando..."
 }
 
 # Crear el punto de restauración
 $restorePointName = "OptimizacionS&A"
 try {
     Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
-    Write-Host "✅ Punto de restauración creado: $restorePointName"
+    Write-Host "Punto de restauración creado: $restorePointName"
 } catch {
-    Write-Host "❌ Error al crear el punto de restauración: $_"
+    Write-Host "Error al crear el punto de restauración: $_"
 }
 ######################  Desactivar Widgets ######################
 # Crear clave de política y desactivar Widgets
