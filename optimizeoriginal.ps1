@@ -448,9 +448,9 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     }
     $oemValues = @{
         Manufacturer = "Mggons Support Center"
-        Model = "Windows 10 - Update 2024 - S&A"
+        Model = "Windows 10 - Update 2025 - S&A"
         SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
-        SupportURL = "https://wa.me/+573144182071"
+        SupportURL = "https://wa.me/+573150560580"
     }
     foreach ($name in $oemValues.Keys) {
         Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
@@ -822,9 +822,9 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     }
     $oemValues = @{
         Manufacturer = "Mggons Support Center"
-        Model = "Windows 11 - Update 2024 - S&A"
+        Model = "Windows 11 - Update 2025 - S&A"
         SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
-        SupportURL = "https://wa.me/+573144182071"
+        SupportURL = "https://wa.me/+57350560580"
     }
     foreach ($name in $oemValues.Keys) {
         Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
