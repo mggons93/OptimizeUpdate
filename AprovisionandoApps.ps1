@@ -100,22 +100,37 @@ Write-Output '2% Completado'
 Write-Output '3% Completado'
 
 # Guardar la configuración regional actual
-# Obtener la configuración regional actual
-$CurrentLocale = Get-WinSystemLocale
+# Guardar configuración regional actual desde el registro y cambiar temporalmente a en-US
+try {
+    $OriginalLocale = Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Language" -Name "Default"
 
-# Comprobar si $CurrentLocale y su propiedad SystemLocale son válidos
-if ($CurrentLocale -and $CurrentLocale.SystemLocale) {
-Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
-    
-    # Establecer la nueva configuración regional
-    $newLocale = "en-US"
-    Set-WinSystemLocale -SystemLocale $newLocale
-    Write-Host "La configuración regional se ha cambiado a: $newLocale"
-	} else {
-    Write-Host "La configuración regional actual no está disponible. No se puede cambiar."
-	}
-    Write-Host "Cambiando región para la instalación de recursos"
-    Write-Host "Descargando en segundo plano Visual C++ y Runtime"
+    if ($OriginalLocale) {
+        Write-Host "LCID actual detectado: $OriginalLocale"
+
+        # Convertir LCID hexadecimal a decimal
+        $lcidDecimal = [int]::Parse($OriginalLocale, [System.Globalization.NumberStyles]::HexNumber)
+
+        # Obtener la cultura correspondiente
+        $culture = [System.Globalization.CultureInfo]::GetCultureInfo($lcidDecimal)
+
+        Write-Host "Idioma legible detectado: $($culture.Name) - $($culture.EnglishName)"
+
+        # Guardar LCID original en archivo
+        Set-Content -Path "$env:TEMP\original_locale.txt" -Value $OriginalLocale
+
+        # Cambiar idioma solo si no es en-US
+        if ($culture.Name -ne "en-US") {
+            Write-Host "Cambiando temporalmente a en-US..."
+            Set-WinSystemLocale -SystemLocale "en-US"
+        } else {
+            Write-Host "Ya estás en en-US. No es necesario cambiar."
+        }
+    } else {
+        Write-Host "No se pudo obtener el idioma original del sistema."
+    }
+} catch {
+    Write-Host "❌ Error al detectar o cambiar el idioma: $_"
+}
 
     # Función para verificar si Winget está instalado
     function Test-WingetInstalled {
@@ -125,12 +140,6 @@ Write-Host "Configuración regional actual: $($CurrentLocale.SystemLocale)"
         } catch {
             return $false
         }
-    }
-
-    # Función para verificar la arquitectura del sistema
-    function Get-SystemArchitecture {
-        $architecture = (Get-WmiObject -Class Win32_OperatingSystem).OSArchitecture
-        return $architecture
     }
 
 # Función para instalar todos los Microsoft Visual C++ Redistributable en x64
@@ -551,6 +560,24 @@ try {
     Write-Host "✅ Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
 } catch {
     Write-Host "❌ Error al crear la tarea programada: $_"
+}
+
+# Restaurar el idioma original después de la instalación
+try {
+    if (Test-Path "$env:TEMP\original_locale.txt") {
+        $SavedLocale = Get-Content "$env:TEMP\original_locale.txt"
+        if ($SavedLocale -and $SavedLocale -ne "0409") {
+            Write-Host "Restaurando configuración regional original: $SavedLocale"
+            Set-WinSystemLocale -SystemLocale $SavedLocale
+            Write-Host "⚠️ Recuerda reiniciar para aplicar los cambios."
+        } else {
+            Write-Host "El idioma original era en-US. No se requiere restaurar."
+        }
+    } else {
+        Write-Host "No se encontró archivo con la configuración regional original."
+    }
+} catch {
+    Write-Host "❌ Error al restaurar el idioma: $_"
 }
 
 Write-Host "⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
