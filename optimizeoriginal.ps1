@@ -1,5 +1,3 @@
-Set-ExecutionPolicy Bypass -Scope CurrentUser
-
 # Verificar si el script se está ejecutando como administrador
 function Test-Admin {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -27,13 +25,13 @@ Write-Output '1% Completado'
 
 
 ########################################### Aprovisionamiento de Apps ###########################################
+# Aprovisionamiento de Apps
 $username = $env:USERNAME
 $exePath = "C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe"
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "Apps Installer"
-$valueData = "powershell.exe -ExecutionPolicy Bypass -Command `"& '$exePath'`""
+$valueData = "powershell.exe -ExecutionPolicy Bypass -Command `"Start-Process -FilePath '$exePath'`""
 Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
-
 #$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
 
 $maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
