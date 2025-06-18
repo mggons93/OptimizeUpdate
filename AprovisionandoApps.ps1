@@ -98,6 +98,11 @@ Write-Output '2% Completado'
 
 ########################################### Aprovisionando Apps ###########################################
 Write-Output '3% Completado'
+# Función para obtener arquitectura del sistema
+function Get-SystemArchitecture {
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    return $os.OSArchitecture
+}
 
 # Guardar la configuración regional actual
 # Guardar configuración regional actual desde el registro y cambiar temporalmente a en-US
