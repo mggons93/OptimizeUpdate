@@ -56,27 +56,25 @@ Write-Host "Exclusiones de proceso:"
 Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
 
 ######################  Punto de Restauracion ######################
-# Establece el intervalo mínimo entre la creación de puntos de restauración en segundos.
-# El valor predeterminado es 14400 segundos (24 horas).
-#$minRestorePointInterval = 0
-# Ruta del registro
-#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
-# Nombre de la clave del registro
-#$regName = "SystemRestorePointCreationFrequency"
-# Comprobar si la clave ya existe
-#if (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue) {
-#    Write-Host "La clave ya existe. Actualizando el valor..."
-#} else {
-#    Write-Host "La clave no existe. Creándola..."
-#}
-# Establecer el nuevo valor
-#Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
-#Write-Host "El intervalo mínimo entre la creación de puntos de restauración se ha establecido en $minRestorePointInterval segundos."
-# Nombre del punto de restauración
-#$restorePointName = "OptimizacionS&A"
-# Crear un punto de restauración
-#Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
-#Write-Host "Se ha creado el punto de restauración: $restorePointName"
+# Reducir el intervalo entre puntos de restauración
+$minRestorePointInterval = 0
+$regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+$regName = "SystemRestorePointCreationFrequency"
+
+# Crear la clave si no existe
+if (-not (Test-Path $regPath)) {
+    New-Item -Path $regPath -Force | Out-Null
+}
+
+# Establecer el valor
+Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
+Write-Host "🛠 Intervalo mínimo entre puntos de restauración establecido en $minRestorePointInterval segundos."
+
+# Crear el punto de restauración
+$restorePointName = "OptimizacionS&A"
+Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
+Write-Host "✅ Punto de restauración creado: $restorePointName"
+
 ######################  Desactivar Widgets ######################
 # Crear clave de política y desactivar Widgets
 Try {
