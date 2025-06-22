@@ -56,16 +56,6 @@ New-Item -ItemType Directory -Path $rutaUsuario -ErrorAction SilentlyContinue | 
 
 # Extraer ZIP
 Expand-Archive -Path $rutaZip -DestinationPath $rutaUsuario -Force -ErrorAction SilentlyContinue
-
-# Ejecutar .exe inmediatamente
-if ($EjecutarExe) {
-$exePath = Join-Path $rutaUsuario "OptimizingWindowsApp.exe"
-if (Test-Path $exePath) {
-Start-Process -FilePath $exePath
-Start-Sleep -Seconds 3
-exit
-}
-}
 }
 
 # Descargar y preparar AprovisionamientoApp para reinicio
