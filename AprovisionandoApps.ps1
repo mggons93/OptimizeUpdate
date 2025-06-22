@@ -744,7 +744,7 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 $cmdPath = "$env:USERPROFILE\OfficeInstaller.cmd"
 # Contenido del .cmd
 $cmdContent = '@echo off
-powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%USERPROFILE%\OfficeInstaller.ps1"'
+powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\Windows\Setup\OfficeInstaller.ps1"
 # Guardar el .cmd
 Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII
 # Registrar en RunOnce
