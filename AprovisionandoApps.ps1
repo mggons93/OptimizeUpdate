@@ -742,28 +742,27 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 ########################################### 5. Instalador y Activando de Office 365 ###########################################
 # Ruta del script .cmd intermedio
 $cmdPath = "$env:USERPROFILE\OfficeInstaller.cmd"
+
 # Contenido del .cmd
 $cmdContent = '@echo off
 powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\Windows\Setup\OfficeInstaller.ps1"
+'
+
 # Guardar el .cmd
 Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII
-# Registrar en RunOnce
+
+# Registrar en RunOnce para ejecutar el script .cmd tras el reinicio
 $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "OfficeInstallerOnce"
 $valueData = "`"$cmdPath`""
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
+
 Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
 
-#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-#$valueName = "Office Installer"
-#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://cutt.ly/OfficeOnlineInstall | iex"'
-# Agregar la entrada al registro
-#Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
-
+# Esperar antes del reinicio (opcional)
 Write-Output '100% Completado'
-
 Start-Sleep -Seconds 5 
 
-# Reinicio silencioso
-(Get-WmiObject -Class Win32_OperatingSystem -EnableAllPrivileges).Win32Shutdown(6)
-#############################################################################################################################
+# Reinicio silencioso usando Get-CimInstance para versiones de PowerShell 7+
+(Get-CimInstance -ClassName Win32_OperatingSystem).Win32Shutdown(6)
+
