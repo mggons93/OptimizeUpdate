@@ -1464,7 +1464,7 @@ Remove-Item -Path "$env:TEMP\server.txt" -Force
 
 Write-Output '100% Completado'
 
-Start-Sleep -Seconds 7
+Start-Sleep -Seconds 4
 
 # Reinicio silencioso
 (Get-WmiObject -Class Win32_OperatingSystem -EnableAllPrivileges).Win32Shutdown(6)
