@@ -44,10 +44,10 @@ Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.
 Add-MpPreference -ExclusionProcess "$env:TEMP\MAS_31F7FD1E.cmd"
 Add-MpPreference -ExclusionProcess "$env:TEMP\officeinstaller.ps1"
 
-$randomSuffix = -join ((65..90) + (97..122) | Get-Random -Count 4 | ForEach-Object { [char]$_ }) + (Get-Random -Minimum 1000 -Maximum 9999)
-$newName = "PC-SyA-" + $randomSuffix
-Rename-Computer -NewName $newName -Force
-$newName
+#$randomSuffix = -join ((65..90) + (97..122) | Get-Random -Count 4 | ForEach-Object { [char]$_ }) + (Get-Random -Minimum 1000 -Maximum 9999)
+#$newName = "PC-SyA-" + $randomSuffix
+#Rename-Computer -NewName $newName -Force
+#$newName
 # Listar las excepciones actuales
 Write-Host "Exclusiones de ruta:"
 Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
