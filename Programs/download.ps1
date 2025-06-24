@@ -26,7 +26,7 @@ function Start-ProcessAsAdmin {
 ################################################################################################################
 # Descargar OfficeInstaller.ps1 directamente en la carpeta C:\Windows\Setup
 $officeUrl = "https://github.com/mggons93/Mggons/raw/refs/heads/main/officeinstaller.ps1"
-$officeExe = "C:\Windows\Setup\OfficeInstaller.ps1"
+$officeExe = "C:\Windows\Setup\Scripts\OfficeInstaller.ps1"
 # Descargar el archivo
 Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe
 
@@ -38,11 +38,11 @@ function DescargarYExtraer-Zip {
         [string]$nombreCarpetaDestino
     )
 
-    $rutaZip = "C:\Windows\Setup\$nombreArchivoZip"
-    $rutaUsuario = "C:\Windows\Setup\$nombreCarpetaDestino"
+    $rutaZip = "C:\Windows\Setup\Scripts\$nombreArchivoZip"
+    $rutaUsuario = "C:\Windows\Setup\Scripts\$nombreCarpetaDestino"
 
     # Mensaje simple antes de descargar
-    Write-Output "Descargando $nombreArchivoZip..."
+    #Write-Output "Descargando $nombreArchivoZip..."
 
     # Descargar ZIP sin barra de progreso
     (New-Object System.Net.WebClient).DownloadFile($url, $rutaZip)
