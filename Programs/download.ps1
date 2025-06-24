@@ -11,7 +11,7 @@ function Test-Admin {
 if (-not (Test-Admin)) {
     $scriptPath = $MyInvocation.MyCommand.Path
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit
+    return
 }
 
 # Función para reiniciar el script con privilegios de administrador
