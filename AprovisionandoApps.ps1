@@ -756,7 +756,7 @@ $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 $valueName = "OfficeInstallerOnce"
 $valueData = "`"$cmdPath`""
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
-
+Write-Output '99% Completado'
 Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
 
 # Esperar antes del reinicio (opcional)
