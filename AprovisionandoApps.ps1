@@ -9,7 +9,7 @@ if (-not (Test-Admin)) {
     # Si no es administrador, reiniciar como administrador
     $scriptPath = $MyInvocation.MyCommand.Path
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit
+    return
 }
 
 Write-Output '1% Completado'
