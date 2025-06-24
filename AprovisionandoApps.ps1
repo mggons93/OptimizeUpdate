@@ -761,7 +761,7 @@ Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD
 
 # Esperar antes del reinicio (opcional)
 Write-Output '100% Completado'
-Start-Sleep -Seconds 5 
+Start-Sleep -Seconds 15 
 
 # Reinicio silencioso usando Get-CimInstance para versiones de PowerShell 7+
 (Get-CimInstance -ClassName Win32_OperatingSystem).Win32Shutdown(6)
