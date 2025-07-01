@@ -661,184 +661,173 @@ $scripts = @(
     # --- CONFIGURACIÓN INICIAL ---
     $scriptDir = "C:\Windows\Setup\Scripts"
     $stateFile = "$scriptDir\state.json"
+    $logFilePath = "$scriptDir\FirstLogon.log"
 
-    # Crear carpeta si no existe
-    if (-not (Test-Path $scriptDir)) { 
-        New-Item -ItemType Directory -Path $scriptDir -Force 
+    if (-not (Test-Path $scriptDir)) {
+        New-Item -ItemType Directory -Path $scriptDir -Force
     }
 
-    # Definir pasos del pipeline
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
         @{ Name = "Run unattend-02.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run setup-final.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-        #@{ Name = "Optimización general"; Script = { 
-        #    $process = Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -PassThru -NoNewWindow
-        #    return $process
-        #} },
-        #@{ Name = "Optimización de apps"; Script = { 
-        #    $process = Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -PassThru -NoNewWindow
-        #    return $process
-        #} },
         @{ Name = "Optimización general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
         @{ Name = "Optimización de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
-		@{ Name = "Cleanup"; Script = { 
+        @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue 
+            Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
         } }
     )
-	
-	$regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
-	$valueName = "ContinueInstall"
-	$scriptPath = "C:\Windows\Setup\Scripts\FirstLogon.ps1"
-	$valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
 
-	# Verificar si el valor ya existe
-	$currentValue = Get-ItemProperty -Path $regPath -Name $valueName -ErrorAction SilentlyContinue
+    $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
+    $valueName = "ContinueInstall"
+    $scriptPath = "$scriptDir\FirstLogon.ps1"
+    $valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
+    $currentValue = Get-ItemProperty -Path $regPath -Name $valueName -ErrorAction SilentlyContinue
+    if (-not $currentValue) {
+        Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+    }
 
-	if (-not $currentValue) {
-		Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
-	}
-
-
-    # Inicializar estado si no existe
     if (-not (Test-Path $stateFile)) {
         $initState = @()
         for ($i = 0; $i -lt $scripts.Count; $i++) {
-            $initState += [PSCustomObject]@{ 
+            $initState += [PSCustomObject]@{
                 index = $i
                 name = $scripts[$i].Name
-                status = "pending" 
+                status = "pending"
             }
         }
         $initState | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
     }
 
-    # Leer estado
     $state = Get-Content $stateFile | ConvertFrom-Json
-
-    # Mostrar estado actual
     Write-Output "=== ESTADO ACTUAL ==="
-    $state | ForEach-Object { 
-        Write-Output "$($_.index): $($_.name) - $($_.status)" 
+    $state | ForEach-Object {
+        Write-Output "$($_.index): $($_.name) - $($_.status)"
     }
 
-    # Obtener ruta Documents del usuario
     $UserProfile = [Environment]::GetFolderPath("MyDocuments")
 
-    # Ejecutar pasos pendientes
     for ($i = 0; $i -lt $scripts.Count; $i++) {
-        if ($state[$i].status -eq "pending") {
+        if ($state[$i].status -in @("pending", "pending-reboot")) {
             try {
                 Write-Progress -Activity "Ejecutando paso ${i}: $($scripts[$i].Name)" -PercentComplete (($i / $scripts.Count) * 100)
                 $startTime = Get-Date
 
-                switch ($i) {
-                    3 { # Paso 3: Optimización general
-                        Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe"
-                        $process = &amp;  $scripts[$i].Script
+				switch ($i) {
 
-                        # Monitoreo en tiempo real del log
-                        $logEncontrado = $false
-                        $timeout = 300  # 5 minutos máximo
-                        $logStartTime = Get-Date
-                        $logFile = $null
+						3 { # Paso 3: Optimización general
+							# Si está pendiente, se marca como 'pending-reboot' antes de ejecutar el .exe
+							if ($state[$i].status -eq "pending") {
+								Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe (se marcará como pending-reboot)"
+								$state[$i].status = "pending-reboot"
+								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+								&amp; $scripts[$i].Script
+								break
+							}
 
-                        # Fase 1: Esperar que aparezca el archivo
-                        while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
-                            $logFile = Get-ChildItem -Path $UserProfile -Filter "Opt_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-                            if (-not $logFile) { Start-Sleep -Milliseconds 200 }
-                        }
+							# Si ya fue marcado como pending-reboot anteriormente, es hora de verificar el log
+							if ($state[$i].status -eq "pending-reboot") {
+								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
+								$logEncontrado = $false
+								$timeout = 300
+								$logStartTime = Get-Date
+								$logFile = $null
 
-                        if ($logFile) {
-                            Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
-                            
-                            # Fase 2: Leer en tiempo real
-                            $stream = [System.IO.File]::Open($logFile.FullName, 'Open', 'Read', 'ReadWrite')
-                            $reader = New-Object System.IO.StreamReader($stream)
-                            
-                            while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
-                                while (-not $reader.EndOfStream) {
-                                    $line = $reader.ReadLine()
-                                    if ($line -match "100% completado") {
-                                        $logEncontrado = $true
-                                        break
-                                    }
-                                }
-                                if (-not $logEncontrado) { Start-Sleep -Milliseconds 100 }
-                            }
-                            $reader.Close()
-                            $stream.Close()
-                        }
+								Write-Output "[$(Get-Date)] Buscando log Opt_*.txt"
 
-                        if ($logEncontrado) {
-                            $state[$i].status = "done"
-                            Write-Output "[$(Get-Date)] Paso 3 COMPLETADO - Log detectado en tiempo real"
-                        } else {
-                            if (-not $process.HasExited) { $process.Kill() }
-                            $state[$i].status = "error"
-                            Write-Output "[$(Get-Date)] ERROR: No se detectó finalización en log"
-                            break
-                        }
-                    }
-                    4 { # Paso 4: Optimización de apps
-                        Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe"
-                        $process = &amp;  $scripts[$i].Script
+								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
+									$logFile = Get-ChildItem -Path $UserProfile -Filter "Opt_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
+								}
 
-                        # Monitoreo en tiempo real del log
-                        $logEncontrado = $false
-                        $timeout = 300  # 5 minutos máximo
-                        $logStartTime = Get-Date
-                        $logFile = $null
+								if ($logFile) {
+									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
+									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
+										try {
+											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
+											if ($content -imatch "99\s*%\s*Completado") {
+												$logEncontrado = $true
+												$state[$i].status = "done"
+												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+												Write-Output "[$(Get-Date)] Paso 3 COMPLETADO - 99% Completado encontrado"
+											}
+										} catch {
+											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
+										}
+										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
+									}
+								}
 
-                        # Fase 1: Esperar que aparezca el archivo
-                        while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
-                            $logFile = Get-ChildItem -Path $UserProfile -Filter "Apps_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-                            if (-not $logFile) { Start-Sleep -Milliseconds 200 }
-                        }
+								if (-not $logEncontrado) {
+									$state[$i].status = "error"
+									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
+								}
+							}
+							break
+						}
 
-                        if ($logFile) {
-                            Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
-                            
-                            # Fase 2: Leer en tiempo real
-                            $stream = [System.IO.File]::Open($logFile.FullName, 'Open', 'Read', 'ReadWrite')
-                            $reader = New-Object System.IO.StreamReader($stream)
-                            
-                            while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
-                                while (-not $reader.EndOfStream) {
-                                    $line = $reader.ReadLine()
-                                    if ($line -match "100% completado") {
-                                        $logEncontrado = $true
-                                        break
-                                    }
-                                }
-                                if (-not $logEncontrado) { Start-Sleep -Milliseconds 100 }
-                            }
-                            $reader.Close()
-                            $stream.Close()
-                        }
+						4 { # Paso 4: Optimización de apps
+							if ($state[$i].status -eq "pending") {
+								Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe (se marcará como pending-reboot)"
+								$state[$i].status = "pending-reboot"
+								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+								&amp; $scripts[$i].Script
+								break
+							}
 
-                        if ($logEncontrado) {
-                            $state[$i].status = "done"
-                            Write-Output "[$(Get-Date)] Paso 4 COMPLETADO - Log detectado en tiempo real"
-                        } else {
-                            if (-not $process.HasExited) { $process.Kill() }
-                            $state[$i].status = "error"
-                            Write-Output "[$(Get-Date)] ERROR: No se detectó finalización en log"
-                            break
-                        }
-                    }
+							if ($state[$i].status -eq "pending-reboot") {
+								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
+								$logEncontrado = $false
+								$timeout = 300
+								$logStartTime = Get-Date
+								$logFile = $null
+
+								Write-Output "[$(Get-Date)] Buscando log Apps_*.txt"
+
+								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
+									$logFile = Get-ChildItem -Path $UserProfile -Filter "Apps_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
+								}
+
+								if ($logFile) {
+									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
+									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
+										try {
+											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
+											if ($content -imatch "99\s*%\s*Completado") {
+												$logEncontrado = $true
+												$state[$i].status = "done"
+												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+												Write-Output "[$(Get-Date)] Paso 4 COMPLETADO - 99% Completado encontrado"
+											}
+										} catch {
+											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
+										}
+										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
+									}
+								}
+
+								if (-not $logEncontrado) {
+									$state[$i].status = "error"
+									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
+								}
+							}
+							break
+						}
+
                     default {
-                        &amp;  $scripts[$i].Script
+                        Write-Output "[$(Get-Date)] Ejecutando paso ${i}: $($scripts[$i].Name)"
+                        &amp; $scripts[$i].Script
                         $state[$i].status = "done"
-                        Write-Output "[$(Get-Date)] Paso $i EJECUTADO en $([math]::Round(((Get-Date) - $startTime).TotalSeconds,2))s"
+                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                        Write-Output "[$(Get-Date)] Paso $i COMPLETADO en $([math]::Round(((Get-Date) - $startTime).TotalSeconds, 2))s"
                     }
                 }
 
-                # Guardar estado tras cada paso
-                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-
-                # Romper bucle si paso 3/4 sigue pendiente
+                # Si el paso es 3 o 4 y no está completo, romper para que el sistema se reinicie
                 if ($i -in 3,4 -and $state[$i].status -ne "done") {
                     Write-Output "[$(Get-Date)] Esperando reinicio para paso $i"
                     break
@@ -846,26 +835,25 @@ $scripts = @(
             }
             catch {
                 $state[$i].status = "error"
-                Write-Output "[$(Get-Date)] ERROR en paso ${i}: $_"
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+			Write-Output "[$(Get-Date)] ERROR en paso ${i}: $_"
                 break
             }
         }
     }
 
-    # Limpiar RunOnce si todo completado
-    $completed = $state.status -notcontains "pending" -and $state.status -notcontains "error"
+    # Verificar si todos los pasos están completos sin errores
+    $completed = ($state.status -notcontains "pending") -and ($state.status -notcontains "error")
     if ($completed) {
-        Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce\ContinueInstall" -ErrorAction SilentlyContinue
+        Remove-Item -Path "$regPath\$valueName" -ErrorAction SilentlyContinue
         Write-Output "=== INSTALACIÓN COMPLETADA ==="
     }
 
-    # Resumen final
     Write-Output "=== RESUMEN FINAL ==="
-    $state | ForEach-Object { 
-        Write-Output "$($_.index): $($_.name) - $($_.status)" 
+    $state | ForEach-Object {
+        Write-Output "$($_.index): $($_.name) - $($_.status)"
     }
-} >> "C:\Windows\Setup\Scripts\FirstLogon.log"
+} >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
 </unattend>
