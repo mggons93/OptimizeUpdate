@@ -372,18 +372,20 @@ if (-not (Test-Admin)) {
     return
 }
 
-# Explicación para el usuario
+# Explicacion para el usuario
 Write-Host "Este script realiza mantenimiento del sistema utilizando la herramienta DISM." -ForegroundColor Cyan
 Write-Host ""
-Write-Host "¿Qué hace este mantenimiento?"
+Write-Host "Que hace este mantenimiento?"
 Write-Host "- Elimina archivos antiguos de componentes de Windows para liberar espacio en disco."
 Write-Host "- Ayuda a que futuras actualizaciones del sistema se instalen más rápido y con menos errores."
 Write-Host "- Reduce el tamaño de la carpeta WinSxS, que almacena versiones anteriores de archivos del sistema."
 Write-Host "- Mejora el rendimiento general del sistema eliminando elementos que ya no se usan."
+Write-Host "- Esta opcion ayuda a mejorar mas el espacio en el disfo duro."
 Write-Host ""
+			
 
 # Pregunta al usuario
-$confirm = Read-Host "¿Deseas ejecutar el mantenimiento ahora? (Y/N)"
+$confirm = Read-Host "Deseas ejecutar el mantenimiento ahora? (Y/N)"
 
 # Validar respuesta
 if ($confirm -eq 'Y' -or $confirm -eq 'y') {
@@ -391,9 +393,9 @@ if ($confirm -eq 'Y' -or $confirm -eq 'y') {
     Start-Process -FilePath "dism.exe" -ArgumentList "/online /Cleanup-Image /StartComponentCleanup /ResetBase" -Wait
     Write-Host "`nMantenimiento completado." -ForegroundColor Green
 } elseif ($confirm -eq 'N' -or $confirm -eq 'n') {
-    Write-Host "`nOperación cancelada por el usuario." -ForegroundColor Yellow
+    Write-Host "`nOperacion cancelada por el usuario." -ForegroundColor Yellow
 } else {
-    Write-Host "`nOpción no válida. Por favor ejecuta el script nuevamente e ingresa 'Y' o 'N'." -ForegroundColor Red
+    Write-Host "`nOpcion no valida. Por favor ejecuta el script nuevamente e ingresa 'Y' o 'N'." -ForegroundColor Red
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Create_Restore_Point.ps1">
@@ -987,6 +989,7 @@ $scripts = @(
 		</File>
 	</Extensions>
 </unattend>
+
 
 
 
