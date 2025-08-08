@@ -808,7 +808,7 @@ $scripts = @(
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
         } },
-		@{ Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" - Raw | Invoke-Expression } }
+		@{ Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } }
     )
 
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
@@ -989,6 +989,7 @@ $scripts = @(
 		</File>
 	</Extensions>
 </unattend>
+
 
 
 
