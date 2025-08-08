@@ -800,8 +800,8 @@ $scripts = @(
         @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Run unattend-02.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run setup-final.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Optimización general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
-        @{ Name = "Optimización de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
+        @{ Name = "Optimizacion general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
+        @{ Name = "Optimizacion de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
         @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
@@ -846,7 +846,7 @@ $scripts = @(
 
 				switch ($i) {
 
-						3 { # Paso 3: Optimización general
+						3 { # Paso 3: Optimizacion general
 							# Si está pendiente, se marca como 'pending-reboot' antes de ejecutar el .exe
 							if ($state[$i].status -eq "pending") {
 								Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe (se marcará como pending-reboot)"
@@ -898,7 +898,7 @@ $scripts = @(
 							break
 						}
 
-						4 { # Paso 4: Optimización de apps
+						4 { # Paso 4: Optimizacion de apps
 							if ($state[$i].status -eq "pending") {
 								Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe (se marcará como pending-reboot)"
 								$state[$i].status = "pending-reboot"
@@ -987,4 +987,5 @@ $scripts = @(
 		</File>
 	</Extensions>
 </unattend>
+
 
