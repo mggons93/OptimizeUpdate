@@ -1440,10 +1440,6 @@ if (IsSSD -driveLetter $systemDriveLetter) {
         #############################	
         Write-Output '98% Completado'
         #############################
-        
-        # Mantenimiento del sistema
-        Write-Host "Haciendo Mantenimiento, Por favor espere..."
-        Start-Process -FilePath "dism.exe" -ArgumentList "/online /Cleanup-Image /StartComponentCleanup /ResetBase" -Wait
     } else {
         Write-Host "No se encontró el volumen para la letra de unidad $systemDriveLetter."
     }
