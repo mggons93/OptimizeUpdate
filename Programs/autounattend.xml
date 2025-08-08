@@ -846,7 +846,7 @@ $scripts = @(
 
 				switch ($i) {
 
-						3 { # Paso 3: Optimizacion general
+						4 { # Paso 4: Optimizacion general
 							# Si está pendiente, se marca como 'pending-reboot' antes de ejecutar el .exe
 							if ($state[$i].status -eq "pending") {
 								Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe (se marcará como pending-reboot)"
@@ -898,7 +898,7 @@ $scripts = @(
 							break
 						}
 
-						4 { # Paso 4: Optimizacion de apps
+						5 { # Paso 5: Optimizacion de apps
 							if ($state[$i].status -eq "pending") {
 								Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe (se marcará como pending-reboot)"
 								$state[$i].status = "pending-reboot"
@@ -957,8 +957,8 @@ $scripts = @(
                     }
                 }
 
-                # Si el paso es 3 o 4 y no está completo, romper para que el sistema se reinicie
-                if ($i -in 3,4 -and $state[$i].status -ne "done") {
+                # Si el paso es  o 4 y no está completo, romper para que el sistema se reinicie
+                if ($i -in 4,5 -and $state[$i].status -ne "done") {
                     Write-Output "[$(Get-Date)] Esperando reinicio para paso $i"
                     break
                 }
@@ -987,5 +987,6 @@ $scripts = @(
 		</File>
 	</Extensions>
 </unattend>
+
 
 
