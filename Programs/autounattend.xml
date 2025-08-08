@@ -357,6 +357,134 @@ $bytes = [System.IO.File]::ReadAllBytes($shortcutPath)
 $bytes[0x15] = $bytes[0x15] -bor 0x20
 [System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
 		</File>
+		<File path="C:\Windows\Setup\Scripts\Clean_Reset_Base.ps1">
+# Verificar si el script se está ejecutando como administrador
+function Test-Admin {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Admin)) {
+    # Si no es administrador, reiniciar como administrador
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    return
+}
+
+# Explicación para el usuario
+Write-Host "Este script realiza mantenimiento del sistema utilizando la herramienta DISM." -ForegroundColor Cyan
+Write-Host ""
+Write-Host "¿Qué hace este mantenimiento?"
+Write-Host "- Elimina archivos antiguos de componentes de Windows para liberar espacio en disco."
+Write-Host "- Ayuda a que futuras actualizaciones del sistema se instalen más rápido y con menos errores."
+Write-Host "- Reduce el tamaño de la carpeta WinSxS, que almacena versiones anteriores de archivos del sistema."
+Write-Host "- Mejora el rendimiento general del sistema eliminando elementos que ya no se usan."
+Write-Host ""
+
+# Pregunta al usuario
+$confirm = Read-Host "¿Deseas ejecutar el mantenimiento ahora? (Y/N)"
+
+# Validar respuesta
+if ($confirm -eq 'Y' -or $confirm -eq 'y') {
+    Write-Host "`nEjecutando mantenimiento del sistema... Por favor espere." -ForegroundColor Yellow
+    Start-Process -FilePath "dism.exe" -ArgumentList "/online /Cleanup-Image /StartComponentCleanup /ResetBase" -Wait
+    Write-Host "`nMantenimiento completado." -ForegroundColor Green
+} elseif ($confirm -eq 'N' -or $confirm -eq 'n') {
+    Write-Host "`nOperación cancelada por el usuario." -ForegroundColor Yellow
+} else {
+    Write-Host "`nOpción no válida. Por favor ejecuta el script nuevamente e ingresa 'Y' o 'N'." -ForegroundColor Red
+}
+		</File>
+		<File path="C:\Windows\Setup\Scripts\Create_Restore_Point.ps1">
+# Verificar si el script se está ejecutando como administrador
+function Test-Admin {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Admin)) {
+    # Si no es administrador, reiniciar como administrador
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    return
+}
+
+# Obtener ruta del directorio actual
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$logFile = Join-Path $scriptDirectory "Restauracion_Log.txt"
+
+# Título e introducción
+Write-Host "Iniciando creación automática de un punto de restauración del sistema..." -ForegroundColor Cyan
+Write-Host ""
+
+# Preparar log
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$logEntry = "[$timestamp] Iniciando creación de punto de restauración..."
+
+# Detectar tipo de disco
+try {
+    $systemDrive = (Get-WmiObject Win32_OperatingSystem).SystemDrive
+    $partition = Get-Partition -DriveLetter $systemDrive.TrimEnd(":")
+    $diskNumber = $partition.DiskNumber
+    $disk = Get-PhysicalDisk | Where-Object { $_.DeviceId -eq $diskNumber }
+    $mediaType = $disk.MediaType
+} catch {
+    $mediaType = "No identificado"
+}
+
+# Escribir tipo de disco en pantalla y log
+switch ($mediaType) {
+    "SSD" {
+        Write-Host "Disco del sistema detectado: SSD"
+        $logEntry += " | Disco: SSD"
+
+        # Aplicar optimización para permitir creación sin esperar 24 horas
+        Write-Host "Aplicando optimización para puntos de restauración consecutivos..."
+        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+        $regName = "SystemRestorePointCreationFrequency"
+        $minRestorePointInterval = 0
+
+        if (-not (Test-Path $regPath)) {
+            New-Item -Path $regPath -Force | Out-Null
+        }
+
+        Set-ItemProperty -Path $regPath -Name $regName -Value $minRestorePointInterval -Type DWord
+        Write-Host "Optimización aplicada correctamente."
+        $logEntry += " | Optimización aplicada."
+    }
+    "HDD" {
+        Write-Host "Disco del sistema detectado: HDD"
+        $logEntry += " | Disco: HDD"
+    }
+    Default {
+        Write-Host "No se pudo determinar si el disco es SSD o HDD. Continuando..."
+        $logEntry += " | Disco: No identificado"
+    }
+}
+
+# Crear el punto de restauración y medir el tiempo
+$restorePointName = "OptimizacionS&amp;A"
+Write-Host "`nCreando punto de restauración: $restorePointName ..." -ForegroundColor Yellow
+$start = Get-Date
+
+try {
+    Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
+    $end = Get-Date
+    $duration = $end - $start
+    $logEntry += " | Estado: Éxito | Duración: $($duration.TotalSeconds) segundos"
+
+    Write-Host "`nPunto de restauración creado exitosamente." -ForegroundColor Green
+    Write-Host "Tiempo total: $($duration.TotalSeconds) segundos." -ForegroundColor Gray
+} catch {
+    $logEntry += " | Estado: ERROR | Detalles: $_"
+    Write-Host "`nOcurrió un error al crear el punto de restauración: $_" -ForegroundColor Red
+}
+
+# Escribir en el archivo de log
+Add-Content -Path $logFile -Value $logEntry
+		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
 # URL del script a descargar (usa un enlace directo y confiable)
 $scriptUrl = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/download.ps1"
@@ -669,14 +797,16 @@ $scripts = @(
 
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-        @{ Name = "Run unattend-02.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Run unattend-02.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run setup-final.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Optimización general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
         @{ Name = "Optimización de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
         @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
-        } }
+        } },
+		@ { Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" - Raw | Invoke-Expression } }
     )
 
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
