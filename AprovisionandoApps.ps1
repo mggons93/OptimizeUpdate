@@ -77,7 +77,7 @@ Write-Output '2% Completado'
 #            Write-Host "winget actualizado correctamente a la versión $latestVersionClean" -ForegroundColor Green
 #        }
 #        Catch {
-#            Write-Warning "❌ Ocurrió un error durante la descarga o instalación de winget: $_"
+#            Write-Warning "Ocurrió un error durante la descarga o instalación de winget: $_"
 #            Write-Host "Se omite el error y se continúa con la ejecución del script."
 #        }
 #        Finally {
@@ -92,7 +92,7 @@ Write-Output '2% Completado'
 #    }
 #}
 #Catch {
-#    Write-Warning "❌ Error inesperado: $_"
+#    Write-Warning "Error inesperado: $_"
 #    Write-Host "Se omite el error y se continúa con la ejecución del script."
 #}
 
@@ -134,7 +134,7 @@ try {
         Write-Host "No se pudo obtener el idioma original del sistema."
     }
 } catch {
-    Write-Host "❌ Error al detectar o cambiar el idioma: $_"
+    Write-Host "Error al detectar o cambiar el idioma: $_"
 }
 
     # Función para verificar si Winget está instalado
@@ -324,9 +324,9 @@ function Install-7Zip {
     $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ 7zip instalado correctamente."
+        Write-Host "7zip instalado correctamente."
     } else {
-        Write-Host "❌ Error al instalar 7zip:"
+        Write-Host "Error al instalar 7zip:"
         Write-Output $result
     }
 }
@@ -506,9 +506,9 @@ function Install-7Zip {
     $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ 7zip instalado correctamente."
+        Write-Host "7zip instalado correctamente."
     } else {
-        Write-Host "❌ Error al instalar 7zip:"
+        Write-Host "Error al instalar 7zip:"
         Write-Output $result
     }
 }
@@ -562,9 +562,9 @@ $Trigger = New-ScheduledTaskTrigger -AtLogOn
 
 try {
     Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
-    Write-Host "✅ Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
+    Write-Host "Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
 } catch {
-    Write-Host "❌ Error al crear la tarea programada: $_"
+    Write-Host "Error al crear la tarea programada: $_"
 }
 
 # Restaurar el idioma original después de la instalación
@@ -574,7 +574,7 @@ try {
         if ($SavedLocale -and $SavedLocale -ne "0409") {
             Write-Host "Restaurando configuración regional original: $SavedLocale"
             Set-WinSystemLocale -SystemLocale $SavedLocale
-            Write-Host "⚠️ Recuerda reiniciar para aplicar los cambios."
+            Write-Host "Recuerda reiniciar para aplicar los cambios."
         } else {
             Write-Host "El idioma original era en-US. No se requiere restaurar."
         }
@@ -582,10 +582,10 @@ try {
         Write-Host "No se encontró archivo con la configuración regional original."
     }
 } catch {
-    Write-Host "❌ Error al restaurar el idioma: $_"
+    Write-Host "Error al restaurar el idioma: $_"
 }
 
-Write-Host "⚠️ Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
+Write-Host "Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
 
 #########################################################################################
 # Define las URLs de los servidores y la ruta de destino
@@ -757,7 +757,7 @@ $valueName = "OfficeInstallerOnce"
 $valueData = "`"$cmdPath`""
 New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
 Write-Output '99% Completado'
-Write-Host "✅ El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
+Write-Host "El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
 
 # Esperar antes del reinicio (opcional)
 Write-Output '100% Completado'
