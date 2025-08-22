@@ -25,7 +25,7 @@ function Start-ProcessAsAdmin {
 
 ################################################################################################################
 # Descargar OfficeInstaller.ps1 directamente en la carpeta C:\Windows\Setup
-$officeUrl = "https://github.com/mggons93/Mggons/raw/refs/heads/main/officeinstaller.ps1"
+$officeUrl = "https://raw.githubusercontent.com/mggons93/Office-Online-Installer/refs/heads/main/OfficeExecutableInstaller.ps1"
 $officeExe = "C:\Windows\Setup\Scripts\OfficeInstaller.ps1"
 # Descargar el archivo
 Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe
