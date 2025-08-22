@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&ComputerNameMode=Random&CompactOsMode=Always&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=Hidden&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Label&TaskbarIconsMode=Custom&TaskbarIconsXml=%3CLayoutModificationTemplate+xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22+xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22+xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22+xmlns%3Ataskbar%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FTaskbarLayout%22+Version%3D%221%22%3E%0D%0A++%3CCustomTaskbarLayoutCollection+PinListPlacement%3D%22Replace%22%3E%0D%0A++++%3Cdefaultlayout%3ATaskbarLayout%3E%0D%0A++++++%3Ctaskbar%3ATaskbarPinList%3E%0D%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CMicrosoft+Edge.lnk%22+%2F%3E%0D%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CFile+Explorer.lnk%22+%2F%3E%0D%0A++++++%3C%2Ftaskbar%3ATaskbarPinList%3E%0D%0A++++%3C%2Fdefaultlayout%3ATaskbarLayout%3E%0D%0A++%3C%2FCustomTaskbarLayoutCollection%3E%0D%0A%3C%2FLayoutModificationTemplate%3E&DisableWidgets=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Custom&StartPinsJson=%7B%0D%0A++%22pinnedList%22%3A+%5B%0D%0A++++%7B%0D%0A++++++%22desktopAppLink%22%3A+%22%25ALLUSERSPROFILE%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CMicrosoft+Edge.lnk%22%0D%0A++++%7D%2C%0D%0A++++%7B%0D%0A++++++%22desktopAppLink%22%3A+%22%25APPDATA%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CFile+Explorer.lnk%22%0D%0A++++%7D%0D%0A++%5D%0D%0A%7D&DisableFastStartup=true&EnableLongPaths=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&DisablePointerPrecision=true&DeleteWindowsOld=true&EffectsMode=Default&DesktopIconsMode=Custom&IconControlPanel=true&IconRecycleBin=true&StartFoldersMode=Custom&StartFolderFileExplorer=true&StartFolderNetwork=true&StartFolderSettings=true&WifiMode=Interactive&ExpressSettings=DisableAll&LockKeysMode=Skip&StickyKeysMode=Default&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%230078d4&WallpaperMode=Default&LockScreenMode=Default&Remove3DViewer=true&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveClock=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGameAssist=true&RemoveGetHelp=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePhotos=true&RemovePowerAutomate=true&RemoveRecall=true&RemoveSkype=true&RemoveSolitaire=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&WdacMode=Skip-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -784,6 +783,50 @@ if ($null -ne $finalName) {
     Write-Host "No se pudo determinar el tipo de equipo. El nombre no fue cambiado."
 }
 		</File>
+		<File path="C:\Windows\Setup\Scripts\CursorVista.ps1">
+# Habilitar TLS 1.2 para descargas seguras
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Ruta de descarga y extracción
+$zipUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/VistaCursors.zip"  # ← Reemplaza con tu URL real
+$zipPath = "$env:TEMP\VistaCursors.zip"
+$extractPath = "C:\Windows\Cursors"
+
+# Descargar el ZIP
+Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+
+# Crear carpeta si no existe
+if (-Not (Test-Path -Path $extractPath)) {
+    New-Item -ItemType Directory -Path $extractPath | Out-Null
+}
+
+# Extraer el ZIP
+Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+# Eliminar el ZIP
+Remove-Item -Path $zipPath -Force
+
+# Diccionario de cursores por rol
+$cursorMap = @{
+    "Arrow"        = "$extractPath\vista_arrow.cur"
+    "Hand"         = "$extractPath\vista_hand.cur"
+    "Wait"         = "$extractPath\vista_wait.ani"
+    "AppStarting"  = "$extractPath\vista_appstarting.ani"
+}
+
+# Aplicar los cursores al registro
+foreach ($role in $cursorMap.Keys) {
+    if (Test-Path $cursorMap[$role]) {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Cursors" -Name $role -Value $cursorMap[$role]
+    } else {
+        Write-Warning "Cursor no encontrado: $cursorMap[$role]"
+    }
+}
+
+# Forzar actualización visual
+RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters
+Write-Host "Cursores estilo Vista aplicados correctamente"
+		</File>
 		<File path="C:\Windows\Setup\Scripts\Clean_Reset_Base.ps1">
 # Verificar si el script se está ejecutando como administrador
 function Test-Admin {
@@ -1003,12 +1046,29 @@ try {
         @{ Name = "Run setup-final.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Optimizacion general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
         @{ Name = "Optimizacion de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
+		@{ Name = "Run CursorVista.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
         } },
-		@{ Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } }
+		@{ Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "ClearDir"; Script = {
+		# Verifica si la carpeta existe
+		if (Test-Path $scriptDir) {
+			# Extensiones a eliminar
+			$extensions = @("*.ps1", "*.vbs", "*.xml")
+
+			foreach ($ext in $extensions) {
+				Get-ChildItem -Path $scriptDir -Recurse -Filter $ext -Force -ErrorAction SilentlyContinue |
+				Remove-Item -Force -ErrorAction SilentlyContinue
+			}
+
+			Write-Host "Archivos .ps1, .vbs y .xml eliminados de $scriptDir"
+		} else {
+			Write-Warning "La carpeta $scriptDir no existe."
+		}
+		} }
     )
 
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
