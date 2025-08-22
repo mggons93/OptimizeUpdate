@@ -587,7 +587,6 @@ foreach ($regPath in $regPaths) {
     }
 }
 # Establecer propiedades en las rutas de registro
-#Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 1
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Microsoft Edge\TabPreloader" -Name "AllowPrelaunch" -Value 0
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Microsoft Edge\TabPreloader" -Name "AllowTabPreloading" -Value 0
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\PCHC" -Name "PreviousUninstall" -Value 1
@@ -662,7 +661,6 @@ if ($setting.EnableFeeds -eq 0) {
 }
 Write-Host "Removiendo noticias e interes de la barra de tareas" 
 Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
-#New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name SearchboxTaskbarMode -PropertyType DWord -Value 0 -Force
 	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
 		{
 New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
@@ -749,7 +747,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
         "NoLockScreenCamera" = 1
         "LockScreenOverlaysDisabled" = 1
         "NoChangingLockScreen" = 1
-        "DisableAcrylicBackgroundOnLogon" = 1
         "DODownloadMode" = 1
     }
 
