@@ -198,10 +198,10 @@ Disable-ReservedStorage
 ############################
 Write-Output '5% Completado'
 ############################
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("^{ESC}")
+#Add-Type -AssemblyName System.Windows.Forms
+#[System.Windows.Forms.SendKeys]::SendWait("^{ESC}")
 
-Start-Sleep -seconds 2
+#Start-Sleep -seconds 2
 
 Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
