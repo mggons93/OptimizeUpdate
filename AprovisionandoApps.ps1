@@ -320,7 +320,6 @@ function Install-Notepadplus {
 function Install-7Zip {
     Write-Host "Instalando 7zip..."
     Write-Output '29% Completado'
-
     $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
@@ -330,6 +329,19 @@ function Install-7Zip {
         Write-Output $result
     }
 }
+
+function Install-VLC {
+    Write-Host "Instalando VLC..."
+    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "VLC instalado correctamente."
+    } else {
+        Write-Host "Error al instalar VLC:"
+        Write-Output $result
+    }
+}
+
 
 # Llamar a las funciones según sea necesario
 Install-TranslucentTB
@@ -360,6 +372,7 @@ Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
 Install-Notepadplus
+Install-VLC
 
     }
 
@@ -513,6 +526,18 @@ function Install-7Zip {
     }
 }
 
+function Install-VLC {
+    Write-Host "Instalando VLC..."
+
+    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "VLC instalado correctamente."
+    } else {
+        Write-Host "Error al instalar VLC:"
+        Write-Output $result
+    }
+}
 # Llamar a las funciones según sea necesario
 Install-TranslucentTB
 Install-VCLibsDesktop14
@@ -536,6 +561,7 @@ Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
 Install-Notepadplus
+Install-VLC
 
     }
 
