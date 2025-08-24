@@ -475,6 +475,13 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
 } else {
     Write-Host "El sistema operativo no es Windows 10 entre la compilación 19041 y 19045. El script se ha omitido."
 }
+
+# Descargar manualmente los paquetes requeridos
+$wingetUrl = "https://aka.ms/getwinget"
+$output = "$env:TEMP\winget.msixbundle"
+Invoke-WebRequest -Uri $wingetUrl -OutFile $output
+# Instalar silenciosamente el paquete (si tienes permisos)
+Add-AppxPackage -Path $output
 ###################### Configuracion de Windows 10 Menu inicio ######################
 
 #############################
