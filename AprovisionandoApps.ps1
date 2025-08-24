@@ -96,15 +96,6 @@ Write-Output '2% Completado'
 #    Write-Host "Se omite el error y se continúa con la ejecución del script."
 #}
 
-# Descargar manualmente los paquetes requeridos
-$wingetUrl = "https://aka.ms/getwinget"
-$output = "$env:TEMP\winget.msixbundle"
-
-Invoke-WebRequest -Uri $wingetUrl -OutFile $output
-
-# Instalar silenciosamente el paquete (si tienes permisos)
-Add-AppxPackage -Path $output
-
 ########################################### Aprovisionando Apps ###########################################
 Write-Output '3% Completado'
 # Función para obtener arquitectura del sistema
