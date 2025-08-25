@@ -155,6 +155,12 @@ function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
 	winget install --id CharlesMilette.TranslucentTB -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
 }
+
+function Install-SeelenUI {
+	Write-Host "Actualizando Seelen.SeelenUI"
+	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
+
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
 	Write-Output '4% Completado'
@@ -344,6 +350,7 @@ function Install-VLC {
 
 
 # Llamar a las funciones según sea necesario
+Install-SeelenUI
 Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x64
@@ -384,6 +391,11 @@ function Install-AllVCRedistx32 {
 function Install-TranslucentTB {
 	Write-Host "Actualizando TranslucentTB"
 	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+}
+
+function Install-SeelenUI {
+	Write-Host "Actualizando Seelen.SeelenUI"
+	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
 }
 
 function Install-VCLibsDesktop14 {
@@ -539,6 +551,7 @@ function Install-VLC {
     }
 }
 # Llamar a las funciones según sea necesario
+Install-SeelenUI
 Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x86
