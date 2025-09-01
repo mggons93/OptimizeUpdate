@@ -415,6 +415,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
         "LockScreenOverlaysDisabled" = 1
         "NoChangingLockScreen" = 1
         "DisableAcrylicBackgroundOnLogon" = 1
+		"PersistBrowsers" = 0
     }
     foreach ($path in $regPaths) {
         if (-not (Test-Path $path)) {
@@ -755,6 +756,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
         "LockScreenOverlaysDisabled" = 1
         "NoChangingLockScreen" = 1
         "DODownloadMode" = 1
+		"PersistBrowsers" = 0
     }
 
     foreach ($name in $settings.Keys) {
