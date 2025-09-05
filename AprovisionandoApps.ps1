@@ -151,15 +151,15 @@ try {
 function Install-AllVCRedistx64 {
         # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
 
-function Install-TranslucentTB {
-	Write-Host "Actualizando TranslucentTB"
-	winget install --id CharlesMilette.TranslucentTB -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+#function Install-TranslucentTB {
+#	Write-Host "Actualizando TranslucentTB"
+#	winget install --id CharlesMilette.TranslucentTB -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
 
-function Install-SeelenUI {
-	Write-Host "Actualizando Seelen.SeelenUI"
-	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+#function Install-SeelenUI {
+#	Write-Host "Actualizando Seelen.SeelenUI"
+#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
@@ -350,8 +350,8 @@ function Install-VLC {
 
 
 # Llamar a las funciones según sea necesario
-Install-SeelenUI
-Install-TranslucentTB
+#Install-SeelenUI
+#Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x64
 Install-VCRedist2008x64
@@ -388,15 +388,15 @@ function Install-AllVCRedistx32 {
 
 # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
 
-function Install-TranslucentTB {
-	Write-Host "Actualizando TranslucentTB"
-	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+#function Install-TranslucentTB {
+#	Write-Host "Actualizando TranslucentTB"
+#	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
 
-function Install-SeelenUI {
-	Write-Host "Actualizando Seelen.SeelenUI"
-	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-}
+#function Install-SeelenUI {
+#	Write-Host "Actualizando Seelen.SeelenUI"
+#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
@@ -551,8 +551,8 @@ function Install-VLC {
     }
 }
 # Llamar a las funciones según sea necesario
-Install-SeelenUI
-Install-TranslucentTB
+#Install-SeelenUI
+#Install-TranslucentTB
 Install-VCLibsDesktop14
 Install-VCRedist2005x86
 Install-VCRedist2008x86
