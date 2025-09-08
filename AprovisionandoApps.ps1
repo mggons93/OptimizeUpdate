@@ -595,9 +595,9 @@ Install-VLC
     }
 
 # Configurar inicio automático usando tarea programada
-$taskName = "Launch TranslucentTB"
-$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
+#$taskName = "Launch TranslucentTB"
+#$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
+#$Trigger = New-ScheduledTaskTrigger -AtLogOn
 
 try {
     Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
