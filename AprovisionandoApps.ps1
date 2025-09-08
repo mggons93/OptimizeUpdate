@@ -599,12 +599,12 @@ Install-VLC
 #$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB"
 #$Trigger = New-ScheduledTaskTrigger -AtLogOn
 
-try {
-    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
-    Write-Host "Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
-} catch {
-    Write-Host "Error al crear la tarea programada: $_"
-}
+#try {
+#    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
+#    Write-Host "Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
+#} catch {
+#    Write-Host "Error al crear la tarea programada: $_"
+#}
 
 # Restaurar el idioma original después de la instalación
 try {
