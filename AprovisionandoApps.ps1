@@ -778,28 +778,38 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
 # Eliminando Archivo Server -> Proceso Final
 Remove-Item -Path "$env:TEMP\server.txt" -Force
 
-########################################### 5. Instalador y Activando de Office 365 ###########################################
-# Ruta del script .cmd intermedio
-$cmdPath = "$env:USERPROFILE\OfficeInstaller.cmd"
 
-# Contenido del .cmd
-$cmdContent = '@echo off
-powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\Windows\Setup\OfficeInstaller.ps1"
-'
+###################### Configuracion de Windows 10 Menu inicio ######################
+# Verificar la versión del sistema operativo
+$os = Get-CimInstance Win32_OperatingSystem
+$versionWindows = [System.Version]$os.Version
+$buildNumber = [int]$os.BuildNumber
 
-# Guardar el .cmd
-Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII
+# Verificar si la versión es Windows 10 entre la compilación 19041 y 19045
+if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -le 19045) {
 
-# Registrar en RunOnce para ejecutar el script .cmd tras el reinicio
-$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-$valueName = "OfficeInstallerOnce"
-$valueData = "`"$cmdPath`""
-New-ItemProperty -Path $regPath -Name $valueName -Value $valueData -PropertyType String -Force
-Write-Output '99% Completado'
-Write-Host "El script se ejecutará tras el reinicio mediante un archivo CMD intermedio." -ForegroundColor Green
+# Habilitar la memoria comprimida en Windows 10/11
+Enable-MMAgent -MemoryCompression
+Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar los cambios."
 
-# Esperar antes del reinicio (opcional)
-Write-Output '100% Completado'
+# Mostrar el icono de búsqueda en la barra de tareas
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 1
+}
+###################### Configuracion de Windows 11 Menu inicio ###################### 
+# Obtener la versión del sistema operativo
+$versionWindows = [System.Environment]::OSVersion.Version
+
+# Verificar si la versión es Windows 11 con una compilación 22000 o superior
+if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
+    Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
+
+# Habilitar la memoria comprimida en Windows 10/11
+Enable-MMAgent -MemoryCompression
+Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar los cambios."
+
+# Mostrar el icono de búsqueda en la barra de tareas
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
+}
 
 Start-Sleep -Seconds 4
 
