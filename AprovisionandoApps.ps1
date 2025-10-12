@@ -811,8 +811,9 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
 
+Write-Output '99% Completado'
 Start-Sleep -Seconds 4
-
+Write-Output '100% Completado'
 # Reinicio silencioso
 $os = Get-WmiObject -Class Win32_OperatingSystem
 $os.PSBase.Scope.Options.EnablePrivileges = $true
