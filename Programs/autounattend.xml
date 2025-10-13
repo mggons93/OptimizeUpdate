@@ -963,6 +963,68 @@ try {
 
 Add-Content -Path $logFile -Value $logEntry
 		</File>
+		<File Path="C:\Windows\Setup\Scripts\Updates.ps1">
+# Función para verificar si se ejecuta como administrador
+function Test-Admin {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Si no es administrador, relanzar el script con privilegios elevados
+if (-not (Test-Admin)) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"" -Verb RunAs
+    exit
+}
+
+Write-Host "En caso de no instalar los aplicativos, debes aceptarlos con Y/N"
+Write-Host "Esto es necesario para instalar y actualizar los Drivers y Windows"
+
+# Permitir ejecución de scripts solo en esta sesión y ocultar progreso
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+$ProgressPreference = 'SilentlyContinue'
+
+try {
+    # Instalar NuGet si no está presente
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Write-Output "🔄 Instalando proveedor NuGet..."
+        Install-PackageProvider -Name NuGet -Force -Scope AllUsers -Confirm:$false -ErrorAction Stop
+    }
+
+    # Marcar PSGallery como repositorio confiable si no lo está
+    $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+    if ($null -eq $psGallery -or $psGallery.InstallationPolicy -ne 'Trusted') {
+        Write-Output "✅ Marcando PSGallery como repositorio confiable..."
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+    }
+
+    # Instalar PSWindowsUpdate si no está instalado
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Write-Output "📦 Instalando PSWindowsUpdate..."
+        Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false -ErrorAction Stop
+    }
+
+    # Importar módulo PSWindowsUpdate
+    Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+
+    # Habilitar búsqueda de drivers desde Windows Update
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name SearchOrderConfig -Value 1 -ErrorAction Stop
+
+    # Buscar e instalar solo drivers desde Windows Update automáticamente
+    Write-Output "🔧 Buscando e instalando drivers desde Windows Update..."
+    Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot -Category Drivers -ErrorAction Stop
+
+    # Buscar e instalar otras actualizaciones automáticamente (excluyendo drivers)
+    Write-Output "🔧 Buscando e instalando otras actualizaciones..."
+    Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot | Where-Object { $_.Title -notlike "*driver*" }
+
+    Write-Output "✅ Todo listo. Drivers y actualizaciones aplicadas."
+}
+catch {
+    Write-Error "❌ Error crítico: $_"
+}
+		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
 # URL del script a descargar (usa un enlace directo y confiable)
 $scriptUrl = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/download.ps1"
@@ -1048,6 +1110,7 @@ try {
         @{ Name = "Optimizacion general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
         @{ Name = "Optimizacion de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
 		@{ Name = "Run CursorVista.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Run Updates.ps1"; Script = { Get-Content - LiteralPath "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
