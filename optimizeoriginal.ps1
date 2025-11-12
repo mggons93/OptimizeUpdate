@@ -523,64 +523,81 @@ Write-Output '21% Completado'
 #############################
 
 ###################### Wallpaper Modificacion de rutina ######################
-# Ruta del archivo
-$rutaArchivo = "$env:windir\Web\Wallpaper\Abstract\Abstract1.jpg"
-# Verificar si el archivo existe
-if (Test-Path $rutaArchivo) {
-    Write-Host "El archivo se encuentra, no es necesario aplicar."
-} else {
-    # Descargar el archivo
-    $url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
-    $outputPath = "$env:TEMP\Abstract.zip"
-    
+# =========================
+# CONFIGURACIÓN DE IMAGEN DE BLOQUEO Y FONDO INICIAL (NO PERMANENTE)
+# Windows 10 22H2 y Windows 11 25H2
+# =========================
+
+# --- RUTAS ---
+$wallpaperDir = "$env:windir\Web\Wallpaper\Abstract"
+$wallpaperFile = "$wallpaperDir\screen.jpg"
+$lockscreenPath = "$env:windir\Web\Screen\lockscreen.jpg"
+$downloadUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
+$tempZip = "$env:TEMP\Abstract.zip"
+
+# --- DETECTAR VERSIÓN DE WINDOWS ---
+$os = Get-CimInstance Win32_OperatingSystem
+$version = [System.Version]$os.Version
+$build = [int]$os.BuildNumber
+Write-Host "Detectando sistema operativo..."
+Write-Host "Versión: $($version) | Compilación: $build"
+
+if (($version.Major -ne 10) -or ($build -lt 19041)) {
+    Write-Host "Este script solo aplica para Windows 10 22H2 o Windows 11 25H2."
+    return
+}
+
+# --- DESCARGAR Y EXTRAER IMÁGENES SI NO EXISTEN ---
+if (!(Test-Path $wallpaperFile)) {
     Write-Host "Descargando fotos para la personalización..."
-    Invoke-WebRequest -Uri $url -OutFile $outputPath
-    Expand-Archive -Path $outputPath -DestinationPath "$env:windir\Web\Wallpaper\" -Force
-    Remove-Item -Path $outputPath -Force
-    
-    Write-Host "El archivo ha sido descargado."
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempZip -UseBasicParsing
+    Expand-Archive -Path $tempZip -DestinationPath "$env:windir\Web\Wallpaper\" -Force
+    Remove-Item $tempZip -Force
+    Write-Host "Imágenes descargadas correctamente."
+} else {
+    Write-Host "Las imágenes ya existen, omitiendo descarga."
 }
-# Ruta del archivo a modificar
-$imgPath = "$env:windir\Web\Screen\img100.jpg"
-# Otorgar permisos a los administradores y tomar posesión del archivo
-if (Test-Path $imgPath) {
-    icacls $imgPath /grant Administradores:F
-    takeown /f $imgPath /A
-    Remove-Item -Path $imgPath -Force
-}
-# Copiar el archivo de un lugar a otro
-Copy-Item -Path $rutaArchivo -Destination $imgPath
 
-# --- Cambiar fondo de pantalla inmediatamente ---
-$code = @"
-using System.Runtime.InteropServices;
-public class Wallpaper {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-}
-"@
-Add-Type $code
+# --- APLICAR SOLO SI NO EXISTE UNA PERSONALIZACIÓN ACTUAL ---
+$lockRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+$currentLockImage = (Get-ItemProperty -Path $lockRegPath -Name "LockScreenImage" -ErrorAction SilentlyContinue).LockScreenImage
+$currentWallpaper = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -ErrorAction SilentlyContinue).Wallpaper
 
-$pathWallpaper = "$env:windir\Web\Wallpaper\Abstract\Abstract1.jpg"
-[Wallpaper]::SystemParametersInfo(20, 0, $pathWallpaper, 3)
-Write-Host "Fondo de escritorio actualizado correctamente."
-
-# --- Guardar configuración en el registro para que sea permanente ---
-function Set-RegistryValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Type,
-        [object]$Value
-    )
-    if (!(Test-Path $Path)) {
-        New-Item -Path $Path -Force | Out-Null
+if (($null -eq $currentLockImage) -or (-not (Test-Path $currentLockImage))) {
+    Write-Host "Aplicando imagen de bloqueo inicial..."
+    if (Test-Path $lockscreenPath) {
+        takeown /f $lockscreenPath /A | Out-Null
+        icacls $lockscreenPath /grant Administradores:F /t /c | Out-Null
+        Remove-Item $lockscreenPath -Force
     }
-    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+    Copy-Item -Path $wallpaperFile -Destination $lockscreenPath -Force
+    New-Item -Path $lockRegPath -Force | Out-Null
+    Set-ItemProperty -Path $lockRegPath -Name "LockScreenImage" -Value $lockscreenPath -Force
+    Write-Host "Imagen de bloqueo configurada correctamente."
+} else {
+    Write-Host "Ya existe una imagen de bloqueo personalizada, no se modifica."
 }
-Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
-Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "10"
-Write-Host "Configuración de registro actualizada correctamente."
+
+if (($null -eq $currentWallpaper) -or (-not (Test-Path $currentWallpaper))) {
+    Write-Host "Aplicando fondo de escritorio inicial..."
+    Add-Type @"
+    using System.Runtime.InteropServices;
+    public class Wallpaper {
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    }
+"@
+    [Wallpaper]::SystemParametersInfo(20, 0, $wallpaperFile, 3)
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $wallpaperFile -Force
+    Write-Host "Fondo de escritorio aplicado correctamente."
+} else {
+    Write-Host "Ya existe un fondo de escritorio personalizado, no se modifica."
+}
+
+# --- REFRESCAR CONFIGURACIÓN ---
+RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+Write-Host "Configuración aplicada. Si el usuario cambia las imágenes, se respetarán."
+
 ###################### Wallpaper Modificacion de rutina ######################
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
 # Crear rutas de registro si no existen
