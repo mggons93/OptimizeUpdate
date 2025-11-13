@@ -523,82 +523,126 @@ Write-Output '21% Completado'
 #############################
 
 ###################### Wallpaper Modificacion de rutina ######################
-# =========================
-# CONFIGURACIÓN DE IMAGEN DE BLOQUEO Y FONDO INICIAL (NO PERMANENTE)
-# Windows 10 22H2 y Windows 11 25H2
-# =========================
+# ==========================================================
+# CONFIGURACIÓN DE IMAGEN DE BLOQUEO Y FONDO INICIAL
+# Compatible con Windows 10 22H2 y Windows 11 25H2
+# ==========================================================
 
-# --- RUTAS ---
-$wallpaperDir = "$env:windir\Web\Wallpaper\Abstract"
-$wallpaperFile = "$wallpaperDir\screen.jpg"
-$lockscreenPath = "$env:windir\Web\Screen\lockscreen.jpg"
-$downloadUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
-$tempZip = "$env:TEMP\Abstract.zip"
+# Ruta base del fondo
+$rutaArchivo = "$env:windir\Web\Wallpaper\Abstract\Screen.jpg"
 
-# --- DETECTAR VERSIÓN DE WINDOWS ---
+# Verificar si existe, si no descargar
+if (-not (Test-Path $rutaArchivo)) {
+    $url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
+    $outputPath = "$env:TEMP\Abstract.zip"
+
+    Write-Host "Descargando fondos de personalización..."
+    Invoke-WebRequest -Uri $url -OutFile $outputPath -UseBasicParsing
+    Expand-Archive -Path $outputPath -DestinationPath "$env:windir\Web\Wallpaper\" -Force
+    Remove-Item -Path $outputPath -Force
+    Write-Host "Fondos descargados y extraídos correctamente."
+} else {
+    Write-Host "El archivo base de fondo ya existe, omitiendo descarga."
+}
+
+# ================================
+# DETECTAR VERSIÓN DE WINDOWS
+# ================================
 $os = Get-CimInstance Win32_OperatingSystem
-$version = [System.Version]$os.Version
-$build = [int]$os.BuildNumber
-Write-Host "Detectando sistema operativo..."
-Write-Host "Versión: $($version) | Compilación: $build"
+$versionWindows = [System.Version]$os.Version
+$buildNumber = [int]$os.BuildNumber
 
-if (($version.Major -ne 10) -or ($build -lt 19041)) {
+Write-Host "Versión detectada: $($versionWindows) | Compilación: $buildNumber"
+
+if ($versionWindows.Major -ne 10 -or $buildNumber -lt 19041) {
     Write-Host "Este script solo aplica para Windows 10 22H2 o Windows 11 25H2."
     return
 }
 
-# --- DESCARGAR Y EXTRAER IMÁGENES SI NO EXISTEN ---
-if (!(Test-Path $wallpaperFile)) {
-    Write-Host "Descargando fotos para la personalización..."
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempZip -UseBasicParsing
-    Expand-Archive -Path $tempZip -DestinationPath "$env:windir\Web\Wallpaper\" -Force
-    Remove-Item $tempZip -Force
-    Write-Host "Imágenes descargadas correctamente."
-} else {
-    Write-Host "Las imágenes ya existen, omitiendo descarga."
+# ================================
+# APLICAR IMAGEN DE BLOQUEO
+# ================================
+$imgPath = "$env:windir\Web\Screen\img100.jpg"
+$lockScreenImage = "$env:windir\Web\Screen\lockscreen.jpg"
+$lockScreenRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+
+Write-Host "Reemplazando imágenes de bloqueo..."
+
+# Tomar posesión y reemplazar imágenes existentes
+if (Test-Path $imgPath) {
+    takeown /f $imgPath /A | Out-Null
+    icacls $imgPath /grant Administradores:F /t /c | Out-Null
+    Remove-Item -Path $imgPath -Force
+}
+if (Test-Path $lockScreenImage) {
+    takeown /f $lockScreenImage /A | Out-Null
+    icacls $lockScreenImage /grant Administradores:F /t /c | Out-Null
+    Remove-Item -Path $lockScreenImage -Force
 }
 
-# --- APLICAR SOLO SI NO EXISTE UNA PERSONALIZACIÓN ACTUAL ---
-$lockRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
-$currentLockImage = (Get-ItemProperty -Path $lockRegPath -Name "LockScreenImage" -ErrorAction SilentlyContinue).LockScreenImage
-$currentWallpaper = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -ErrorAction SilentlyContinue).Wallpaper
+# Copiar nuevas imágenes
+Copy-Item -Path $rutaArchivo -Destination $imgPath -Force
+Copy-Item -Path $rutaArchivo -Destination $lockScreenImage -Force
 
-if (($null -eq $currentLockImage) -or (-not (Test-Path $currentLockImage))) {
-    Write-Host "Aplicando imagen de bloqueo inicial..."
-    if (Test-Path $lockscreenPath) {
-        takeown /f $lockscreenPath /A | Out-Null
-        icacls $lockscreenPath /grant Administradores:F /t /c | Out-Null
-        Remove-Item $lockscreenPath -Force
-    }
-    Copy-Item -Path $wallpaperFile -Destination $lockscreenPath -Force
-    New-Item -Path $lockRegPath -Force | Out-Null
-    Set-ItemProperty -Path $lockRegPath -Name "LockScreenImage" -Value $lockscreenPath -Force
-    Write-Host "Imagen de bloqueo configurada correctamente."
-} else {
-    Write-Host "Ya existe una imagen de bloqueo personalizada, no se modifica."
+# Crear clave si no existe
+if (-not (Test-Path $lockScreenRegPath)) {
+    New-Item -Path $lockScreenRegPath -Force | Out-Null
 }
 
-if (($null -eq $currentWallpaper) -or (-not (Test-Path $currentWallpaper))) {
-    Write-Host "Aplicando fondo de escritorio inicial..."
-    Add-Type @"
-    using System.Runtime.InteropServices;
-    public class Wallpaper {
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-    }
+# Registrar la nueva imagen de bloqueo
+Set-ItemProperty -Path $lockScreenRegPath -Name "LockScreenImage" -Value $lockScreenImage -Force
+Write-Host "Imagen de bloqueo aplicada correctamente."
+
+# ================================
+# APLICAR FONDO DE ESCRITORIO
+# ================================
+$wallpaperPath = "$env:windir\Web\Wallpaper\Abstract\Screen.jpg"
+
+Write-Host "Aplicando fondo de escritorio inicial..."
+
+# Cambiar fondo de escritorio en tiempo real
+$code = @"
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
 "@
-    [Wallpaper]::SystemParametersInfo(20, 0, $wallpaperFile, 3)
-    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $wallpaperFile -Force
-    Write-Host "Fondo de escritorio aplicado correctamente."
-} else {
-    Write-Host "Ya existe un fondo de escritorio personalizado, no se modifica."
+Add-Type $code
+[Wallpaper]::SystemParametersInfo(20, 0, $wallpaperPath, 3)
+
+# Guardar configuración en registro del usuario
+Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $wallpaperPath -Force
+Write-Host "Fondo de escritorio aplicado correctamente."
+
+# ================================
+# GUARDAR EN POLÍTICAS (solo informativo)
+# ================================
+function Set-RegistryValue {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [string]$Type,
+        [object]$Value
+    )
+    if (!(Test-Path $Path)) {
+        New-Item -Path $Path -Force | Out-Null
+    }
+    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
 }
 
-# --- REFRESCAR CONFIGURACIÓN ---
-RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
-Write-Host "Configuración aplicada. Si el usuario cambia las imágenes, se respetarán."
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "10"
 
+# ================================
+# ACTUALIZAR PARÁMETROS Y FINALIZAR
+# ================================
+RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+Write-Host ""
+Write-Host "✅ Fondo y pantalla de bloqueo aplicados correctamente."
+Write-Host "ℹ️ Si el usuario cambia el fondo o el lockscreen después, su configuración será respetada."
 ###################### Wallpaper Modificacion de rutina ######################
+
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
 # Crear rutas de registro si no existen
 $regPaths = @(
