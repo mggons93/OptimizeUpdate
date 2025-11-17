@@ -883,20 +883,33 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" "SystemUsesLightTheme" "DWord" 0
 
 	# Configuración de OEM
-    $oemRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
-    if (-not (Test-Path -Path $oemRegPath)) {
-        New-Item -Path $oemRegPath -Force | Out-Null
-    }
-    $oemValues = @{
-        Manufacturer = "Mggons Support Center"
-        Model = "Windows 11 - Update 2025 - S&A"
-        SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
-        SupportURL = "https://wa.me/+57350560580"
-    }
-    foreach ($name in $oemValues.Keys) {
-        Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
-    }
-    Write-Host "Los datos del OEM han sido actualizados en el registro."
+	$oemRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
+	
+	if (-not (Test-Path -Path $oemRegPath)) {
+	    New-Item -Path $oemRegPath -Force | Out-Null
+	}
+	
+	# Limpia valores previos que puedan bloquear la escritura
+	$oemFields = "Manufacturer","Model","SupportHours","SupportURL","SupportPhone"
+	foreach ($field in $oemFields) {
+	    Remove-ItemProperty -Path $oemRegPath -Name $field -ErrorAction SilentlyContinue
+	}
+	
+	# Nuevos valores
+	$oemValues = @{
+	    Manufacturer = "Mggons Support Center"
+	    Model = "Windows 11 - Update 2025 - S&A"
+	    SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
+	    SupportURL = "https://wa.me/57350560580"
+	    SupportPhone = " "
+	}
+	
+	foreach ($name in $oemValues.Keys) {
+	    Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
+	}
+	
+	Write-Host "Los datos del OEM han sido actualizados en el registro."
+
     # Eliminar la carpeta Windows.old si existe
     $folderPath = "C:\Windows.old"
     if (Test-Path -Path $folderPath) {
@@ -918,51 +931,52 @@ Write-Output '50% Completado'
 #############################
 
 ############## Eliminar el autoinicio de microsoft Edge ####################
-# Definir el nombre que se buscarÃ¡
+# Definir el nombre que se buscará
 $nombreABuscar = "!BCILauncher"
 
-# Obtener todas las entradas en HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+# Obtener todas las entradas en RunOnce
 $entradas = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -ErrorAction SilentlyContinue
 
-# Verificar si hay entradas y eliminar aquellas que contienen el nombre buscado
+# Verificar si hay entradas y eliminar las que coincidan
 if ($entradas) {
     foreach ($entrada in $entradas.PSObject.Properties) {
         if ($entrada.Name -like "*$nombreABuscar*") {
             Write-Host "Eliminando entrada $($entrada.Name)"
-            Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -Name $entrada.Name
+            Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -Name $entrada.Name -ErrorAction SilentlyContinue
         }
     }
 } else {
     Write-Host "No se encontraron entradas en el Registro."
 }
-# Establecer la ruta de la clave de registro para Microsoft Edge
+
+# Establecer ruta del registro para Edge
 $edgeRegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 
-# Verificar si la clave de registro de Edge existe y, si no, crearla
+# Crear clave si no existe
 if (!(Test-Path $edgeRegistryPath)) {
     New-Item -Path $edgeRegistryPath -Force | Out-Null
 }
 
-# Deshabilitar "Startup Boost"
+# Deshabilitar Startup Boost
 Set-ItemProperty -Path $edgeRegistryPath -Name "StartupBoostEnabled" -Type DWord -Value 0
 
-# Deshabilitar "Seguir ejecutando extensiones y aplicaciones en segundo plano mientras Edge esté cerrado"
+# Deshabilitar ejecución en segundo plano
 Set-ItemProperty -Path $edgeRegistryPath -Name "BackgroundModeEnabled" -Type DWord -Value 0
 
 Write-Host "Startup Boost y la ejecución en segundo plano de Microsoft Edge han sido deshabilitados."
 
-# Ruta al registro donde se almacena la configuración de bienvenida de Edge
+# Configuración de bienvenida de Edge
 $EdgeRegistryPath = "HKCU:\Software\Microsoft\Edge"
 
-# Verificar si la clave 'Edge' existe en el registro, si no, crearla
+# Crear clave si no existe
 if (-not (Test-Path $EdgeRegistryPath)) {
     New-Item -Path $EdgeRegistryPath -Force | Out-Null
 }
 
-# Crear o modificar el valor 'HideFirstRunExperience' para omitir la pantalla de bienvenida
+# Omitir pantalla de bienvenida
 Set-ItemProperty -Path $EdgeRegistryPath -Name "HideFirstRunExperience" -Value 1 -Force
 
-# Verificar si se ha creado la configuración
+# Confirmar
 $HideFirstRun = Get-ItemProperty -Path $EdgeRegistryPath -Name "HideFirstRunExperience"
 
 if ($HideFirstRun.HideFirstRunExperience -eq 1) {
@@ -971,20 +985,23 @@ if ($HideFirstRun.HideFirstRunExperience -eq 1) {
     Write-Host "No se pudo desactivar la pantalla de bienvenida de Microsoft Edge."
 }
 
-# ID de la extensión AdGuard
+# Configurar instalación automática de AdGuard
 $extensionID = "pdffkfellgipmhklpdmokmckkkfcopbh"
-# URL de actualización de la extensión (Microsoft Edge Web Store)
-$updateUrl = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
-# Ruta de registro para instalar extensiones en Edge
-$registryPath = "HKLM:\Software\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+$updateUrl   = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
 
-# Crear la clave de registro si no existe
+# Crear clave si no existe
 if (-not (Test-Path $registryPath)) {
-    New-Item -Path $registryPath -Force
+    New-Item -Path $registryPath -Force | Out-Null
 }
-# Agregar la extensión AdGuard al registro para que se instale automáticamente
-Set-ItemProperty -Path $registryPath -Name 1 -Value "$extensionID;$updateUrl"
+
+# CORRECCIÓN IMPORTANTE:
+# El error era causado por caracteres Unicode rotos justo antes de esta línea.
+# Esta versión está 100% limpia.
+Set-ItemProperty -Path $registryPath -Name "1" -Value "$extensionID;$updateUrl" -Force
+
 Write-Host "La extensión AdGuard ha sido configurada para instalarse automáticamente en Microsoft Edge."
+
 
 # Verificar si el proceso de Microsoft Edge estÃ¡ en ejecuciÃ³n y detenerlo
 $processName = "msedge"
@@ -1382,28 +1399,26 @@ Write-Output '89% Completado'
 #Set-ItemProperty -Path $regkey -Name WallpaperStyle -Value 5 
 
 ################################################ 6. Activando Windows 10/11 ##################################################
- $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
- $url = $url -replace "%blank%", ""
- $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
- $outputPath1 = $outputPath1 -replace "%blank%", ""
+$url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
+$url = $url -replace "%blank%", ""
+$outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
+$outputPath1 = $outputPath1 -replace "%blank%", ""
 
 # Función para obtener el estado de activación de Windows
 function Get-WindowsActivationStatus {
-    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey <> null AND LicenseFamily <> null").LicenseStatus
+    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND LicenseFamily IS NOT NULL").LicenseStatus
     return $licenseStatus -eq 1
 }
 
 # Función para habilitar la activación de Windows
 function Enable-WindowsActivation {
-    # Descargando archivo de activación automática
     Write-Host "Activando Windows"
-    
-    # Descargar el archivo
     Write-Host "Descargando Activación"
-    Invoke-WebRequest -Uri $url -OutFile $outputPath1 > $null
 
-    # Ejecutar el archivo de activación
-    Start-Process -FilePath $outputPath1 /HWID -WindowStyle Hidden -Wait -Verb RunAs
+    Invoke-WebRequest -Uri $url -OutFile $outputPath1 -UseBasicParsing | Out-Null
+
+    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait -Verb RunAs
+
     Remove-Item -Path $outputPath1 -Force
 }
 
@@ -1424,6 +1439,7 @@ if (Get-WindowsActivationStatus) {
 } else {
     Write-Host "La activación de Windows ha fallado. Verifica la clave de producto y vuelve a intentarlo."
 }
+
 #############################
 Write-Output '90% Completado'
 #############################
@@ -1521,9 +1537,6 @@ Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -Wi
 
 # Eliminando carpeta ODT -> Proceso Final
 Remove-Item -Path "C:\ODT" -Recurse -Force
-
-# Eliminando Archivo Server -> Proceso Final
-Remove-Item -Path "$env:TEMP\server.txt" -Force
 
 Write-Output '100% Completado'
 
