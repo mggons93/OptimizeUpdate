@@ -898,17 +898,18 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	# Nuevos valores
 	$oemValues = @{
 	    Manufacturer = "Mggons Support Center"
-	    Model = "Windows 11 - Update 2025 - S&A"
+	    Model = "Windows 11 - Update 2025 - S`&A"
 	    SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
 	    SupportURL = "https://wa.me/57350560580"
 	    SupportPhone = " "
 	}
-	
+
 	foreach ($name in $oemValues.Keys) {
 	    Set-ItemProperty -Path $oemRegPath -Name $name -Value $oemValues[$name]
 	}
 	
 	Write-Host "Los datos del OEM han sido actualizados en el registro."
+
 
     # Eliminar la carpeta Windows.old si existe
     $folderPath = "C:\Windows.old"
