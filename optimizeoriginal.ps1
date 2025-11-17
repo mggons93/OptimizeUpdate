@@ -470,7 +470,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Ocultar botón de Meet Now
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" "HideSCAMeetNow" 1
     # Desactivar la segunda experiencia de configuración (OOBE)
-    Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" "ScoobeSystemSettingEnabled" 0
+    #Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement" "ScoobeSystemSettingEnabled" 0
 	
     Write-Host "Script ejecutado exitosamente en Windows 10."
 } else {
@@ -844,7 +844,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Feedback" "ServiceEnabled" "DWord" 0
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Siuf\Rules" "NumberOfSIUFInPeriod" "DWord" 0
     Set-RegistryValue "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" "DisableTailoredExperiencesWithDiagnosticData" "DWord" 1
-    Set-RegistryValue "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" "DisableWindowsConsumerFeatures" "DWord" 1
+    #Set-RegistryValue "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" "DisableWindowsConsumerFeatures" "DWord" 1
 
     # Otras configuraciones
     Set-RegistryValue "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ShowSyncProviderNotifications" "DWord" 0
@@ -1046,8 +1046,8 @@ Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Type DWord -Value 0
 
 # Disable scheduled tasks related to telemetry
-Disable-ScheduledTask -TaskName "Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser" | Out-Null
-Disable-ScheduledTask -TaskName "Microsoft\Windows\Application Experience\ProgramDataUpdater" | Out-Null
+#Disable-ScheduledTask -TaskName "Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser" | Out-Null
+#Disable-ScheduledTask -TaskName "Microsoft\Windows\Application Experience\ProgramDataUpdater" | Out-Null
 Disable-ScheduledTask -TaskName "Microsoft\Windows\Autochk\Proxy" | Out-Null
 Disable-ScheduledTask -TaskName "Microsoft\Windows\Customer Experience Improvement Program\Consolidator" | Out-Null
 Disable-ScheduledTask -TaskName "Microsoft\Windows\Customer Experience Improvement Program\UsbCeip" | Out-Null
@@ -1104,11 +1104,11 @@ foreach ($property in $properties) {
 }
 
 # Verificar y crear la clave CloudContent si no existe
-$cloudContentPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-if (-not (Test-Path $cloudContentPath)) {
-    Write-Host "Creando clave CloudContent..."
-    New-Item -Path $cloudContentPath -Force | Out-Null
-}
+#$cloudContentPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+#if (-not (Test-Path $cloudContentPath)) {
+#    Write-Host "Creando clave CloudContent..."
+#    New-Item -Path $cloudContentPath -Force | Out-Null
+#}
 
 # Inhabilitar actualizaciones automáticas de Maps
 Write-Host "Inhabilitando las actualizaciones automáticas de Maps..."
@@ -1128,12 +1128,12 @@ foreach ($task in $tasks) {
 }
 
 # Inhabilitar experiencias personalizadas
-Write-Host "Inhabilitando experiencias personalizadas..."
-$cloudContentPolicyPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-if (-not (Test-Path $cloudContentPolicyPath)) {
-    New-Item -Path $cloudContentPolicyPath -Force | Out-Null
-}
-Set-ItemProperty -Path $cloudContentPolicyPath -Name "DisableTailoredExperiencesWithDiagnosticData" -Type DWord -Value 1
+#Write-Host "Inhabilitando experiencias personalizadas..."
+#$cloudContentPolicyPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+#if (-not (Test-Path $cloudContentPolicyPath)) {
+#    New-Item -Path $cloudContentPolicyPath -Force | Out-Null
+#}
+#Set-ItemProperty -Path $cloudContentPolicyPath -Name "DisableTailoredExperiencesWithDiagnosticData" -Type DWord -Value 1
 
 # Inhabilitar ID de publicidad
 Write-Host "Inhabilitando ID de publicidad..."
