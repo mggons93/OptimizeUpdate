@@ -639,8 +639,8 @@ Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Syst
 # ================================
 RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
 Write-Host ""
-Write-Host "✅ Fondo y pantalla de bloqueo aplicados correctamente."
-Write-Host "ℹ️ Si el usuario cambia el fondo o el lockscreen después, su configuración será respetada."
+Write-Host "Fondo y pantalla de bloqueo aplicados correctamente."
+Write-Host "Si el usuario cambia el fondo o el lockscreen después, su configuración será respetada."
 ###################### Wallpaper Modificacion de rutina ######################
 
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
