@@ -1540,7 +1540,7 @@ Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -Wi
 Remove-Item -Path "C:\ODT" -Recurse -Force
 
 Write-Output '100% Completado'
-
+pause
 Start-Sleep -Seconds 4
 
 # Reinicio silencioso
