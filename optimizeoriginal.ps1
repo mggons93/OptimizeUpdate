@@ -487,16 +487,57 @@ Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Syst
 Write-Output '21% Completado'
 #############################
 
-###################### Wallpaper Modificacion de rutina ######################
 # ==========================================================
 # CONFIGURACIÓN DE IMAGEN DE BLOQUEO Y FONDO INICIAL
-# Compatible con Windows 10 22H2 y Windows 11 25H2
+# Compatible con:
+# - Windows 10 21H2 / 22H2
+# - Windows 10 LTSC 2021
+# - Windows 10 IoT LTSC
+# - Windows 11 22H2 / 23H2 / 24H2 / 25H2
+# - Windows 11 IoT LTSC
 # ==========================================================
 
-# Ruta base del fondo
+# ================================
+# DETECTAR SISTEMA
+# ================================
+$os = Get-CimInstance Win32_OperatingSystem
+$versionWindows = [System.Version]$os.Version
+$buildNumber = [int]$os.BuildNumber
+$edition = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
+$productName = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
+
+Write-Host "Sistema detectado:"
+Write-Host "Producto   : $productName"
+Write-Host "Edición    : $edition"
+Write-Host "Versión    : $($versionWindows)"
+Write-Host "Build      : $buildNumber"
+Write-Host ""
+
+# ================================
+# VALIDACIÓN DE COMPATIBILIDAD
+# ================================
+$esWindows10Valido = ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041)
+$esWindows11Valido = ($versionWindows.Major -eq 10 -and $buildNumber -ge 22000)
+
+if (-not ($esWindows10Valido -or $esWindows11Valido)) {
+    Write-Host "Este script requiere Windows 10 (19041+) o Windows 11."
+    return
+}
+
+# Aviso informativo para LTSC / IoT
+if ($edition -match "LTSC|IoT") {
+    Write-Host "Edición LTSC / IoT detectada."
+    Write-Host "Algunas políticas visuales pueden depender de GPO, pero el script continuará."
+}
+
+# ================================
+# RUTA BASE DEL FONDO
+# ================================
 $rutaArchivo = "$env:windir\Web\Wallpaper\Abstract\Screen.jpg"
 
-# Verificar si existe, si no descargar
+# ================================
+# DESCARGA SI NO EXISTE
+# ================================
 if (-not (Test-Path $rutaArchivo)) {
     $url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/Abstract.zip"
     $outputPath = "$env:TEMP\Abstract.zip"
@@ -507,21 +548,7 @@ if (-not (Test-Path $rutaArchivo)) {
     Remove-Item -Path $outputPath -Force
     Write-Host "Fondos descargados y extraídos correctamente."
 } else {
-    Write-Host "El archivo base de fondo ya existe, omitiendo descarga."
-}
-
-# ================================
-# DETECTAR VERSIÓN DE WINDOWS
-# ================================
-$os = Get-CimInstance Win32_OperatingSystem
-$versionWindows = [System.Version]$os.Version
-$buildNumber = [int]$os.BuildNumber
-
-Write-Host "Versión detectada: $($versionWindows) | Compilación: $buildNumber"
-
-if ($versionWindows.Major -ne 10 -or $buildNumber -lt 19041) {
-    Write-Host "Este script solo aplica para Windows 10 22H2 o Windows 11 25H2."
-    return
+    Write-Host "El fondo base ya existe, omitiendo descarga."
 }
 
 # ================================
@@ -531,41 +558,39 @@ $imgPath = "$env:windir\Web\Screen\img100.jpg"
 $lockScreenImage = "$env:windir\Web\Screen\lockscreen.jpg"
 $lockScreenRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
 
-Write-Host "Reemplazando imágenes de bloqueo..."
+Write-Host "Aplicando imagen de bloqueo..."
 
-# Tomar posesión y reemplazar imágenes existentes
-if (Test-Path $imgPath) {
-    takeown /f $imgPath /A | Out-Null
-    icacls $imgPath /grant Administradores:F /t /c | Out-Null
-    Remove-Item -Path $imgPath -Force
-}
-if (Test-Path $lockScreenImage) {
-    takeown /f $lockScreenImage /A | Out-Null
-    icacls $lockScreenImage /grant Administradores:F /t /c | Out-Null
-    Remove-Item -Path $lockScreenImage -Force
+foreach ($file in @($imgPath, $lockScreenImage)) {
+    if (Test-Path $file) {
+        takeown /f $file /A | Out-Null
+        icacls $file /grant Administradores:F /t /c | Out-Null
+        Remove-Item -Path $file -Force
+    }
 }
 
 # Copiar nuevas imágenes
 Copy-Item -Path $rutaArchivo -Destination $imgPath -Force
 Copy-Item -Path $rutaArchivo -Destination $lockScreenImage -Force
 
-# Crear clave si no existe
+# Validación de aplicación de lockscreen
+if (Test-Path $imgPath -and Test-Path $lockScreenImage) {
+    Write-Host "Imagen de bloqueo aplicada."
+} else {
+    Write-Host "No se pudo aplicar la imagen de bloqueo. Continuando con el script."
+}
+
 if (-not (Test-Path $lockScreenRegPath)) {
     New-Item -Path $lockScreenRegPath -Force | Out-Null
 }
 
-# Registrar la nueva imagen de bloqueo
 Set-ItemProperty -Path $lockScreenRegPath -Name "LockScreenImage" -Value $lockScreenImage -Force
-Write-Host "Imagen de bloqueo aplicada correctamente."
 
 # ================================
 # APLICAR FONDO DE ESCRITORIO
 # ================================
-$wallpaperPath = "$env:windir\Web\Wallpaper\Abstract\Screen.jpg"
+$wallpaperPath = $rutaArchivo
+Write-Host "Aplicando fondo de escritorio..."
 
-Write-Host "Aplicando fondo de escritorio inicial..."
-
-# Cambiar fondo de escritorio en tiempo real
 $code = @"
 using System.Runtime.InteropServices;
 public class Wallpaper {
@@ -573,40 +598,45 @@ public class Wallpaper {
     public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 }
 "@
-Add-Type $code
-[Wallpaper]::SystemParametersInfo(20, 0, $wallpaperPath, 3)
+Add-Type $code -ErrorAction SilentlyContinue
+$appliedWallpaper = [Wallpaper]::SystemParametersInfo(20, 0, $wallpaperPath, 3)
 
-# Guardar configuración en registro del usuario
+# Validación de aplicación de wallpaper
+if ($appliedWallpaper) {
+    Write-Host "Fondo de escritorio aplicado."
+} else {
+    Write-Host "No se pudo aplicar el fondo de escritorio. Continuando con el script."
+}
+
 Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $wallpaperPath -Force
-Write-Host "Fondo de escritorio aplicado correctamente."
 
 # ================================
-# GUARDAR EN POLÍTICAS (solo informativo)
+# POLÍTICAS (INFORMATIVO / LTSC FRIENDLY)
 # ================================
 function Set-RegistryValue {
-    param(
+    param (
         [string]$Path,
         [string]$Name,
-        [string]$Type,
         [object]$Value
     )
     if (!(Test-Path $Path)) {
         New-Item -Path $Path -Force | Out-Null
     }
-    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type
+    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Force
 }
 
-Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" "String" $wallpaperPath
-Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "String" "10"
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "Wallpaper" $wallpaperPath
+Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "WallpaperStyle" "10"
 
 # ================================
-# ACTUALIZAR PARÁMETROS Y FINALIZAR
+# REFRESCAR Y FINALIZAR
 # ================================
 RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+
 Write-Host ""
 Write-Host "Fondo y pantalla de bloqueo aplicados correctamente."
-Write-Host "Si el usuario cambia el fondo o el lockscreen después, su configuración será respetada."
-###################### Wallpaper Modificacion de rutina ######################
+Write-Host "Compatible con Windows 10/11 Pro / Enterprise / LTSC / IoT LTSC."
+##################################################################################################################
 
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
 # Crear rutas de registro si no existen
