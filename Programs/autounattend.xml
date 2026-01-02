@@ -1114,7 +1114,7 @@ try {
         @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Remove Windows AI"
 		    Script = {
-		        & ([scriptblock]::Create(
+		        &amp; ([scriptblock]::Create(
 		            (Invoke-RestMethod "https://raw.githubusercontent.com/zoicware/RemoveWindowsAI/main/RemoveWindowsAi.ps1")
 		        )) -nonInteractive -backupMode -Options `
 		            DisableRegKeys,
@@ -1329,5 +1329,6 @@ try {
 		</File>
 	</Extensions>
 </unattend>
+
 
 
