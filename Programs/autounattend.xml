@@ -1116,7 +1116,7 @@ try {
 		    Script = {
 		        & ([scriptblock]::Create(
 		            (Invoke-RestMethod "https://raw.githubusercontent.com/zoicware/RemoveWindowsAI/main/RemoveWindowsAi.ps1")
-		        )) -nonInteractive -Options `
+		        )) -nonInteractive -backupMode -Options `
 		            DisableRegKeys,
 		            PreventAIPackageReinstall,
 		            DisableCopilotPolicies,
@@ -1329,4 +1329,5 @@ try {
 		</File>
 	</Extensions>
 </unattend>
+
 
