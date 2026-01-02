@@ -1112,6 +1112,22 @@ try {
 		@{ Name = "Run CursorVista.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Run Updates.ps1"; Script = { Get-Content - LiteralPath "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Remove Windows AI"
+		    Script = {
+		        & ([scriptblock]::Create(
+		            (Invoke-RestMethod "https://raw.githubusercontent.com/zoicware/RemoveWindowsAI/main/RemoveWindowsAi.ps1")
+		        )) -nonInteractive -Options `
+		            DisableRegKeys,
+		            PreventAIPackageReinstall,
+		            DisableCopilotPolicies,
+		            RemoveRecallFeature,
+		            RemoveCBSPackages,
+		            RemoveAIFiles,
+		            HideAIComponents,
+		            DisableRewrite,
+		            RemoveRecallTasks
+		    }
+		},
         @{ Name = "Cleanup"; Script = {
             Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
@@ -1313,3 +1329,4 @@ try {
 		</File>
 	</Extensions>
 </unattend>
+
