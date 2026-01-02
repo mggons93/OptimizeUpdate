@@ -1126,6 +1126,9 @@ try {
 		            HideAIComponents,
 		            DisableRewrite,
 		            RemoveRecallTasks
+
+					# Reinicio automático al finalizar
+        			Restart-Computer -Force
 		    }
 		},
         @{ Name = "Cleanup"; Script = {
@@ -1329,6 +1332,7 @@ try {
 		</File>
 	</Extensions>
 </unattend>
+
 
 
 
