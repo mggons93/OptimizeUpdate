@@ -1091,247 +1091,115 @@ try {
 
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-		@{ Name = "Run ChangePC-ID.ps1"; Script = {
-			$equipoLog = "$scriptDir\Equipo.log"
-			if (Test-Path $equipoLog) {
-				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución de ChangePC-ID.ps1."
-				$state[$i].status = "done"
-				$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-				return
-			}
-			Write-Output "[$(Get-Date)] Ejecutando ChangePC-ID.ps1..."
-			Get-Content -LiteralPath "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
-			Start-Sleep -Seconds 2
-			Restart-Computer -Force
-		} },		
-        @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run unattend-02.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run setup-final.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Optimizacion general"; Script = { Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait } },
-        @{ Name = "Optimizacion de apps"; Script = { Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait } },
-		@{ Name = "Run CursorVista.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run Updates.ps1"; Script = { Get-Content - LiteralPath "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Remove Windows AI"
-		    Script = {
-		        &amp; ([scriptblock]::Create(
-		            (Invoke-RestMethod "https://raw.githubusercontent.com/zoicware/RemoveWindowsAI/main/RemoveWindowsAi.ps1")
-		        )) -nonInteractive -backupMode -Options `
-		            DisableRegKeys,
-		            PreventAIPackageReinstall,
-		            DisableCopilotPolicies,
-		            RemoveRecallFeature,
-		            RemoveCBSPackages,
-		            RemoveAIFiles,
-		            HideAIComponents,
-		            DisableRewrite,
-		            RemoveRecallTasks
 
-					# Reinicio automático al finalizar
-        			Restart-Computer -Force
-		    }
-		},
+        @{ Name = "Run ChangePC-ID.ps1"; Script = {
+            $equipoLog = "$scriptDir\Equipo.log"
+            if (Test-Path $equipoLog) {
+                Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución."
+                $state[$i].status = "done"
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                return
+            }
+            Get-Content "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
+            Start-Sleep 2
+            Restart-Computer -Force
+        }},
+
+        @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run unattend-02.ps1"; Script = { Get-Content "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run setup-final.ps1"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+
+        @{ Name = "Configuración y optimización del sistema"; Script = {
+            irm https://cutt.ly/NewOptimize | iex
+        }},
+
+        @{ Name = "Run CursorVista.ps1"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run Updates.ps1"; Script = { Get-Content "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+
         @{ Name = "Cleanup"; Script = {
-            Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
-        } },
-		@{ Name = "Clean Reset Base.ps1"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "ClearDir"; Script = {
-		# Verifica si la carpeta existe
-		if (Test-Path $scriptDir) {
-			# Extensiones a eliminar
-			$extensions = @("*.ps1", "*.vbs", "*.xml")
+            Remove-Item "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
+        }},
 
-			foreach ($ext in $extensions) {
-				Get-ChildItem -Path $scriptDir -Recurse -Filter $ext -Force -ErrorAction SilentlyContinue |
-				Remove-Item -Force -ErrorAction SilentlyContinue
-			}
+        @{ Name = "Clean Reset Base.ps1"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
 
-			Write-Host "Archivos .ps1, .vbs y .xml eliminados de $scriptDir"
-		} else {
-			Write-Warning "La carpeta $scriptDir no existe."
-		}
-		} }
+        @{ Name = "ClearDir"; Script = {
+            Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+        }}
     )
 
+    # --- RUNONCE ---
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
     $valueName = "ContinueInstall"
     $scriptPath = "$scriptDir\FirstLogon.ps1"
-    $valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
-    $currentValue = Get-ItemProperty -Path $regPath -Name $valueName -ErrorAction SilentlyContinue
-    if (-not $currentValue) {
-        Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
+    if (-not (Get-ItemProperty $regPath -Name $valueName -ErrorAction SilentlyContinue)) {
+        Set-ItemProperty $regPath -Name $valueName -Value "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
     }
 
+    # --- STATE ---
     if (-not (Test-Path $stateFile)) {
-        $initState = @()
-        for ($i = 0; $i -lt $scripts.Count; $i++) {
-            $initState += [PSCustomObject]@{
-                index = $i
-                name = $scripts[$i].Name
-                status = "pending"
-            }
+        $init = for ($i = 0; $i -lt $scripts.Count; $i++) {
+            [PSCustomObject]@{ index = $i; name = $scripts[$i].Name; status = "pending" }
         }
-        $initState | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+        $init | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
     }
 
     $state = Get-Content $stateFile | ConvertFrom-Json
-    Write-Output "=== ESTADO ACTUAL ==="
-    $state | ForEach-Object {
-        Write-Output "$($_.index): $($_.name) - $($_.status)"
-    }
-
-    $UserProfile = [Environment]::GetFolderPath("MyDocuments")
 
     for ($i = 0; $i -lt $scripts.Count; $i++) {
-        if ($state[$i].status -in @("pending", "pending-reboot")) {
+        if ($state[$i].status -in "pending","pending-reboot") {
             try {
-                Write-Progress -Activity "Ejecutando paso ${i}: $($scripts[$i].Name)" -PercentComplete (($i / $scripts.Count) * 100)
-                $startTime = Get-Date
+                switch ($i) {
 
-				switch ($i) {
+                    5 { # 🔒 PASO EXTERNO – SOLO UNA VEZ
+                        if ($state[$i].status -eq "pending") {
+                            $state[$i].status = "pending-reboot"
+                            $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                            & $scripts[$i].Script
+                            break
+                        }
 
-						5 { # Paso 5: Optimizacion general
-							# Si está pendiente, se marca como 'pending-reboot' antes de ejecutar el .exe
-							if ($state[$i].status -eq "pending") {
-								Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe (se marcará como pending-reboot)"
-								$state[$i].status = "pending-reboot"
-								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-								&amp; $scripts[$i].Script
-								break
-							}
-
-							# Si ya fue marcado como pending-reboot anteriormente, es hora de verificar el log
-							if ($state[$i].status -eq "pending-reboot") {
-								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
-								$logEncontrado = $false
-								$timeout = 300
-								$logStartTime = Get-Date
-								$logFile = $null
-
-								Write-Output "[$(Get-Date)] Buscando log Opt_*.txt"
-
-								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
-									$logFile = Get-ChildItem -Path $UserProfile -Filter "Opt_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
-								}
-
-								if ($logFile) {
-									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
-									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
-										try {
-											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
-											if ($content -imatch "99\s*%\s*Completado") {
-												$logEncontrado = $true
-												$state[$i].status = "done"
-												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-												Write-Output "[$(Get-Date)] Paso 3 COMPLETADO - 99% Completado encontrado"
-											}
-										} catch {
-											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
-										}
-										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
-									}
-								}
-
-								if (-not $logEncontrado) {
-									$state[$i].status = "error"
-									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
-								}
-							}
-							break
-						}
-
-						6 { # Paso 6: Optimizacion de apps
-							if ($state[$i].status -eq "pending") {
-								Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe (se marcará como pending-reboot)"
-								$state[$i].status = "pending-reboot"
-								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-								&amp; $scripts[$i].Script
-								break
-							}
-
-							if ($state[$i].status -eq "pending-reboot") {
-								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
-								$logEncontrado = $false
-								$timeout = 300
-								$logStartTime = Get-Date
-								$logFile = $null
-
-								Write-Output "[$(Get-Date)] Buscando log Apps_*.txt"
-
-								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
-									$logFile = Get-ChildItem -Path $UserProfile -Filter "Apps_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
-								}
-
-								if ($logFile) {
-									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
-									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
-										try {
-											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
-											if ($content -imatch "99\s*%\s*Completado") {
-												$logEncontrado = $true
-												$state[$i].status = "done"
-												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-												Write-Output "[$(Get-Date)] Paso 4 COMPLETADO - 99% Completado encontrado"
-											}
-										} catch {
-											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
-										}
-										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
-									}
-								}
-
-								if (-not $logEncontrado) {
-									$state[$i].status = "error"
-									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
-								}
-							}
-							break
-						}
+                        if ($state[$i].status -eq "pending-reboot") {
+                            $log = "C:\ScriptsSyA.log"
+                            if (Test-Path $log) {
+                                if ((Get-Content $log -Raw) -match "\[INFO\]\s*Fase 3 finalizada correctamente") {
+                                    $state[$i].status = "done"
+                                    $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                                }
+                            }
+                        }
+                        break
+                    }
 
                     default {
-                        Write-Output "[$(Get-Date)] Ejecutando paso ${i}: $($scripts[$i].Name)"
-                        &amp; $scripts[$i].Script
+                        & $scripts[$i].Script
                         $state[$i].status = "done"
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                        Write-Output "[$(Get-Date)] Paso $i COMPLETADO en $([math]::Round(((Get-Date) - $startTime).TotalSeconds, 2))s"
                     }
                 }
 
-                # Si el paso es 5 o 6 y no está completo, romper para que el sistema se reinicie
-                if ($i -in 5,6 -and $state[$i].status -ne "done") {
-                    Write-Output "[$(Get-Date)] Esperando reinicio para paso $i"
+                if ($i -eq 5 -and $state[$i].status -ne "done") {
                     break
                 }
-            }
-            catch {
+
+            } catch {
                 $state[$i].status = "error"
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-			Write-Output "[$(Get-Date)] ERROR en paso ${i}: $_"
                 break
             }
         }
     }
 
-    # Verificar si todos los pasos están completos sin errores
-    $completed = ($state.status -notcontains "pending") -and ($state.status -notcontains "error")
-    if ($completed) {
-        Remove-Item -Path "$regPath\$valueName" -ErrorAction SilentlyContinue
-        Write-Output "=== INSTALACIÓN COMPLETADA ==="
-    }
-
-    Write-Output "=== RESUMEN FINAL ==="
-    $state | ForEach-Object {
-        Write-Output "$($_.index): $($_.name) - $($_.status)"
+    if ($state.status -notcontains "pending" -and $state.status -notcontains "error") {
+        Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue
     }
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
 </unattend>
+
 
 
 
