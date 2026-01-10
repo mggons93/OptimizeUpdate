@@ -14,59 +14,22 @@ if (-not (Test-Admin)) {
     return
 }
 
-# Función para reiniciar el script con privilegios de administrador
-function Start-ProcessAsAdmin {
-    param (
-        [string]$file,
-        [string[]]$arguments = @()
-    )
-    Start-Process -FilePath $file -ArgumentList $arguments -Verb RunAs
+# -------------------------------------------------------------------------------------------------
+# DESCARGA DE OfficeInstaller.ps1
+# -------------------------------------------------------------------------------------------------
+
+$scriptDir = "C:\Windows\Setup\Scripts"
+if (-not (Test-Path $scriptDir)) {
+    New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
 }
 
-################################################################################################################
-# Descargar OfficeInstaller.ps1 directamente en la carpeta C:\Windows\Setup
 $officeUrl = "https://raw.githubusercontent.com/mggons93/Office-Online-Installer/refs/heads/main/OfficeExecutableInstaller.ps1"
-$officeExe = "C:\Windows\Setup\Scripts\OfficeInstaller.ps1"
-# Descargar el archivo
-Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe
+$officeExe = "$scriptDir\OfficeInstaller.ps1"
 
-# Función para descargar y extraer archivos ZIP en la ruta C:\Windows\Setup
-function DescargarYExtraer-Zip {
-    param (
-        [string]$url,
-        [string]$nombreArchivoZip,
-        [string]$nombreCarpetaDestino
-    )
-
-    $rutaZip = "C:\Windows\Setup\Scripts\$nombreArchivoZip"
-    $rutaUsuario = "C:\Windows\Setup\Scripts\$nombreCarpetaDestino"
-
-    # Mensaje simple antes de descargar
-    #Write-Output "Descargando $nombreArchivoZip..."
-
-    # Descargar ZIP sin barra de progreso
-    (New-Object System.Net.WebClient).DownloadFile($url, $rutaZip)
-
-    # Crear carpeta si no existe
-    if (-Not (Test-Path -Path $rutaUsuario)) {
-        New-Item -ItemType Directory -Path $rutaUsuario -ErrorAction SilentlyContinue | Out-Null
-    }
-
-    # Extraer ZIP
-    Expand-Archive -Path $rutaZip -DestinationPath $rutaUsuario -Force -ErrorAction SilentlyContinue
-
-    # Eliminar el archivo ZIP después de la extracción
-    Remove-Item -Path $rutaZip -Force -ErrorAction SilentlyContinue
+try {
+    Invoke-WebRequest -Uri $officeUrl -OutFile $officeExe -UseBasicParsing
+    Write-Output "[INFO] OfficeInstaller.ps1 descargado correctamente"
 }
-
-# Descargar y preparar AprovisionamientoApp (sin ejecución)
-DescargarYExtraer-Zip `
-    -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/AprovisionamientoApp.zip" `
-    -nombreArchivoZip "AprovisionamientoApp.zip" `
-    -nombreCarpetaDestino "AprovisionamientoApp"
-
-# Descargar OptimizingWindowsApp (sin ejecución)
-DescargarYExtraer-Zip `
-    -url "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/OptimizingWindowsApp.zip" `
-    -nombreArchivoZip "OptimizingWindowsApp.zip" `
-    -nombreCarpetaDestino "OptimizeWindows"
+catch {
+    Write-Output "[ERROR] Error al descargar OfficeInstaller.ps1: $_"
+}
