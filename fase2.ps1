@@ -815,6 +815,6 @@ Write-Output '99% Completado'
 Start-Sleep -Seconds 4
 Write-Output '100% Completado'
 # Reinicio silencioso
-$os = Get-WmiObject -Class Win32_OperatingSystem
-$os.PSBase.Scope.Options.EnablePrivileges = $true
-$os.Win32Shutdown(6)
+#$os = Get-WmiObject -Class Win32_OperatingSystem
+#$os.PSBase.Scope.Options.EnablePrivileges = $true
+#$os.Win32Shutdown(6)
