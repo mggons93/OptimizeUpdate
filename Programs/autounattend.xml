@@ -988,20 +988,20 @@ $ProgressPreference = 'SilentlyContinue'
 try {
     # Instalar NuGet si no está presente
     if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-        Write-Output "🔄 Instalando proveedor NuGet..."
+        Write-Output "Instalando proveedor NuGet..."
         Install-PackageProvider -Name NuGet -Force -Scope AllUsers -Confirm:$false -ErrorAction Stop
     }
 
     # Marcar PSGallery como repositorio confiable si no lo está
     $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
     if ($null -eq $psGallery -or $psGallery.InstallationPolicy -ne 'Trusted') {
-        Write-Output "✅ Marcando PSGallery como repositorio confiable..."
+        Write-Output "Marcando PSGallery como repositorio confiable..."
         Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
     }
 
     # Instalar PSWindowsUpdate si no está instalado
     if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-        Write-Output "📦 Instalando PSWindowsUpdate..."
+        Write-Output "Instalando PSWindowsUpdate..."
         Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false -ErrorAction Stop
     }
 
@@ -1019,10 +1019,10 @@ try {
     Write-Output "🔧 Buscando e instalando otras actualizaciones..."
     Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot | Where-Object { $_.Title -notlike "*driver*" }
 
-    Write-Output "✅ Todo listo. Drivers y actualizaciones aplicadas."
+    Write-Output "Todo listo. Drivers y actualizaciones aplicadas."
 }
 catch {
-    Write-Error "❌ Error crítico: $_"
+    Write-Error "Error crítico: $_"
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
@@ -1153,11 +1153,11 @@ try {
             try {
                 switch ($i) {
 
-                    5 { # 🔒 PASO EXTERNO – SOLO UNA VEZ
+                    5 { # PASO EXTERNO – SOLO UNA VEZ
                         if ($state[$i].status -eq "pending") {
                             $state[$i].status = "pending-reboot"
                             $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                            & $scripts[$i].Script
+                            &amp; $scripts[$i].Script
                             break
                         }
 
@@ -1174,7 +1174,7 @@ try {
                     }
 
                     default {
-                        & $scripts[$i].Script
+                        &amp; $scripts[$i].Script
                         $state[$i].status = "done"
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
                     }
@@ -1199,8 +1199,3 @@ try {
 		</File>
 	</Extensions>
 </unattend>
-
-
-
-
-
