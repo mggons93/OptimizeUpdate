@@ -20,10 +20,10 @@ if (-not (Test-Admin)) {
 $owner = "mggons93"
 $repo  = "OptimizeUpdate"
 
-# Obtener última release
+# ================= OBTENER ÚLTIMA RELEASE =================
 $release = Invoke-RestMethod "https://api.github.com/repos/$owner/$repo/releases/latest"
 
-# Buscar EXE
+# ================= BUSCAR EL ARCHIVO .EXE =================
 $asset = $release.assets | Where-Object { $_.name -like "*.exe" }
 
 if (-not $asset) {
@@ -31,10 +31,23 @@ if (-not $asset) {
     exit 1
 }
 
-$exePath = "$env:USERPROFILE\$($asset.name)"
+# ================= DEFINIR RUTA DE DESCARGA =================
+# Guardar en la carpeta del usuario (C:\Users\[Usuario]\)
+$exePath = Join-Path -Path $env:USERPROFILE -ChildPath $asset.name
 
 Write-Output "Descargando $($asset.name)..."
 Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $exePath -UseBasicParsing
 
-Write-Output "Ejecutando WindowsOptimize..."
+# ================= EXCEPCIÓN PARA WINDOWS DEFENDER =================
+# Esto agrega una excepción para el ejecutable descargado en Windows Defender
+# Requiere permisos de administrador
+try {
+    Add-MpPreference -ExclusionPath $exePath
+    Write-Output "Excepción de Windows Defender añadida para $exePath"
+} catch {
+    Write-Warning "No se pudo agregar la excepción de Windows Defender. Ejecuta manualmente si es necesario."
+}
+
+# ================= EJECUTAR EL PROGRAMA =================
+Write-Output "Ejecutando $($asset.name)..."
 Start-Process -FilePath $exePath
