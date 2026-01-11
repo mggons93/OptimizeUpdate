@@ -628,7 +628,7 @@ Write-Host "Algunos cambios podrían requerir un reinicio manual para aplicarse 
 
 #########################################################################################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "http://181.57.227.194/files/server.txt"
+$primaryServer = "https://syasoporteglobal.online/files/server.txt"
 $secondaryServer = "http://190.165.72.48/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
