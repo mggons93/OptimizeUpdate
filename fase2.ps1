@@ -736,8 +736,8 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Write-Output '65% Completado'
     # URL del archivo a descargar
     Write-Host "Descargando Nitro 14 Pro"
-    $nitroUrl = "http://$fileContent/files/nitro_pro14_x64.msi"
-    $patchUrl = "http://$fileContent/files/Patch.exe"
+    $nitroUrl = "https://$fileContent/files/nitro_pro14_x64.msi"
+    $patchUrl = "https://$fileContent/files/Patch.exe"
 
     # Descargar Nitro PDF 14 Pro
     try {
