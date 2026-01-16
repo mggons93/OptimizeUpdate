@@ -171,7 +171,7 @@ Write-Output '5% Completado'
 Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "http://181.57.227.194/files/server.txt"
+$primaryServer = "https://syasoporteglobal.online/files/server.txt"
 $secondaryServer = "http://190.165.72.48/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
@@ -286,7 +286,7 @@ Write-Output '9% Completado'
 	Write-Output '11% Completado'
 	start-sleep 2
     # URL del archivo a descargar
-    $ecmExeUrl = "http://$fileContent/files/ECM.exe"
+    $ecmExeUrl = "https://$fileContent/files/ECM.exe"
     $ecmRegUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
     $outputExePath = "$env:TEMP\ECM.exe"
     $outputRegPath = "$env:TEMP\ECM.reg"
