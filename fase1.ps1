@@ -34,14 +34,99 @@ Write-Output '1% Completado'
 #Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
 #$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
 
-$maxPerformanceScheme = powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
-$guid = [regex]::Match($maxPerformanceScheme, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').Value
-powercfg -setactive $guid
-  
+## Planes de Energia
+function Repair-PowerPlans {
+
+    Write-Host "`n==============================="
+    Write-Host "🔧 Ejecutando reparación planes"
+    Write-Host "==============================="
+    Clear-Host
+    # ================= LOG =================
+    $LOG = "$PSScriptRoot\performance.txt"
+    powercfg /list | Out-File $LOG -Encoding Default
+    Write-Host "=== PLANES DETECTADOS ===`n"
+    Get-Content $LOG
+
+    # ================= GUIDS BASE =================
+    $BASE_PLANS = @{
+        "Equilibrado"        = "381b4222-f694-41f0-9685-ff5bb260df2e"
+        "Alto rendimiento"   = "e77b042d-37c5-452e-8dc8-47aefe0bff05"
+        "Economizador"       = "a1841308-3541-4fab-bc81-f71556f20b4a"
+        "Máximo rendimiento" = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+    }
+
+    # ================= OBTENER GUIDS EXISTENTES =================
+    $existingGUIDs = (powercfg /list) | Select-String -Pattern '[a-f0-9\-]{36}' |
+        ForEach-Object { $_.Matches.Value }
+
+    # ================= LIMPIAR CLONES =================
+    Write-Host "Limpiando planes duplicados..."
+    $allPlans = powercfg /list | Select-String "GUID" | ForEach-Object {
+        if ($_ -match '([a-f0-9\-]{36}).+\((.+)\)') {
+            [PSCustomObject]@{
+                GUID = $matches[1]
+                Name = $matches[2]
+            }
+        }
+    }
+    $allPlans | Group-Object Name | Where-Object Count -gt 1 | ForEach-Object {
+        $_.Group | Where-Object {
+            $_.GUID -notin $BASE_PLANS.Values
+        } | ForEach-Object {
+            Write-Host "Eliminando clon:" $_.GUID
+            powercfg /delete $_.GUID | Out-Null
+        }
+    }
+
+    # ================= CREAR PLANES FALTANTES =================
+    Write-Host "Creando planes faltantes..."
+    foreach ($plan in $BASE_PLANS.GetEnumerator()) {
+        # ⚠ Nunca duplicar Equilibrado
+        if ($plan.Key -eq "Equilibrado") { continue }
+        if ($existingGUIDs -notcontains $plan.Value) {
+            try {
+                Write-Host "Creando:" $plan.Key
+                $out = powercfg -duplicatescheme $plan.Value 2>$null
+            }
+            catch {
+                Write-Host "No soportado por el sistema:" $plan.Key
+            }
+        }
+    }
+
+    # ================= DETECTAR TIPO DE EQUIPO =================
+    $battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
+    Write-Host "`Seleccionando plan óptimo..."
+    if (-not $battery -and (powercfg /list) -match "Máximo rendimiento") {
+        Write-Host "Escritorio → Máximo rendimiento"
+        powercfg /setactive $BASE_PLANS["Máximo rendimiento"]
+    }
+    elseif ((powercfg /list) -match "Alto rendimiento") {
+        Write-Host "Alto rendimiento → activando"
+        powercfg /setactive $BASE_PLANS["Alto rendimiento"]
+    }
+    else {
+        Write-Host "Sistema limitado → Equilibrado"
+        powercfg /setactive $BASE_PLANS["Equilibrado"]
+    }
+    # ================= RESULTADO =================
+    Write-Host "`n=== PLANES FINALES ===`n"
+    powercfg /list
+    Write-Host "`SISTEMA LIMPIO, SIN DUPLICADOS, SIN ERRORES" -ForegroundColor Green
+}
+
+for ($i = 1; $i -le 2; $i++) {
+    Write-Host "PASADA $i DE 2" -ForegroundColor Cyan
+    Repair-PowerPlans
+    # Pequeña pausa para que Windows refresque ACPI
+    Start-Sleep -Milliseconds 800
+}
+########################################################
 # Agregar excepciones
 Add-MpPreference -ExclusionPath "C:\Windows\Setup\FilesU"
 Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.ps1"
 Add-MpPreference -ExclusionProcess "$env:TEMP\MAS_31F7FD1E.cmd"
+Add-MpPreference -ExclusionProcess "$env:TEMP\Ohook_Activation_AIO.cmd"
 Add-MpPreference -ExclusionProcess "$env:TEMP\officeinstaller.ps1"
 
 #$randomSuffix = -join ((65..90) + (97..122) | Get-Random -Count 4 | ForEach-Object { [char]$_ }) + (Get-Random -Minimum 1000 -Maximum 9999)
