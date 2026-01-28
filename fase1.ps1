@@ -588,17 +588,35 @@ Write-Output "21% Completado"
 $os = Get-CimInstance Win32_OperatingSystem
 $versionWindows = [System.Version]$os.Version
 $buildNumber = [int]$os.BuildNumber
-$edition = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
-$productName = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
+
+$cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+$edition = $cv.EditionID
+$productName = $cv.ProductName
 
 # ================================
-# FLAGS
+# FLAGS DE VERSIÓN
 # ================================
+
 $esWindows11 = ($versionWindows.Major -eq 10 -and $buildNumber -ge 22000)
 $esWindows10 = ($versionWindows.Major -eq 10 -and $buildNumber -lt 22000)
 
-$esLTSC = ($edition -match "LTSC|LTSB|IoT")
+# ================================
+# FLAGS DE EDICIÓN (CORREGIDOS)
+# ================================
+
+# LTSC reales (incluye 2016 / 2019 / 2021 / IoT)
+$esLTSC = (
+    $edition -match "^EnterpriseS$" -or
+    $edition -match "^EnterpriseSN$" -or
+    $edition -match "^IoTEnterpriseS$"
+)
+
+# Variantes N (ProN, EnterpriseN, EnterpriseSN, ProWSN, etc.)
 $esN = ($edition -match "N$")
+
+# ================================
+# INFO EN CONSOLA
+# ================================
 
 Write-Host "Sistema detectado:"
 Write-Host "Producto : $productName"
@@ -609,17 +627,32 @@ if ($esLTSC) { Write-Host "Tipo     : LTSC / IoT LTSC" }
 if ($esN)    { Write-Host "Variante : N" }
 
 # ================================
-# VALIDACIÓN UNIVERSAL
+# VALIDACIÓN UNIVERSAL (BLINDADA)
 # ================================
 
-$win10NormalOK = ($esWindows10 -and $buildNumber -ge 19041 -and -not $esLTSC)
-$win10LTSCOK   = ($esWindows10 -and $esLTSC -and $buildNumber -ge 14393)
-$win11OK       = $esWindows11   # Incluye LTSC / IoT / N
+# Windows 10 normal (Pro, Pro N, Pro WS, Enterprise, Education, etc.)
+$win10NormalOK = (
+    $esWindows10 -and
+    -not $esLTSC -and
+    $buildNumber -ge 19041
+)
+
+# Windows 10 LTSC / IoT LTSC
+$win10LTSCOK = (
+    $esWindows10 -and
+    $esLTSC -and
+    $buildNumber -ge 14393   # LTSC 2016
+)
+
+# Windows 11 (todas las ediciones, incluidas LTSC / IoT / N)
+$win11OK = $esWindows11
 
 if (-not ($win10NormalOK -or $win10LTSCOK -or $win11OK)) {
-    Write-Host "Sistema no compatible."
+    Write-Host "Sistema no compatible." -ForegroundColor Red
     return
 }
+
+Write-Host "Sistema compatible" -ForegroundColor Green
 
 # ================================
 # RUTA BASE DEL FONDO
