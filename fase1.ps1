@@ -581,38 +581,44 @@ Write-Output "21% Completado"
 # - Windows 11 22H2 / 23H2 / 24H2 / 25H2
 # - Windows 11 IoT LTSC
 # ==========================================================
+# ================================
+# DETECCIÓN GLOBAL DE WINDOWS
+# ================================
 
-# ================================
-# DETECTAR SISTEMA
-# ================================
 $os = Get-CimInstance Win32_OperatingSystem
 $versionWindows = [System.Version]$os.Version
 $buildNumber = [int]$os.BuildNumber
 $edition = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
 $productName = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
 
+# ================================
+# FLAGS
+# ================================
+$esWindows11 = ($versionWindows.Major -eq 10 -and $buildNumber -ge 22000)
+$esWindows10 = ($versionWindows.Major -eq 10 -and $buildNumber -lt 22000)
+
+$esLTSC = ($edition -match "LTSC|LTSB|IoT")
+$esN = ($edition -match "N$")
+
 Write-Host "Sistema detectado:"
-Write-Host "Producto   : $productName"
-Write-Host "Edición    : $edition"
-Write-Host "Versión    : $($versionWindows)"
-Write-Host "Build      : $buildNumber"
-Write-Host ""
+Write-Host "Producto : $productName"
+Write-Host "Edición  : $edition"
+Write-Host "Build    : $buildNumber"
+
+if ($esLTSC) { Write-Host "Tipo     : LTSC / IoT LTSC" }
+if ($esN)    { Write-Host "Variante : N" }
 
 # ================================
-# VALIDACIÓN DE COMPATIBILIDAD
+# VALIDACIÓN UNIVERSAL
 # ================================
-$esWindows10Valido = ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041)
-$esWindows11Valido = ($versionWindows.Major -eq 10 -and $buildNumber -ge 22000)
 
-if (-not ($esWindows10Valido -or $esWindows11Valido)) {
-    Write-Host "Este script requiere Windows 10 (19041+) o Windows 11."
+$win10NormalOK = ($esWindows10 -and $buildNumber -ge 19041 -and -not $esLTSC)
+$win10LTSCOK   = ($esWindows10 -and $esLTSC -and $buildNumber -ge 14393)
+$win11OK       = $esWindows11   # Incluye LTSC / IoT / N
+
+if (-not ($win10NormalOK -or $win10LTSCOK -or $win11OK)) {
+    Write-Host "Sistema no compatible."
     return
-}
-
-# Aviso informativo para LTSC / IoT
-if ($edition -match "LTSC|IoT") {
-    Write-Host "Edición LTSC / IoT detectada."
-    Write-Host "Algunas políticas visuales pueden depender de GPO, pero el script continuará."
 }
 
 # ================================
