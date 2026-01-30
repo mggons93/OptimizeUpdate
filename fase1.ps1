@@ -1627,90 +1627,171 @@ Write-Output "90% Completado"
 #############################
 
 ############################## OPTIMIZAR DISCO SSD #############################
-# Función para verificar si el disco es un SSD
-function IsSSD {
-    param (
-        [string]$driveLetter
-    )
-    $diskNumber = (Get-Partition -DriveLetter $driveLetter).DiskNumber
-    $diskInfo = Get-PhysicalDisk | Where-Object { $_.DeviceID -eq $diskNumber }
-    return $diskInfo.MediaType -eq 'SSD'
+##############################
+# OPTIMIZACIÓN INTELIGENTE DE DISCO
+# Win10/11/LTSC/IoT/PS5/PS7 compatible
+##############################
+
+$ErrorActionPreference = "SilentlyContinue"
+
+Write-Host ""
+Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
+
+# ==========================================
+# FUNCIÓN → Obtener disco del sistema
+# ==========================================
+function Get-SystemDisk {
+
+    $driveLetter = ($env:SystemDrive).TrimEnd(':')
+
+    try {
+        $p = Get-Partition -DriveLetter $driveLetter
+        if ($p) { return Get-Disk -Number $p.DiskNumber }
+    } catch {}
+
+    try {
+        $logical = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${driveLetter}:'"
+        $partition = Get-CimAssociatedInstance $logical -Association Win32_LogicalDiskToPartition
+        $disk = Get-CimAssociatedInstance $partition -Association Win32_DiskDriveToDiskPartition
+        return $disk
+    } catch {}
+
+    return $null
 }
 
-# Obtener la letra de unidad del sistema
-$systemDriveLetter = ($env:SystemDrive).TrimEnd(':')
-#############################
+# ==========================================
+# LISTADO DE DISCOS
+# ==========================================
+$allDisks = Get-CimInstance Win32_DiskDrive
+
+foreach ($d in $allDisks) {
+    Write-Host ""
+    Write-Host "Disco #" $d.Index
+    Write-Host "Modelo     :" $d.Model
+    Write-Host "Interface  :" $d.InterfaceType
+    Write-Host "MediaType  :" $d.MediaType
+    Write-Host "Tamaño     :" ([math]::Round($d.Size/1GB,0)) "GB"
+}
+
+# ==========================================
+# DISCO DEL SISTEMA
+# ==========================================
+$disk = Get-SystemDisk
+
+if (-not $disk) {
+    Write-Host "❌ No se pudo detectar el disco del sistema."
+    exit
+}
+
+$sizeGB = [math]::Round($disk.Size/1GB,0)
+
+Write-Host ""
+Write-Host "===== DISCO DEL SISTEMA (C:) =====" -ForegroundColor Green
+Write-Host "Disco físico :" $disk.Index
+Write-Host "Modelo       :" $disk.Model
+Write-Host "Interface    :" $disk.InterfaceType
+Write-Host "MediaType    :" $disk.MediaType
+Write-Host "Tamaño       :" "$sizeGB GB"
+Write-Host "================================="
+
 Write-Output "93% Completado"
-#############################
-# Verificar si el sistema está en un SSD
-if (IsSSD -driveLetter $systemDriveLetter) {
-    Write-Host "Optimizando SSD..."
-        
-    # Desactivar la función de reinicio rápido
-    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name 'HiberbootEnabled' -Value 0
 
-    # Desactivar la desfragmentación programada en la unidad C
-    Stop-Service -Name "RmSvc" -Force
-    Set-Service -Name "RmSvc" -StartupType Disabled
+# ==========================================
+# DETECCIÓN SSD (robusta)
+# ==========================================
+$isSSD = $false
 
-    # Aplicar optimizaciones para SSD
-    $volume = Get-Volume -DriveLetter $systemDriveLetter
-    if ($volume) {
-        # Habilitar restauración del sistema en la unidad del sistema
-        Enable-ComputerRestore -Drive "$systemDriveLetter`:\" -Confirm:$false
+try {
+    $pd = Get-PhysicalDisk | Where-Object {
+        $_.FriendlyName -like "*$($disk.Model)*"
+    }
+    if ($pd -and $pd.MediaType -eq "SSD") {
+        $isSSD = $true
+    }
+} catch {}
 
-        # Deshabilitar restauración del sistema en todas las unidades excepto en C:
-        Get-WmiObject Win32_Volume | Where-Object { $_.DriveLetter -ne "$systemDriveLetter`:" -and $_.DriveLetter -ne $null } | ForEach-Object {
-            if ($_.DriveLetter) {
-                #Disable-ComputerRestore -Drive "$($_.DriveLetter)\"
-            }
+if (-not $isSSD) {
+    if ($disk.Model -match "SSD|ADATA|SU[0-9]+|NVME|M\.2|KINGSTON|WD GREEN|CRUCIAL|SAMSUNG") {
+        $isSSD = $true
+    }
+}
+
+# ==========================================
+# OPTIMIZACIÓN
+# ==========================================
+if ($isSSD) {
+#Antiguo Codigo
+    Write-Host ""
+    Write-Host "SSD detectado → Aplicando optimizaciones modernas..." -ForegroundColor Cyan
+
+    # ======================================
+    # 1) TRIM
+    # ======================================
+    fsutil behavior set DisableDeleteNotify 0 | Out-Null
+
+    # ======================================
+    # 2) ReTrim oficial
+    # ======================================
+    defrag C: /L /O | Out-Null
+
+    Write-Output "95% Completado"
+
+    # ======================================
+    # 3) Hibernación OFF
+    # ======================================
+    powercfg -h off
+
+    # ======================================
+    # 4) SysMain OFF solo SSD
+    # ======================================
+    Stop-Service SysMain -Force
+    Set-Service SysMain -StartupType Disabled
+
+    # ======================================
+    # 5) Último acceso OFF
+    # ======================================
+    fsutil behavior set DisableLastAccess 1 | Out-Null
+
+    # ======================================
+    # 6) Restauración
+    # ======================================
+    Enable-ComputerRestore -Drive "$systemDriveLetter`:\" -Confirm:$false
+
+	Write-Output "98% Completado"
+    # ======================================
+    # 7) CompactOS automático
+    # ======================================
+    Write-Host ""
+    Write-Host "Evaluando tamaño del disco..."
+
+    if ($sizeGB -le 64) {
+
+        Write-Host "Disco pequeño ($sizeGB GB) → Activando CompactOS..." -ForegroundColor Yellow
+
+        $state = compact.exe /compactOS:query
+
+        if ($state -notmatch "already") {
+            compact.exe /compactOS:always | Out-Null
+            Write-Host "✔ CompactOS habilitado (ahorra 2–6 GB)."
         }
-
-        Write-Host "Optimizando para SSD - Disco: $($volume.DriveLetter)"
-		
-		#############################
-        Write-Output "95% Completado"
-		#############################
-		
-        # Configuración de políticas de energía
-        powercfg /change standby-timeout-ac 0
-        powercfg /change standby-timeout-dc 0
-        powercfg /change hibernate-timeout-ac 0
-        powercfg /change hibernate-timeout-dc 0
-
-        # Deshabilitar desfragmentación automática
-        Disable-ScheduledTask -TaskName '\Microsoft\Windows\Defrag\ScheduledDefrag'
-
-        # ReTrim para SSD
-        Optimize-Volume -DriveLetter $volume.DriveLetter -ReTrim -Verbose
-
-        # Deshabilitar Prefetch y Superfetch
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" -Name EnablePrefetcher -Value 0
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" -Name EnableSuperfetch -Value 0
-
-        # Deshabilitar la última fecha de acceso
-        fsutil behavior set DisableLastAccess 1
-
-        # Desactivar la compresión NTFS
-        #fsutil behavior set DisableCompression 1
-
-        # Deshabilitar el seguimiento de escritura en el sistema de archivos
-        fsutil behavior set DisableDeleteNotify 1
-
-        Write-Host "Optimización de SSD completa."
-        Write-Host "Proceso completado..."
-        
-        Set-ItemProperty -Path "C:\ODT" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
-        
-        #############################	
-        Write-Output "98% Completado"
-        #############################
-    } else {
-        Write-Host "No se encontró el volumen para la letra de unidad $systemDriveLetter."
+        else {
+            Write-Host "CompactOS ya estaba activo."
+        }
+    }
+    else {
+        Write-Host "Disco suficiente ($sizeGB GB) → No se requiere compresión."
     }
 
-} else {
-    Write-Host "El disco no es un SSD. No se realizarán optimizaciones."
+    # ======================================
+    # 8) Ocultar carpeta ODT
+    # ======================================
+    if (Test-Path "C:\ODT") {
+        (Get-Item "C:\ODT").Attributes = "Hidden"
+    }
+}
+else {
+    Write-Host ""
+    Write-Host "HDD detectado → No se aplican optimizaciones SSD" -ForegroundColor Yellow
 }
 
 Write-Output "99% Completado"
