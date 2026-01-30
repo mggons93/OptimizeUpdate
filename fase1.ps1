@@ -364,88 +364,58 @@ Write-Output "7% Completado"
 # Sino → descarga desde URL proporcionada
 # ==========================================================
 
-# ================= CONFIG =================
-$StoreZipURL   = "https://syasoporteglobal.online/files/store_pack.zip"
-$OfflineFolder = "$PSScriptRoot\StoreOffline"
-$TempDir       = "$env:TEMP\StorePack"
-$ZipFile       = "$env:TEMP\store_pack.zip"
-$CmdName       = "Add-Store.cmd"
-# ==========================================
-# ==========================================================
-# DETECTAR EDICION (SOLO LTSC / IoT)
-# ==========================================================
-$cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-$edition = $cv.EditionID
-$esLTSC = @(
-    "EnterpriseS",
-    "EnterpriseSN",
-    "IoTEnterpriseS"
-) -contains $edition
-Write-Host "Edición detectada: $edition"
-if (-not $esLTSC) {
-    Write-Host "Sistema normal → Store ya incluida. Saliendo..."
-    return
-}
-# ==========================================================
-# VERIFICAR STORE
-# ==========================================================
-$store = Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue
-if ($store) {
-    Write-Host "Microsoft Store ya instalada. Nada que hacer."
-    return
-}
-Write-Host ""
-Write-Host "Store no detectada → preparando instalación..." -ForegroundColor Yellow
-# ==========================================================
-# PREPARAR CARPETA TEMP
-# ==========================================================
-Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
-# ==========================================================
-# MODO OFFLINE (PRIORIDAD)
-# ==========================================================
+function Install-StoreIfNeeded {
 
-if (Test-Path $OfflineFolder) {
-    Write-Host "Modo OFFLINE detectado → usando archivos locales..."
-    Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
-}
-else {
+    $StoreZipURL   = "https://syasoporteglobal.online/files/store_pack.zip"
+    $OfflineFolder = "$PSScriptRoot\StoreOffline"
+    $TempDir       = "$env:TEMP\StorePack"
+    $ZipFile       = "$env:TEMP\store_pack.zip"
+    $CmdName       = "Add-Store.cmd"
 
-    # ======================================================
-    # MODO ONLINE (DESCARGA ZIP)
-    # ======================================================
-    Write-Host "Descargando paquete desde internet..."
-    Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
-    try {
-        Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing
-    }
-    catch {
-        Write-Host "Error descargando el paquete desde: $StoreZipURL" -ForegroundColor Red
+    $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    $edition = $cv.EditionID
+
+    $esLTSC = @(
+        "EnterpriseS",
+        "EnterpriseSN",
+        "IoTEnterpriseS"
+    ) -contains $edition
+
+    Write-Host "Edición detectada: $edition"
+
+    if (-not $esLTSC) {
+        Write-Host "Sistema normal → se omite instalación Store"
         return
     }
-    Write-Host "Extrayendo..."
-    Expand-Archive $ZipFile -DestinationPath $TempDir -Force
+
+    $store = Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue
+
+    if ($store) {
+        Write-Host "Microsoft Store ya instalada"
+        return
+    }
+
+    Write-Host "Instalando Microsoft Store..." -ForegroundColor Yellow
+
+    Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+
+    if (Test-Path $OfflineFolder) {
+        Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
+    }
+    else {
+        Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing
+        Expand-Archive $ZipFile -DestinationPath $TempDir -Force
+    }
+
+    $cmdPath = Join-Path $TempDir $CmdName
+
+    if (Test-Path $cmdPath) {
+        Start-Process $cmdPath -WorkingDirectory $TempDir -Verb RunAs -Wait
+    }
+
+    Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 }
-# ==========================================================
-# EJECUTAR CMD OFFLINE
-# ==========================================================
-
-$cmdPath = Join-Path $TempDir $CmdName
-
-if (-not (Test-Path $cmdPath)) {
-    Write-Host "No se encontró $CmdName dentro del paquete." -ForegroundColor Red
-    return
-}
-
-Write-Host "Ejecutando instalador offline..."
-Start-Process -FilePath $cmdPath -WorkingDirectory $TempDir -Verb RunAs -Wait
-
-# ==========================================================
-# LIMPIEZA
-# ==========================================================
-Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
-Write-Host ""
-Write-Host "Proceso completado correctamente." -ForegroundColor Green
 
 ############################
 Write-Output "9% Completado"
