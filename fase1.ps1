@@ -1509,6 +1509,9 @@ Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAnd
 Write-Host "Habilitando Location Scripting..."
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocationScripting" -ErrorAction SilentlyContinue
 
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /f
+reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" /f
+
 
 # Indicador de progreso
 #############################
