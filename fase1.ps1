@@ -1682,7 +1682,7 @@ foreach ($d in $allDisks) {
 $disk = Get-SystemDisk
 
 if (-not $disk) {
-    Write-Host "❌ No se pudo detectar el disco del sistema."
+    Write-Host "No se pudo detectar el disco del sistema."
     exit
 }
 
@@ -1775,7 +1775,7 @@ if ($isSSD) {
 
         if ($state -notmatch "already") {
             compact.exe /compactOS:always | Out-Null
-            Write-Host "✔ CompactOS habilitado (ahorra 2–6 GB)."
+            Write-Host "CompactOS habilitado (ahorra 2–6 GB)."
         }
         else {
             Write-Host "CompactOS ya estaba activo."
