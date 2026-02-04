@@ -1629,9 +1629,8 @@ if (Get-WindowsActivationStatus) {
 Write-Output "90% Completado"
 #############################
 
-############################## OPTIMIZAR DISCO SSD #############################
 ##############################
-# OPTIMIZACIÓN INTELIGENTE DE DISCO
+# OPTIMIZAR DISCO SSD
 # Win10/11/LTSC/IoT/PS5/PS7 compatible
 ##############################
 
@@ -1641,7 +1640,7 @@ Write-Host ""
 Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
 
 # ==========================================
-# FUNCIÓN → Obtener disco del sistema
+# FUNCION: Obtener disco del sistema
 # ==========================================
 function Get-SystemDisk {
 
@@ -1673,7 +1672,7 @@ foreach ($d in $allDisks) {
     Write-Host "Modelo     :" $d.Model
     Write-Host "Interface  :" $d.InterfaceType
     Write-Host "MediaType  :" $d.MediaType
-    Write-Host "Tamaño     :" ([math]::Round($d.Size/1GB,0)) "GB"
+    Write-Host "Tamano     :" ([math]::Round($d.Size/1GB,0)) "GB"
 }
 
 # ==========================================
@@ -1690,17 +1689,17 @@ $sizeGB = [math]::Round($disk.Size/1GB,0)
 
 Write-Host ""
 Write-Host "===== DISCO DEL SISTEMA (C:) =====" -ForegroundColor Green
-Write-Host "Disco físico :" $disk.Index
+Write-Host "Disco fisico :" $disk.Index
 Write-Host "Modelo       :" $disk.Model
 Write-Host "Interface    :" $disk.InterfaceType
 Write-Host "MediaType    :" $disk.MediaType
-Write-Host "Tamaño       :" "$sizeGB GB"
+Write-Host "Tamano       :" "$sizeGB GB"
 Write-Host "================================="
 
 Write-Output "93% Completado"
 
 # ==========================================
-# DETECCIÓN SSD (robusta)
+# DETECCION SSD
 # ==========================================
 $isSSD = $false
 
@@ -1708,6 +1707,7 @@ try {
     $pd = Get-PhysicalDisk | Where-Object {
         $_.FriendlyName -like "*$($disk.Model)*"
     }
+
     if ($pd -and $pd.MediaType -eq "SSD") {
         $isSSD = $true
     }
@@ -1720,81 +1720,66 @@ if (-not $isSSD) {
 }
 
 # ==========================================
-# OPTIMIZACIÓN
+# OPTIMIZACION
 # ==========================================
 if ($isSSD) {
-#Antiguo Codigo
-    Write-Host ""
-    Write-Host "SSD detectado → Aplicando optimizaciones modernas..." -ForegroundColor Cyan
 
-    # ======================================
-    # 1) TRIM
-    # ======================================
+    Write-Host ""
+    Write-Host "SSD detectado - Aplicando optimizaciones..." -ForegroundColor Cyan
+
+    # TRIM
     fsutil behavior set DisableDeleteNotify 0 | Out-Null
 
-    # ======================================
-    # 2) ReTrim oficial
-    # ======================================
+    # ReTrim oficial
     defrag C: /L /O | Out-Null
 
     Write-Output "95% Completado"
 
-    # ======================================
-    # 3) Hibernación OFF
-    # ======================================
+    # Hibernacion OFF
     powercfg -h off
 
-    # ======================================
-    # 4) SysMain OFF solo SSD
-    # ======================================
+    # SysMain OFF
     Stop-Service SysMain -Force
     Set-Service SysMain -StartupType Disabled
 
-    # ======================================
-    # 5) Último acceso OFF
-    # ======================================
+    # Ultimo acceso OFF
     fsutil behavior set DisableLastAccess 1 | Out-Null
 
-    # ======================================
-    # 6) Restauración
-    # ======================================
-    Enable-ComputerRestore -Drive "$systemDriveLetter`:\" -Confirm:$false
+    # Restauracion sistema
+    Enable-ComputerRestore -Drive "C:\" -Confirm:$false
 
-	Write-Output "98% Completado"
-    # ======================================
-    # 7) CompactOS automático
-    # ======================================
+    Write-Output "98% Completado"
+
+    # CompactOS automatico
     Write-Host ""
-    Write-Host "Evaluando tamaño del disco..."
+    Write-Host "Evaluando tamano del disco..."
 
     if ($sizeGB -le 64) {
 
-        Write-Host "Disco pequeño ($sizeGB GB) → Activando CompactOS..." -ForegroundColor Yellow
+        Write-Host "Disco pequeno ($sizeGB GB) - Activando CompactOS..." -ForegroundColor Yellow
 
         $state = compact.exe /compactOS:query
 
         if ($state -notmatch "already") {
             compact.exe /compactOS:always | Out-Null
-            Write-Host "CompactOS habilitado (ahorra 2–6 GB)."
+            Write-Host "CompactOS habilitado (ahorra 2-6 GB)."
         }
         else {
-            Write-Host "CompactOS ya estaba activo."
+            Write-Host "CompactOS ya activo."
         }
     }
     else {
-        Write-Host "Disco suficiente ($sizeGB GB) → No se requiere compresión."
+        Write-Host "Disco suficiente ($sizeGB GB) - No se requiere compresion."
     }
 
-    # ======================================
-    # 8) Ocultar carpeta ODT
-    # ======================================
+    # Ocultar carpeta ODT
     if (Test-Path "C:\ODT") {
         (Get-Item "C:\ODT").Attributes = "Hidden"
     }
 }
 else {
     Write-Host ""
-    Write-Host "HDD detectado → No se aplican optimizaciones SSD" -ForegroundColor Yellow
+    Write-Host "HDD detectado - No se aplican optimizaciones SSD" -ForegroundColor Yellow
 }
 
 Write-Output "99% Completado"
