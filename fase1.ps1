@@ -363,64 +363,132 @@ if (Test-Path -Path $destinationPath1) {
 Write-Output "7% Completado"
 ############################
 # ==========================================================
-# MICROSOFT STORE INSTALLER (LTSC / IoT)
-# Modo OFFLINE primero → si existe → usa local
-# Sino → descarga desde URL proporcionada
+# STORE + WINGET INSTALLER TODO EN UNO
+# Orden:
+#   1) Microsoft Store (solo LTSC/IoT)
+#   2) VCLibs
+#   3) Windows App Runtime
+#   4) Winget
+# ==========================================================
+
+# ----------------------------------------------------------
+# AUTO-ELEVACIÓN (ADMIN)
+# ----------------------------------------------------------
+if (-not ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
+    Start-Process powershell "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
+# TLS 1.2 obligatorio
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$BasePath = "$env:TEMP\WingetFullInstall"
+New-Item $BasePath -ItemType Directory -Force | Out-Null
+
+
+# ==========================================================
+# FUNCION → INSTALAR MICROSOFT STORE (LTSC / IoT)
 # ==========================================================
 function Install-StoreIfNeeded {
-    # ZIP de source code GitHub
-    $StoreZipURL = "https://github.com/mggons93/LTSC_STORE/archive/refs/tags/V1.0.zip"
+
+    $StoreZipURL  = "https://github.com/mggons93/LTSC_STORE/archive/refs/tags/V1.0.zip"
     $OfflineFolder = "$PSScriptRoot\StoreOffline"
-    $TempDir       = "$env:TEMP\StorePack"
-    $ZipFile       = "$env:TEMP\store_pack.zip"
+    $TempDir       = "$BasePath\StorePack"
+    $ZipFile       = "$BasePath\store_pack.zip"
     $CmdName       = "Add-Store.cmd"
-    
-	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
     $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
     $edition = $cv.EditionID
 
     $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
+
     Write-Host "Edición detectada: $edition"
-    if (-not $esLTSC) { return }
+
+    if (-not $esLTSC) {
+        Write-Host "No es LTSC/IoT → se omite instalación de Store"
+        return
+    }
+
     if (Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue) {
         Write-Host "Microsoft Store ya instalada"
         return
     }
 
-    Write-Host "Instalando Microsoft Store..."
+    Write-Host "Instalando Microsoft Store..." -ForegroundColor Cyan
+
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item $TempDir -ItemType Directory | Out-Null
 
-    # =====================================
-    # OFFLINE
-    # =====================================
     if (Test-Path $OfflineFolder) {
+        Write-Host "Modo OFFLINE detectado"
         Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
     }
     else {
-        Write-Host "Descargando desde GitHub..."
-        Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing
+        Write-Host "Descargando Store desde GitHub..."
+        Invoke-WebRequest $StoreZipURL -OutFile $ZipFile
         Expand-Archive $ZipFile -DestinationPath $TempDir -Force
     }
 
-    # =====================================
-    # BUSCAR AUTOMÁTICAMENTE EL CMD
-    # (porque GitHub crea carpeta LTSC_STORE-1.0)
-    # =====================================
     $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName |
                Select-Object -First 1 -ExpandProperty FullName
+
     if ($cmdPath) {
-        Write-Host "Ejecutando: $cmdPath"
         Start-Process $cmdPath -Verb RunAs -Wait
     }
     else {
-        Write-Host "No se encontró $CmdName dentro del paquete" -ForegroundColor Red
+        Write-Host "No se encontró Add-Store.cmd" -ForegroundColor Red
     }
-
-    Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 }
 
+
+# ==========================================================
+# FUNCION → INSTALAR WINGET SIN STORE
+# ==========================================================
+function Install-Winget {
+
+    Write-Host "`nInstalando Winget..." -ForegroundColor Cyan
+
+    $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
+    $WingetUrl  = "https://aka.ms/getwinget"
+
+    $VCLibsPath = "$BasePath\VCLibs.appx"
+    $RuntimeExe = "$BasePath\Runtime.exe"
+    $WingetPath = "$BasePath\Winget.msixbundle"
+
+    Invoke-WebRequest $VCLibsUrl  -OutFile $VCLibsPath
+    Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe
+    Invoke-WebRequest $WingetUrl  -OutFile $WingetPath
+
+    Write-Host "Instalando VCLibs..."
+    Add-AppxPackage $VCLibsPath
+    Start-Sleep 2
+
+    Write-Host "Instalando Windows App Runtime..."
+    Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait
+    Start-Sleep 4
+
+    Write-Host "Instalando Winget..."
+    Add-AppxPackage $WingetPath
+
+    Write-Host "`nVerificando..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "Winget instalado correctamente" -ForegroundColor Green
+        winget --version
+    }
+    else {
+        Write-Host "Falló la instalación" -ForegroundColor Red
+    }
+}
+# ==========================================================
+# EJECUCIÓN PRINCIPAL (ORDEN)
+# ==========================================================
 Install-StoreIfNeeded
+Install-Winget
+Write-Host "`nProceso completo finalizado." -ForegroundColor Cyan
 
 ############################
 Write-Output "9% Completado"
