@@ -363,60 +363,59 @@ Write-Output "7% Completado"
 # Modo OFFLINE primero → si existe → usa local
 # Sino → descarga desde URL proporcionada
 # ==========================================================
-
 function Install-StoreIfNeeded {
-
-    $StoreZipURL   = "https://syasoporteglobal.online/files/store_pack.zip"
+    # ZIP de source code GitHub
+    $StoreZipURL = "https://github.com/mggons93/LTSC_STORE/archive/refs/tags/V1.0.zip"
     $OfflineFolder = "$PSScriptRoot\StoreOffline"
     $TempDir       = "$env:TEMP\StorePack"
     $ZipFile       = "$env:TEMP\store_pack.zip"
     $CmdName       = "Add-Store.cmd"
-
+    
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
     $edition = $cv.EditionID
 
-    $esLTSC = @(
-        "EnterpriseS",
-        "EnterpriseSN",
-        "IoTEnterpriseS"
-    ) -contains $edition
-
+    $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
     Write-Host "Edición detectada: $edition"
-
-    if (-not $esLTSC) {
-        Write-Host "Sistema normal → se omite instalación Store"
-        return
-    }
-
-    $store = Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue
-
-    if ($store) {
+    if (-not $esLTSC) { return }
+    if (Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue) {
         Write-Host "Microsoft Store ya instalada"
         return
     }
 
-    Write-Host "Instalando Microsoft Store..." -ForegroundColor Yellow
-
+    Write-Host "Instalando Microsoft Store..."
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+    New-Item $TempDir -ItemType Directory | Out-Null
 
+    # =====================================
+    # OFFLINE
+    # =====================================
     if (Test-Path $OfflineFolder) {
         Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
     }
     else {
+        Write-Host "Descargando desde GitHub..."
         Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing
         Expand-Archive $ZipFile -DestinationPath $TempDir -Force
     }
 
-    $cmdPath = Join-Path $TempDir $CmdName
-
-    if (Test-Path $cmdPath) {
-        Start-Process $cmdPath -WorkingDirectory $TempDir -Verb RunAs -Wait
+    # =====================================
+    # BUSCAR AUTOMÁTICAMENTE EL CMD
+    # (porque GitHub crea carpeta LTSC_STORE-1.0)
+    # =====================================
+    $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName |
+               Select-Object -First 1 -ExpandProperty FullName
+    if ($cmdPath) {
+        Write-Host "Ejecutando: $cmdPath"
+        Start-Process $cmdPath -Verb RunAs -Wait
+    }
+    else {
+        Write-Host "No se encontró $CmdName dentro del paquete" -ForegroundColor Red
     }
 
     Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 }
-# Funcion de ejecucion
+
 Install-StoreIfNeeded
 
 ############################
