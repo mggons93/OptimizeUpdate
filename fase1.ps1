@@ -416,6 +416,8 @@ function Install-StoreIfNeeded {
 
     Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 }
+# Funcion de ejecucion
+Install-StoreIfNeeded
 
 ############################
 Write-Output "9% Completado"
