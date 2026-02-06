@@ -339,13 +339,17 @@ if (Test-Path -Path $destinationPath1) {
 	$Optimize_DISM_XML = "C:\ODT\Scripts\task\Optimize_DISM.xml"
 	
 	# Crear tareas programadas
-	Register-ScheduledTask -Xml (Get-Content $Optimize_RAM_XML | Out-String) -TaskName "Optimize_RAM" -Force
+	Register-ScheduledTask -Xml (Get-Content $Optimize_RAM_XML | Out-String) -TaskName "Optimize_RAM" -Force | Out-Null
+	Write-Host "Optimize_RAM"
 	Start-Sleep -Seconds 2
-	Register-ScheduledTask -Xml (Get-Content $AutoClean_Temp_XML | Out-String) -TaskName "AutoClean_Temp" -Force
+	Register-ScheduledTask -Xml (Get-Content $AutoClean_Temp_XML | Out-String) -TaskName "AutoClean_Temp" -Force | Out-Null
+	Write-Host "AutoClean_Temp"
 	Start-Sleep -Seconds 2
-	Register-ScheduledTask -Xml (Get-Content $Optimize_OOSU_XML | Out-String) -TaskName "Optimize_OOSU" -Force
+	Register-ScheduledTask -Xml (Get-Content $Optimize_OOSU_XML | Out-String) -TaskName "Optimize_OOSU" -Force | Out-Null
+	Write-Host "Optimize_OOSU"
 	Start-Sleep -Seconds 2
-	Register-ScheduledTask -Xml (Get-Content $Optimize_DISM_XML | Out-String) -TaskName "Optimize_DISM" -Force
+	Register-ScheduledTask -Xml (Get-Content $Optimize_DISM_XML | Out-String) -TaskName "Optimize_DISM" -Force | Out-Null
+	Write-Host "Optimize_DISM"
 	Start-Sleep -Seconds 2
 	
 	Write-Host "Tareas de mantenimiento activadas"
