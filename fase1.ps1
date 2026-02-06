@@ -370,25 +370,11 @@ Write-Output "7% Completado"
 #   3) Windows App Runtime
 #   4) Winget
 # ==========================================================
-
-# ----------------------------------------------------------
-# AUTO-ELEVACIÓN (ADMIN)
-# ----------------------------------------------------------
-if (-not ([Security.Principal.WindowsPrincipal] `
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-
-    Start-Process powershell "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
-
 # TLS 1.2 obligatorio
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $BasePath = "$env:TEMP\WingetFullInstall"
 New-Item $BasePath -ItemType Directory -Force | Out-Null
-
-
 # ==========================================================
 # FUNCION → INSTALAR MICROSOFT STORE (LTSC / IoT)
 # ==========================================================
@@ -442,8 +428,6 @@ function Install-StoreIfNeeded {
         Write-Host "No se encontró Add-Store.cmd" -ForegroundColor Red
     }
 }
-
-
 # ==========================================================
 # FUNCION → INSTALAR WINGET SIN STORE
 # ==========================================================
