@@ -1091,7 +1091,6 @@ try {
 
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-
         @{ Name = "Run ChangePC-ID.ps1"; Script = {
             $equipoLog = "$scriptDir\Equipo.log"
             if (Test-Path $equipoLog) {
@@ -1104,26 +1103,22 @@ try {
             Start-Sleep 2
             Restart-Computer -Force
         }},
-
         @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run unattend-02.ps1"; Script = { Get-Content "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run setup-final.ps1"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-
         @{ Name = "Configuración y optimización del sistema"; Script = {
             irm https://cutt.ly/NewOptimize | iex
         }},
-
         @{ Name = "Run CursorVista.ps1"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run Updates.ps1"; Script = { Get-Content "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
-
         @{ Name = "Cleanup"; Script = {
-            Remove-Item "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
-        }},
-
+		    $exe = "$env:USERPROFILE\WindowsOptimize.exe"
+		    if (Test-Path $exe) {
+		        Remove-Item $exe -Force -ErrorAction SilentlyContinue
+		    }
+		}},
         @{ Name = "Clean Reset Base.ps1"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
-
         @{ Name = "ClearDir"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
@@ -1199,3 +1194,4 @@ try {
 		</File>
 	</Extensions>
 </unattend>
+
