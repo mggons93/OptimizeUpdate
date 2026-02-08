@@ -466,7 +466,7 @@ function Install-Winget {
     $VCLibsPath = "$BasePath\VCLibs.appx"
     $XamlPath   = "$BasePath\UI.Xaml.appx"
     $RuntimeExe = "$BasePath\Runtime.exe"
-    $WingetoldPath = "$BasePath\Winget.msixbundle"
+    $WingetoldPath = "$BasePath\Wingetold.msixbundle"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
     try {
@@ -499,7 +499,7 @@ function Install-Winget {
             winget --version
         }
         else {
-            Write-Host "Winget no se instalÃ³ correctamente"
+            Write-Host "Winget no se instalo correctamente"
         }
     }
     catch {
