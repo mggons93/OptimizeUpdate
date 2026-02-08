@@ -370,6 +370,7 @@ Write-Output "7% Completado"
 #   3) Windows App Runtime
 #   4) Winget
 # ==========================================================
+
 # TLS 1.2 obligatorio
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -380,8 +381,6 @@ New-Item $BasePath -ItemType Directory -Force | Out-Null
 # ==========================================================
 function Install-StoreIfNeeded {
 
-    $StoreZipURL  = "https://github.com/mggons93/LTSC_STORE/archive/refs/tags/V1.0.zip"
-	#Otra url igual para descargar https://codeload.github.com/mggons93/LTSC_STORE/zip/refs/tags/V1.0
     $OfflineFolder = "$PSScriptRoot\StoreOffline"
     $TempDir       = "$BasePath\StorePack"
     $ZipFile       = "$BasePath\store_pack.zip"
@@ -408,17 +407,39 @@ function Install-StoreIfNeeded {
 
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item $TempDir -ItemType Directory | Out-Null
-
+    # ===============================
+    # OFFLINE primero
+    # ===============================
     if (Test-Path $OfflineFolder) {
+
         Write-Host "Modo OFFLINE detectado"
         Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
     }
     else {
-        Write-Host "Descargando Store desde GitHub..."
-        Invoke-WebRequest $StoreZipURL -OutFile $ZipFile
-        Expand-Archive $ZipFile -DestinationPath $TempDir -Force
-    }
 
+        Write-Host "Descargando última versión desde GitHub..."
+
+        try {
+            $latest = Invoke-RestMethod `
+                "https://api.github.com/repos/mggons93/LTSC_STORE/releases/latest" `
+                -ErrorAction Stop
+
+            $StoreZipURL = $latest.zipball_url
+
+            Write-Host "Versión: $($latest.tag_name)"
+
+            Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing -ErrorAction Stop
+            Expand-Archive $ZipFile -DestinationPath $TempDir -Force
+        }
+        catch {
+            Write-Host "ERROR descargando Microsoft Store → se omite"
+            Write-Host $_.Exception.Message
+            return
+        }
+    }
+    # ===============================
+    # Ejecutar Add-Store.cmd
+    # ===============================
     $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName |
                Select-Object -First 1 -ExpandProperty FullName
 
@@ -444,35 +465,44 @@ function Install-Winget {
     $RuntimeExe = "$BasePath\Runtime.exe"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
-    Invoke-WebRequest $VCLibsUrl  -OutFile $VCLibsPath
-    Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe
-    Invoke-WebRequest $WingetUrl  -OutFile $WingetPath
+    try {
 
-    Write-Host "Instalando VCLibs..."
-    Add-AppxPackage $VCLibsPath
-    Start-Sleep 2
+        Invoke-WebRequest $VCLibsUrl  -OutFile $VCLibsPath  -UseBasicParsing
+        Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing
+        Invoke-WebRequest $WingetUrl  -OutFile $WingetPath  -UseBasicParsing
 
-    Write-Host "Instalando Windows App Runtime..."
-    Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait
-    Start-Sleep 4
+        Write-Host "Instalando VCLibs..."
+        Add-AppxPackage $VCLibsPath
+        Start-Sleep 2
 
-    Write-Host "Instalando Winget..."
-    Add-AppxPackage $WingetPath
+        Write-Host "Instalando Windows App Runtime..."
+        Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait
+        Start-Sleep 3
 
-    Write-Host "Verificando..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "Winget instalado correctamente"
-        winget --version
+        Write-Host "Instalando Winget..."
+        Add-AppxPackage $WingetPath
+
+        Write-Host "Verificando..."
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Write-Host "Winget instalado correctamente"
+            winget --version
+        }
+        else {
+            Write-Host "Winget no se instaló correctamente"
+        }
     }
-    else {
-        Write-Host "Falló la instalación"
+    catch {
+        Write-Host "Error instalando Winget:"
+        Write-Host $_.Exception.Message
     }
 }
+
 # ==========================================================
-# EJECUCIÓN PRINCIPAL (ORDEN)
+# EJECUCIÓN PRINCIPAL
 # ==========================================================
 Install-StoreIfNeeded
 Install-Winget
+
 Write-Host "Proceso completo finalizado."
 
 ############################
