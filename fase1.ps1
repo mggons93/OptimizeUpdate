@@ -466,7 +466,7 @@ function Install-Winget {
     $VCLibsPath = "$BasePath\VCLibs.appx"
     $XamlPath   = "$BasePath\UI.Xaml.appx"
     $RuntimeExe = "$BasePath\Runtime.exe"
-    $WingetoldPath = "$BasePath\Wingetold.msixbundle"
+    $WingetoldPath = "$BasePath\Wingetold.appxbundle"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
     try {
