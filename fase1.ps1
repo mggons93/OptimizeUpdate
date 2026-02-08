@@ -381,6 +381,7 @@ New-Item $BasePath -ItemType Directory -Force | Out-Null
 function Install-StoreIfNeeded {
 
     $StoreZipURL  = "https://github.com/mggons93/LTSC_STORE/archive/refs/tags/V1.0.zip"
+	#Otra url igual para descargar https://codeload.github.com/mggons93/LTSC_STORE/zip/refs/tags/V1.0
     $OfflineFolder = "$PSScriptRoot\StoreOffline"
     $TempDir       = "$BasePath\StorePack"
     $ZipFile       = "$BasePath\store_pack.zip"
@@ -403,7 +404,7 @@ function Install-StoreIfNeeded {
         return
     }
 
-    Write-Host "Instalando Microsoft Store..." -ForegroundColor Cyan
+    Write-Host "Instalando Microsoft Store..."
 
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item $TempDir -ItemType Directory | Out-Null
@@ -425,7 +426,7 @@ function Install-StoreIfNeeded {
         Start-Process $cmdPath -Verb RunAs -Wait
     }
     else {
-        Write-Host "No se encontró Add-Store.cmd" -ForegroundColor Red
+        Write-Host "No se encontró Add-Store.cmd"
     }
 }
 # ==========================================================
@@ -433,7 +434,7 @@ function Install-StoreIfNeeded {
 # ==========================================================
 function Install-Winget {
 
-    Write-Host "`nInstalando Winget..." -ForegroundColor Cyan
+    Write-Host "Instalando Winget..."
 
     $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
     $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
@@ -458,13 +459,13 @@ function Install-Winget {
     Write-Host "Instalando Winget..."
     Add-AppxPackage $WingetPath
 
-    Write-Host "`nVerificando..."
+    Write-Host "Verificando..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "Winget instalado correctamente" -ForegroundColor Green
+        Write-Host "Winget instalado correctamente"
         winget --version
     }
     else {
-        Write-Host "Falló la instalación" -ForegroundColor Red
+        Write-Host "Falló la instalación"
     }
 }
 # ==========================================================
@@ -472,7 +473,7 @@ function Install-Winget {
 # ==========================================================
 Install-StoreIfNeeded
 Install-Winget
-Write-Host "`nProceso completo finalizado." -ForegroundColor Cyan
+Write-Host "Proceso completo finalizado."
 
 ############################
 Write-Output "9% Completado"
