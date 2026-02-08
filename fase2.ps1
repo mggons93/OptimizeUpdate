@@ -32,6 +32,16 @@ if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
     Write-Host "No se encontró la entrada TranslucentTB en el registro."
 }
 ########################################### Instalando la ultima version de Winget ###########################################
+# Función para verificar si Winget está instalado
+    function Test-WingetInstalled {
+        try {
+            winget -v
+            return $true
+        } catch {
+            return $false
+        }
+    }
+Test-WingetInstalled
 
 Write-Output '2% Completado'
 # Script para instalar winget (Windows Package Manager) desde GitHub
