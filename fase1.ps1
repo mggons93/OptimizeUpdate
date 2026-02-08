@@ -458,28 +458,39 @@ function Install-Winget {
     Write-Host "Instalando Winget..."
 
     $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
     $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
+    $WingetoldUrl  = "https://github.com/microsoft/winget-cli/releases/download/v1.6.3482/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
     $WingetUrl  = "https://aka.ms/getwinget"
 
     $VCLibsPath = "$BasePath\VCLibs.appx"
+    $XamlPath   = "$BasePath\UI.Xaml.appx"
     $RuntimeExe = "$BasePath\Runtime.exe"
+    $WingetoldPath = "$BasePath\Winget.msixbundle"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
     try {
 
         Invoke-WebRequest $VCLibsUrl  -OutFile $VCLibsPath  -UseBasicParsing
+        Invoke-WebRequest $XamlUrl   -OutFile $XamlPath  -UseBasicParsing
         Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing
+        Invoke-WebRequest $WingetoldUrl  -OutFile $WingetoldPath  -UseBasicParsing
         Invoke-WebRequest $WingetUrl  -OutFile $WingetPath  -UseBasicParsing
 
         Write-Host "Instalando VCLibs..."
         Add-AppxPackage $VCLibsPath
+        Add-AppxPackage $XamlPath
         Start-Sleep 2
 
         Write-Host "Instalando Windows App Runtime..."
         Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait
         Start-Sleep 3
 
-        Write-Host "Instalando Winget..."
+        Write-Host "Instalando old Winget..."
+        Add-AppxPackage $WingetoldPath
+        Start-Sleep 3
+
+        Write-Host "Actualizando Winget..."
         Add-AppxPackage $WingetPath
 
         Write-Host "Verificando..."
@@ -488,7 +499,7 @@ function Install-Winget {
             winget --version
         }
         else {
-            Write-Host "Winget no se instaló correctamente"
+            Write-Host "Winget no se instalÃ³ correctamente"
         }
     }
     catch {
@@ -496,7 +507,6 @@ function Install-Winget {
         Write-Host $_.Exception.Message
     }
 }
-
 # ==========================================================
 # EJECUCIÓN PRINCIPAL
 # ==========================================================
