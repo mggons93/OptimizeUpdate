@@ -1012,11 +1012,11 @@ try {
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name SearchOrderConfig -Value 1 -ErrorAction Stop
 
     # Buscar e instalar solo drivers desde Windows Update automáticamente
-    Write-Output "🔧 Buscando e instalando drivers desde Windows Update..."
+    Write-Output "Buscando e instalando drivers desde Windows Update..."
     Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot -Category Drivers -ErrorAction Stop
 
     # Buscar e instalar otras actualizaciones automáticamente (excluyendo drivers)
-    Write-Output "🔧 Buscando e instalando otras actualizaciones..."
+    Write-Output "Buscando e instalando otras actualizaciones..."
     Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot | Where-Object { $_.Title -notlike "*driver*" }
 
     Write-Output "Todo listo. Drivers y actualizaciones aplicadas."
