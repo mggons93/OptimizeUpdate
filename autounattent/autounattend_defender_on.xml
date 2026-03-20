@@ -84,6 +84,17 @@
 			<FirstLogonCommands>
 				<SynchronousCommand wcm:action="add">
 					<Order>1</Order>
+					<Description>Copiando Recovery USB a Recovery</Description>
+					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\CopyRecovery.ps1' -Raw | Invoke-Expression;"</CommandLine>
+				</SynchronousCommand>
+				<SynchronousCommand wcm:action="add">
+					<Order>2</Order>
+					<Description>Inyectar WinRE personalizado</Description>
+					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\InjectRecovery.ps1' -Raw | Invoke-Expression;"</CommandLine>
+				</SynchronousCommand>
+				<SynchronousCommand wcm:action="add">
+					<Order>3</Order>
+					<Description>Configuracion y personalizacion</Description>
 					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\FirstLogon.ps1' -Raw | Invoke-Expression;"</CommandLine>
 				</SynchronousCommand>
 			</FirstLogonCommands>
@@ -703,6 +714,359 @@ $Shortcut = $WshShell.CreateShortcut("C:\Users\Default\AppData\Roaming\Microsoft
 $Shortcut.TargetPath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 $Shortcut.Save()
 		</File>
+		<File path="C:\Windows\Setup\Scripts\InjectRecovery.ps1">
+# ======================================
+# Script: Reemplazar WinRE y registrar log
+# Autor: [Tu nombre o equipo]
+# Fecha: (Get-Date -Format "yyyy-MM-dd")
+# ======================================
+
+# ======================================
+# Elevación automática y bypass UAC/ExecutionPolicy
+# ======================================
+
+# Comprueba si el script se está ejecutando como administrador
+$IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+
+if (-not $IsAdmin) {
+    Write-Host "Elevando privilegios..." -ForegroundColor Yellow
+    # Relanza el script con permisos de administrador y ExecutionPolicy Bypass
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell.exe"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $psi.Verb = "runas"  # Esto solicita elevación UAC
+    try {
+        [System.Diagnostics.Process]::Start($psi) | Out-Null
+    } catch {
+        Write-Host "ERROR: El usuario canceló la elevación o no tiene permisos." -ForegroundColor Red
+    }
+    exit
+}
+
+# Ruta del log
+$LogPath = "C:\Windows\Setup\Scripts\WinRE_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+
+# Función para registrar mensajes
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Level = "INFO",
+        [ConsoleColor]$Color = [ConsoleColor]::White
+    )
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logMessage = "[$timestamp] [$Level] $Message"
+    
+    # Mostrar en consola con color
+    Write-Host $logMessage -ForegroundColor $Color
+    
+    # Escribir en archivo de log
+    Add-Content -Path $LogPath -Value $logMessage
+}
+
+Write-Log "==== INICIO DEL SCRIPT ====" "INFO" Cyan
+
+# Desactivar WinRE temporalmente
+Write-Log "Desactivando WinRE..." "INFO" Yellow
+try {
+    reagentc /disable 2>&amp;1 | Out-Null
+    Write-Log "WinRE deshabilitado correctamente o ya estaba deshabilitado." "INFO" Green
+} catch {
+    Write-Log "Advertencia: no se pudo deshabilitar WinRE, continuando..." "WARN" Yellow
+}
+
+# =========================
+# Detectar partición de recuperación (UEFI o Legacy)
+# =========================
+$recoveryPartition = Get-Partition | Where-Object {
+    # UEFI estándar
+    ($_.GptType -eq '{DE94BBA4-06D1-4D40-A16A-BFD50179D6AC}') -or
+    # Legacy: NTFS oculta de tamaño entre 300MB y 1GB
+    ($_.Size -ge 300MB -and $_.Size -le 1GB -and $_.Type -eq 'Unknown')
+} | Select-Object -First 1
+
+if (-not $recoveryPartition) {
+    Write-Log "ERROR: No se detectó una partición de recuperación compatible." "ERROR" Red
+    Write-Log "==== FIN DEL SCRIPT ====" "INFO" Cyan
+    exit 1
+}
+
+$disk = $recoveryPartition.DiskNumber
+$part = $recoveryPartition.PartitionNumber
+Write-Log "Partición de recuperación detectada: Disco $disk, Partición $part" "INFO" Cyan
+
+# =========================
+# Asignar letra temporal si no tiene
+# =========================
+if ($recoveryPartition.DriveLetter) {
+    $mountLetter = $recoveryPartition.DriveLetter
+    Write-Log "Partición ya tiene letra: $mountLetter" "INFO" Cyan
+} else {
+    $usedLetters = (Get-Volume).DriveLetter
+    $mountLetter = 'R'
+    while ($usedLetters -contains $mountLetter) {
+        $mountLetter = [char]([int][char]$mountLetter + 1)
+    }
+
+    Write-Log "Asignando letra temporal $mountLetter a la partición Recovery..." "INFO" Yellow
+    try {
+        $recoveryPartition | Set-Partition -NewDriveLetter $mountLetter
+    } catch {
+        Write-Log "ERROR: No se pudo asignar la letra $mountLetter a la partición." "ERROR" Red
+        exit 1
+    }
+
+    # Esperar un poco para que la unidad esté disponible
+    Start-Sleep -Seconds 3
+    if (-not (Test-Path "$mountLetter`:")) {
+        Write-Log "ERROR: La unidad $mountLetter no se montó correctamente después de asignarla." "ERROR" Red
+        exit 1
+    }
+}
+
+$recoveryPath = "$mountLetter`:\Recovery\WindowsRE"
+
+# Crear carpeta si no existe
+if (!(Test-Path $recoveryPath)) {
+    Write-Log "Creando carpeta $recoveryPath..." "INFO" Yellow
+    New-Item -ItemType Directory -Path $recoveryPath -Force | Out-Null
+} else {
+    Write-Log "Carpeta $recoveryPath ya existe." "INFO" Cyan
+}
+
+# =========================
+# Reemplazar WinRE con el nuevo
+# =========================
+$newWinRE = "C:\Recovery\OEM\C\Windows\System32\Recovery\winre.wim"
+if (Test-Path $newWinRE) {
+    Write-Log "Preparando carpeta $recoveryPath para copiar WinRE..." "INFO" Yellow
+
+	# =========================
+	# Tomar posesión de la carpeta WinRE y eliminar winre.wim anterior
+	# =========================
+	Write-Log "Tomando posesión de $recoveryPath y su contenido..." "INFO" Yellow
+
+	try {
+		# Asegurar que la carpeta existe antes de tomar posesión
+		if (!(Test-Path $recoveryPath)) {
+			Write-Log "La carpeta $recoveryPath no existe, creando..." "INFO" Yellow
+			New-Item -ItemType Directory -Path $recoveryPath -Force | Out-Null
+		}
+
+		# Tomar propiedad de la carpeta y su contenido
+		takeown /F "$recoveryPath" /R /A | Out-Null
+
+		# Conceder control total a administradores
+		icacls "$recoveryPath" /grant Administradores:F /T /C | Out-Null
+
+		Write-Log "Propiedad y permisos actualizados correctamente en $recoveryPath." "INFO" Green
+
+		# Eliminar el archivo winre.wim anterior si existe
+		$oldWinRE = Join-Path $recoveryPath "winre.wim"
+		if (Test-Path $oldWinRE) {
+			Write-Log "Eliminando winre.wim anterior..." "INFO" Yellow
+			Remove-Item -Path $oldWinRE -Force
+			Write-Log "Archivo winre.wim anterior eliminado correctamente." "INFO" Green
+		} else {
+			Write-Log "No se encontró winre.wim anterior, continuando..." "INFO" Cyan
+		}
+	} catch {
+		Write-Log "ERROR: No se pudo tomar posesión o eliminar winre.wim anterior en $recoveryPath" "ERROR" Red
+		exit 1
+	}
+
+    # Copiar WinRE directamente
+try {
+    Copy-Item $newWinRE -Destination "$recoveryPath\winre.wim" -Force
+    Write-Log "WinRE personalizado copiado correctamente a $recoveryPath" "INFO" Green
+} catch {
+    Write-Log "ERROR: No se pudo copiar WinRE a $recoveryPath. Ejecuta el script como administrador o verifica que la partición no esté protegida." "ERROR" Red
+    exit 1
+}
+
+
+} else {
+    Write-Log "ERROR: No se encontró el nuevo WinRE en $newWinRE" "ERROR" Red
+    Write-Log "==== FIN DEL SCRIPT CON ERROR ====" "ERROR" Red
+    exit 1
+}
+
+# =========================
+# Registrar y habilitar WinRE
+# =========================
+Write-Log "Registrando entorno de recuperación..." "INFO" Yellow
+reagentc /setreimage /path $recoveryPath | Out-Null
+reagentc /enable | Out-Null
+
+Write-Log "Mostrando configuración de WinRE..." "INFO" Cyan
+
+# Capturar salida de reagentc /info
+$reagentInfo = reagentc /info 2>&amp;1
+
+# Eliminar espacios extra (de codificación wide)
+$reagentInfoClean = ($reagentInfo -join "`n") -replace '\s{2,}', ' '
+
+# Mostrar y registrar el texto limpio
+Write-Host $reagentInfoClean -ForegroundColor Gray
+Add-Content -Path $LogPath -Value $reagentInfoClean
+
+# =========================
+# Desmontar o eliminar letra de la unidad Recovery (método DiskPart)
+# =========================
+Write-Log "Verificando desmontaje de la letra $mountLetter..." "INFO" Yellow
+try {
+    $currentPartition = Get-Partition -DiskNumber $disk -PartitionNumber $part
+
+    if ($currentPartition.DriveLetter) {
+        Write-Log "Removiendo letra asignada ($mountLetter) de la partición Recovery mediante DiskPart..." "INFO" Yellow
+        
+        # Crear script temporal para DiskPart
+        $diskpartCmd = @"
+select disk $disk
+select partition $part
+remove letter=$mountLetter
+exit
+"@
+
+        # Ejecutar DiskPart en modo silencioso
+        $diskpartCmd | diskpart.exe | Out-Null
+
+        # Esperar brevemente y verificar resultado
+        Start-Sleep -Seconds 2
+        $checkPart = Get-Partition -DiskNumber $disk -PartitionNumber $part
+
+        if (-not $checkPart.DriveLetter) {
+            Write-Log "Letra de unidad $mountLetter desmontada correctamente mediante DiskPart." "INFO" Green
+        } else {
+            Write-Log "ADVERTENCIA: No se pudo desmontar la letra $mountLetter incluso con DiskPart." "WARN" Yellow
+        }
+    } else {
+        Write-Log "La partición Recovery ya no tiene letra asignada, nada que desmontar." "INFO" Cyan
+    }
+} catch {
+    Write-Log "ERROR: Falló el intento de desmontar la letra $mountLetter con DiskPart. Verifica permisos o bloqueo del sistema." "ERROR" Red
+}
+
+# =========================
+# Asegurar desmontaje persistente de la partición Recovery
+# =========================
+Write-Log "Aplicando desmontaje persistente de la partición Recovery..." "INFO" Yellow
+
+try {
+    # Eliminar asociación de letra en el registro MountedDevices
+    $driveLetterReg = "$mountLetter`:"
+    $regPath = "HKLM:\SYSTEM\MountedDevices"
+    try {
+        if (Get-ItemProperty -Path $regPath -Name "\DosDevices\$driveLetterReg" -ErrorAction SilentlyContinue) {
+            Remove-ItemProperty -Path $regPath -Name "\DosDevices\$driveLetterReg" -Force
+            Write-Log "Entrada del registro eliminada: \DosDevices\$driveLetterReg" "INFO" Green
+        } else {
+            Write-Log "No se encontró entrada de registro para la letra $driveLetterReg, nada que eliminar." "INFO" Cyan
+        }
+    } catch {
+        Write-Log "ADVERTENCIA: No se pudo acceder o modificar MountedDevices." "WARN" Yellow
+    }
+
+    Write-Log "Desmontaje persistente completado correctamente." "SUCCESS" Green
+} catch {
+    Write-Log "ERROR: Falló el proceso de desmontaje persistente." "ERROR" Red
+}
+
+Write-Log "Proceso completado exitosamente." "SUCCESS" Green
+Write-Log "==== FIN DEL SCRIPT ====" "INFO" Cyan
+Write-Log "Archivo de log guardado en: $LogPath" "INFO" Magenta
+		</File>
+		<File path="C:\Windows\Setup\Scripts\CopyRecovery.ps1">
+# ======================================
+# Elevación automática y bypass UAC/ExecutionPolicy
+# ======================================
+
+# Comprueba si el script se está ejecutando como administrador
+$IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+
+if (-not $IsAdmin) {
+    Write-Host "Elevando privilegios..." -ForegroundColor Yellow
+    # Relanza el script con permisos de administrador y ExecutionPolicy Bypass
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell.exe"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $psi.Verb = "runas"  # Esto solicita elevación UAC
+    try {
+        [System.Diagnostics.Process]::Start($psi) | Out-Null
+    } catch {
+        Write-Host "ERROR: El usuario canceló la elevación o no tiene permisos." -ForegroundColor Red
+    }
+    exit
+}
+
+# -------------------------------
+# Script para restaurar Recovery
+# -------------------------------
+
+# Ruta de destino en el sistema
+$destinationPath = "C:\Recovery"
+
+# Crear carpeta de destino si no existe
+if (-not (Test-Path $destinationPath)) {
+    New-Item -ItemType Directory -Path $destinationPath -Force | Out-Null
+    Write-Host "Se creó la carpeta de destino: $destinationPath"
+}
+
+# Obtener todas las unidades
+$drives = Get-PSDrive -PSProvider FileSystem
+
+foreach ($drive in $drives) {
+
+    # Construir ruta literal en la unidad
+    $sourcePath = Join-Path $drive.Root 'Sources\$OEM$\$1\Recovery'
+
+    if (Test-Path $sourcePath) {
+        Write-Host "Se encontró Recovery en: $sourcePath"
+
+        # Copiar archivo por archivo
+        Get-ChildItem -Path $sourcePath -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Substring($sourcePath.Length).TrimStart('\')
+            $dest = Join-Path $destinationPath $relativePath
+
+            # Crear carpeta si no existe
+            $destDir = Split-Path $dest
+            if (-not (Test-Path $destDir)) {
+                New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+            }
+
+            # Copiar archivo
+            try {
+                Copy-Item -Path $_.FullName -Destination $dest -Force -ErrorAction Stop
+                Write-Host "Copiado: $($_.FullName) -> $dest"
+            } catch {
+                Write-Warning "No se pudo copiar: $($_.FullName)"
+            }
+        }
+
+        Write-Host "Copia completada desde: $sourcePath"
+
+        # -------------------------------
+        # Restaurar atributos de carpeta
+        # -------------------------------
+        try {
+            # Carpeta principal
+            attrib +h +s $destinationPath
+            Write-Host "Atributos restaurados para $destinationPath (Hidden y System)"
+
+            # Subcarpetas y archivos
+            Get-ChildItem -Path $destinationPath -Recurse | ForEach-Object {
+                attrib +h +s $_.FullName
+            }
+            Write-Host "Atributos aplicados a todos los archivos y subcarpetas"
+        } catch {
+            Write-Warning "No se pudieron aplicar atributos: $_"
+        }
+
+        break
+    } else {
+        Write-Host "No se encontró Recovery en: $($drive.Root)"
+    }
+}
+		</File>
 		<File path="C:\Windows\Setup\Scripts\ChangePC-ID.ps1">
 # Script: Detectar tipo de equipo, asignar nombre alfanumérico y registrar log
 # -------------------------------------------------------------
@@ -875,11 +1239,32 @@ function Test-Admin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+# Auto-elevación
 if (-not (Test-Admin)) {
     $scriptPath = $MyInvocation.MyCommand.Path
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
     return
 }
+
+# Deshabilitar WSAIFabricSvc
+Set-Service -Name "WSAIFabricSvc" -StartupType Disabled
+Stop-Service -Name "WSAIFabricSvc"
+
+# Deshabilitar TapiSrv
+Set-Service -Name "TapiSrv" -StartupType Disabled
+Stop-Service -Name "TapiSrv"
+
+# Deshabilitar SCardSvr
+Set-Service -Name "SCardSvr" -StartupType Disabled
+Stop-Service -Name "SCardSvr"
+
+# Deshabilitar smphost
+Set-Service -Name "smphost" -StartupType Disabled
+Stop-Service -Name "smphost"
+
+# Deshabilitar PhoneSvc
+Set-Service -Name "PhoneSvc" -StartupType Disabled
+Stop-Service -Name "PhoneSvc"
 
 # Verificar si Checkpoint-Computer está disponible
 if (-not (Get-Command Checkpoint-Computer -ErrorAction SilentlyContinue)) {
@@ -887,30 +1272,38 @@ if (-not (Get-Command Checkpoint-Computer -ErrorAction SilentlyContinue)) {
     return
 }
 
+# Iniciar y habilitar servicios necesarios
 Set-Service -Name "VSS" -StartupType Manual -ErrorAction SilentlyContinue
 Start-Service -Name "VSS" -ErrorAction SilentlyContinue
 
 Enable-ComputerRestore -Drive "C:\"
 
-$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$logFile = Join-Path $scriptDirectory "Restauracion.Log"
+# ============================================
+#   FORZAR RUTA FIJA PARA EL LOG
+# ============================================
+$scriptDirectory = "C:\Windows\Setup\Scripts"
 
-# Asegurar existencia de carpeta
-$logFolder = Split-Path $logFile
-if (-not (Test-Path $logFolder)) {
-    New-Item -Path $logFolder -ItemType Directory -Force | Out-Null
+# Crear carpeta si no existe
+								
+if (-not (Test-Path $scriptDirectory)) {
+    New-Item -Path $scriptDirectory -ItemType Directory -Force | Out-Null
 }
 
-# Encabezado del log si no existe
+$logFile = Join-Path $scriptDirectory "Restauracion.log"
+
+# Crear encabezado si el archivo no existe
 if (-not (Test-Path $logFile)) {
     Add-Content -Path $logFile -Value "===== Registro de creación de punto de restauración ====="
 }
+
+# ============================================
 
 Write-Host "Iniciando creación automática de un punto de restauración del sistema..." -ForegroundColor Cyan
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 $logEntry = "[$timestamp] Iniciando creación de punto de restauración..."
 
+# Detectar tipo de disco
 try {
     $systemDrive = (Get-WmiObject Win32_OperatingSystem).SystemDrive
     $partition = Get-Partition -DriveLetter $systemDrive.TrimEnd(":")
@@ -927,9 +1320,11 @@ switch ($mediaType) {
         $logEntry += " | Disco: SSD"
         $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
         $regName = "SystemRestorePointCreationFrequency"
+
         if (-not (Test-Path $regPath)) {
             New-Item -Path $regPath -Force | Out-Null
         }
+
         Set-ItemProperty -Path $regPath -Name $regName -Value 0 -Type DWord
         Write-Host "Optimización aplicada correctamente."
         $logEntry += " | Optimización aplicada."
@@ -961,6 +1356,7 @@ try {
     Write-Host "`nOcurrió un error al crear el punto de restauración: $_" -ForegroundColor Red
 }
 
+# Guardar log final
 Add-Content -Path $logFile -Value $logEntry
 		</File>
 		<File Path="C:\Windows\Setup\Scripts\Updates.ps1">
@@ -1091,107 +1487,348 @@ try {
 
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-        @{ Name = "Run ChangePC-ID.ps1"; Script = {
-            $equipoLog = "$scriptDir\Equipo.log"
-            if (Test-Path $equipoLog) {
-                Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución."
-                $state[$i].status = "done"
-                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                return
-            }
-            Get-Content "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
-            Start-Sleep 2
-            Restart-Computer -Force
-        }},
-        @{ Name = "Run Create_Restore_Point.ps1"; Script = { Get-Content "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run unattend-02.ps1"; Script = { Get-Content "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run setup-final.ps1"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Configuración y optimización del sistema"; Script = {
-            irm https://cutt.ly/NewOptimize | iex
-        }},
-        @{ Name = "Run CursorVista.ps1"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run Updates.ps1"; Script = { Get-Content "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run OfficeInstaller.ps1"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Cleanup"; Script = {
-		    $exe = "$env:USERPROFILE\WindowsOptimize.exe"
-		    if (Test-Path $exe) {
-		        Remove-Item $exe -Force -ErrorAction SilentlyContinue
-		    }
-		}},
-        @{ Name = "Clean Reset Base.ps1"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "ClearDir"; Script = {
-            Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
-            Remove-Item -Force -ErrorAction SilentlyContinue
-        }}
+		@{ Name = "Run ChangePC-ID"; Script = {
+			$equipoLog = "$scriptDir\Equipo.log"
+			if (Test-Path $equipoLog) {
+				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución de ChangePC-ID.ps1."
+				$state[$i].status = "done"
+				$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+				return
+			}
+			Write-Output "[$(Get-Date)] Ejecutando ChangePC-ID.ps1..."
+			Get-Content -LiteralPath "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
+			Start-Sleep -Seconds 2
+			Restart-Computer -Force
+		} },		
+        @{ Name = "Run Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Run unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run setup-final"; Script = { Get-Content -LiteralPath "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Optimizacion general"; Script = { 
+				Start-Sleep -Seconds 10
+				Start-Process -FilePath "$scriptDir\OptimizeWindows\OptimizingWindowsApp.exe" -Wait 
+			} 
+		},
+		@{ Name = "Optimizacion de apps"; Script = {
+				Start-Sleep -Seconds 10
+				Start-Process -FilePath "$scriptDir\AprovisionamientoApp\AprovisionamientoApp.exe" -Wait
+			}
+		},
+		@{ Name = "Run CursorVista"; Script = { Get-Content -LiteralPath "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Run Instalar-WiseCare"; Script = { Get-Content -LiteralPath "$scriptDir\Instalar-WiseCare.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run OfficeInstaller"; Script = { Get-Content -LiteralPath "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Run actualizaciones"; Script = {
+				Start-Sleep -Seconds 10
+				# Función para verificar si se ejecuta como administrador
+				function Test-Admin {
+					$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+					$principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+					return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+				}
+
+				# Función para escribir en el log
+				function Write-Log {
+					param (
+						[string]$message
+					)
+					$scriptDir = "C:\Windows\Setup\Scripts"
+					$logFile = "$scriptDir\Updates_log.txt"
+					$timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+					$logMessage = "$timestamp - $message"
+					Add-Content -Path $logFile -Value $logMessage
+				}
+
+				# Si no es administrador, relanzar el script con privilegios elevados
+				if (-not (Test-Admin)) {
+					$scriptPath = $MyInvocation.MyCommand.Path
+					Start-Process powershell -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"" -Verb RunAs
+					exit
+				}
+
+				Clear-Host
+				Write-Host "Iniciando la instalación automática de drivers y actualizaciones."
+				Write-Log "Iniciando la instalación automática de drivers y actualizaciones."
+
+				Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+				$ProgressPreference = 'SilentlyContinue'
+
+				try {
+					# Configuración inicial (NuGet, PSGallery, PSWindowsUpdate)
+					[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+					$nugetBase = "$env:ProgramFiles\PackageManagement\ProviderAssemblies\NuGet"
+					$nugetPath = "$nugetBase\2.8.5.208"
+					$nugetDLL  = Join-Path $nugetPath "Microsoft.PackageManagement.NuGetProvider.dll"
+					New-Item -ItemType Directory -Force -Path $nugetPath | Out-Null
+
+					Invoke-WebRequest -Uri "https://cdn.oneget.org/providers/Microsoft.PackageManagement.NuGetProvider-2.8.5.208.dll" `
+									  -OutFile $nugetDLL -UseBasicParsing -ErrorAction SilentlyContinue
+
+					$providerPath = "HKLM:\SOFTWARE\Microsoft\PackageManagement\ProviderAssemblies"
+					if (-not (Test-Path $providerPath)) { New-Item -Path $providerPath -Force | Out-Null }
+					New-ItemProperty -Path $providerPath -Name "NuGet" -Value $nugetPath -PropertyType String -Force | Out-Null
+
+					Import-PackageProvider -Name NuGet -Force -ErrorAction SilentlyContinue | Out-Null
+					Get-PackageProvider -Name NuGet -Force -ErrorAction SilentlyContinue | Out-Null
+					Write-Output "NuGet instalado silenciosamente sin prompts."
+
+					if (Get-PSRepository -Name 'PSGallery' -ErrorAction SilentlyContinue) {
+						Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+					}
+
+					$psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+					if ($null -eq $psGallery -or $psGallery.InstallationPolicy -ne 'Trusted') {
+						Write-Output "Marcando PSGallery como repositorio confiable..."
+						Write-Log "Marcando PSGallery como repositorio confiable..."
+						Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+					}
+
+					if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+						Write-Output "Instalando PSWindowsUpdate..."
+						Write-Log "Instalando PSWindowsUpdate..."
+						Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false -ErrorAction Stop
+					}
+
+					Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+
+					# --- PRIMERO: Drivers ---
+					Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name SearchOrderConfig -Value 1 -ErrorAction Stop
+					Write-Output "Buscando e instalando drivers desde Windows Update..."
+					Write-Log "Buscando e instalando drivers desde Windows Update..."
+
+					$drivers = Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -Category Drivers -ErrorAction Stop
+					$counter = 0; $total = $drivers.Count
+					foreach ($driver in $drivers) {
+						$counter++
+						Write-Progress -Activity "Instalando drivers" -Status "Instalando: $($driver.Title)" -PercentComplete (($counter / $total) * 100)
+						Write-Host "Instalando driver: $($driver.Title)"
+						Write-Log "Instalando driver: $($driver.Title)"
+						$driver | Install-WindowsUpdate -AcceptAll -IgnoreReboot -Verbose -ErrorAction Stop
+					}
+					Write-Progress -Activity "Instalando drivers" -Completed
+
+					# --- DESPUÉS: Otras actualizaciones ---
+					Write-Output "Buscando e instalando otras actualizaciones..."
+					Write-Log "Buscando e instalando otras actualizaciones..."
+					$otherUpdates = Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Where-Object { $_.Title -notlike "*driver*" }
+
+					$counter = 0; $total = $otherUpdates.Count
+					foreach ($update in $otherUpdates) {
+						$counter++
+						Write-Progress -Activity "Instalando actualizaciones" -Status "Instalando: $($update.Title)" -PercentComplete (($counter / $total) * 100)
+						Write-Host "Instalando actualización: $($update.Title)"
+						Write-Log "Instalando actualización: $($update.Title)"
+						$update | Install-WindowsUpdate -AcceptAll -IgnoreReboot -Verbose -ErrorAction Stop
+					}
+					Write-Progress -Activity "Instalando actualizaciones" -Completed
+
+					Write-Host "Todo listo. Drivers y actualizaciones aplicadas."
+					Write-Log "Todo listo. Drivers y actualizaciones aplicadas."
+				}
+				catch {
+					Write-Error "Error crítico: $_"
+					Write-Log "Error crítico: $_"
+				}
+
+			}
+		},
+		@{ Name = "Cleanup"; Script = {
+            Remove-Item -Path "$scriptDir\AprovisionamientoApp" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$scriptDir\OptimizeWindows" -Recurse -Force -ErrorAction SilentlyContinue
+        } },
+		@{ Name = "Clean Reset Base"; Script = { Get-Content -LiteralPath "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "ClearDir"; Script = {
+		# Verifica si la carpeta existe
+		if (Test-Path $scriptDir) {
+			# Extensiones a eliminar
+			$extensions = @("*.ps1", "*.vbs", "*.xml")
+
+			foreach ($ext in $extensions) {
+				Get-ChildItem -Path $scriptDir -Recurse -Filter $ext -Force -ErrorAction SilentlyContinue |
+				Remove-Item -Force -ErrorAction SilentlyContinue
+			}
+
+			Write-Host "Archivos .ps1, .vbs y .xml eliminados de $scriptDir"
+		} else {
+			Write-Warning "La carpeta $scriptDir no existe."
+		}
+		} }
     )
 
-    # --- RUNONCE ---
+					 
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
     $valueName = "ContinueInstall"
     $scriptPath = "$scriptDir\FirstLogon.ps1"
-    if (-not (Get-ItemProperty $regPath -Name $valueName -ErrorAction SilentlyContinue)) {
-        Set-ItemProperty $regPath -Name $valueName -Value "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
+    $valueData = "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
+    $currentValue = Get-ItemProperty -Path $regPath -Name $valueName -ErrorAction SilentlyContinue
+    if (-not $currentValue) {
+        Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
     }
 
-    # --- STATE ---
+				   
     if (-not (Test-Path $stateFile)) {
-        $init = for ($i = 0; $i -lt $scripts.Count; $i++) {
-            [PSCustomObject]@{ index = $i; name = $scripts[$i].Name; status = "pending" }
+        $initState = @()
+        for ($i = 0; $i -lt $scripts.Count; $i++) {
+            $initState += [PSCustomObject]@{
+                index = $i
+                name = $scripts[$i].Name
+                status = "pending"
+            }
         }
-        $init | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+        $initState | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
     }
 
     $state = Get-Content $stateFile | ConvertFrom-Json
+    Write-Output "=== ESTADO ACTUAL ==="
+    $state | ForEach-Object {
+        Write-Output "$($_.index): $($_.name) - $($_.status)"
+    }
+
+    $UserProfile = [Environment]::GetFolderPath("MyDocuments")
 
     for ($i = 0; $i -lt $scripts.Count; $i++) {
-        if ($state[$i].status -in "pending","pending-reboot") {
+        if ($state[$i].status -in @("pending", "pending-reboot")) {
             try {
-                switch ($i) {
+                Write-Progress -Activity "Ejecutando paso ${i}: $($scripts[$i].Name)" -PercentComplete (($i / $scripts.Count) * 100)
+                $startTime = Get-Date
+   
+				switch ($i) {
+						5 { # Paso 5: Optimizacion general
+							# Si está pendiente, se marca como 'pending-reboot' antes de ejecutar el .exe
+							if ($state[$i].status -eq "pending") {
+								Write-Output "[$(Get-Date)] Iniciando OptimizingWindowsApp.exe (se marcará como pending-reboot)"
+								$state[$i].status = "pending-reboot"
+								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+								&amp; $scripts[$i].Script
+								break
+							}
 
-                    5 { # PASO EXTERNO – SOLO UNA VEZ
-                        if ($state[$i].status -eq "pending") {
-                            $state[$i].status = "pending-reboot"
-                            $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                            &amp; $scripts[$i].Script
-                            break
-                        }
+							# Si ya fue marcado como pending-reboot anteriormente, es hora de verificar el log
+							if ($state[$i].status -eq "pending-reboot") {
+								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
+								$logEncontrado = $false
+								$timeout = 300
+								$logStartTime = Get-Date
+								$logFile = $null
 
-                        if ($state[$i].status -eq "pending-reboot") {
-                            $log = "C:\ScriptsSyA.log"
-                            if (Test-Path $log) {
-                                if ((Get-Content $log -Raw) -match "\[INFO\]\s*Fase 3 finalizada correctamente") {
-                                    $state[$i].status = "done"
-                                    $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                                }
-                            }
-                        }
-                        break
-                    }
+								Write-Output "[$(Get-Date)] Buscando log Opt_*.txt"
+								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
+									$logFile = Get-ChildItem -Path $UserProfile -Filter "Opt_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
+								}
+
+								if ($logFile) {
+									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
+									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
+										try {
+											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
+											if ($content -imatch "99\s*%\s*Completado") {
+												$logEncontrado = $true
+												$state[$i].status = "done"
+												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+												Write-Output "[$(Get-Date)] Paso 3 COMPLETADO - 99% Completado encontrado"
+											}
+										} catch {
+											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
+										}
+										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
+									}
+								}
+
+								if (-not $logEncontrado) {
+									$state[$i].status = "error"
+									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
+								}
+							}
+							break
+						}
+
+						6 { # Paso 6: Optimizacion de apps
+							if ($state[$i].status -eq "pending") {
+								Write-Output "[$(Get-Date)] Iniciando AprovisionamientoApp.exe (se marcará como pending-reboot)"
+								$state[$i].status = "pending-reboot"
+								$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+								&amp; $scripts[$i].Script
+								break
+							}
+
+							if ($state[$i].status -eq "pending-reboot") {
+								$UserProfile = [Environment]::GetFolderPath("MyDocuments")
+								$logEncontrado = $false
+								$timeout = 300
+								$logStartTime = Get-Date
+								$logFile = $null
+
+								Write-Output "[$(Get-Date)] Buscando log Apps_*.txt"
+
+								while (-not $logFile -and ((Get-Date) - $logStartTime).TotalSeconds -lt 15) {
+									$logFile = Get-ChildItem -Path $UserProfile -Filter "Apps_*.txt" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+									if (-not $logFile) { Start-Sleep -Milliseconds 200 }
+								}
+
+								if ($logFile) {
+									Write-Output "[$(Get-Date)] Monitoreando log: $($logFile.FullName)"
+									while (-not $logEncontrado -and ((Get-Date) - $logStartTime).TotalSeconds -lt $timeout) {
+										try {
+											$content = Get-Content $logFile.FullName -Raw -ErrorAction Stop
+											if ($content -imatch "99\s*%\s*Completado") {
+												$logEncontrado = $true
+												$state[$i].status = "done"
+												$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+												Write-Output "[$(Get-Date)] Paso 4 COMPLETADO - 99% Completado encontrado"
+											}
+										} catch {
+											Write-Output "[$(Get-Date)] ERROR al leer log: $_"
+										}
+										if (-not $logEncontrado) { Start-Sleep -Seconds 1 }
+									}
+								}
+
+								if (-not $logEncontrado) {
+									$state[$i].status = "error"
+									$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+									Write-Output "[$(Get-Date)] ERROR: No se encontró '99% Completado' en el log"
+								}
+							}
+							break
+						}
 
                     default {
+                        Write-Output "[$(Get-Date)] Ejecutando paso ${i}: $($scripts[$i].Name)"
                         &amp; $scripts[$i].Script
                         $state[$i].status = "done"
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                        Write-Output "[$(Get-Date)] Paso $i COMPLETADO en $([math]::Round(((Get-Date) - $startTime).TotalSeconds, 2))s"
                     }
                 }
 
-                if ($i -eq 5 -and $state[$i].status -ne "done") {
+                # Si el paso es 5 o 6 y no está completo, romper para que el sistema se reinicie
+                if ($i -in 5,6 -and $state[$i].status -ne "done") {
+                    Write-Output "[$(Get-Date)] Esperando reinicio para paso $i"
                     break
                 }
-
-            } catch {
+            }
+            catch {
                 $state[$i].status = "error"
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+			Write-Output "[$(Get-Date)] ERROR en paso ${i}: $_"
                 break
             }
         }
     }
 
-    if ($state.status -notcontains "pending" -and $state.status -notcontains "error") {
-        Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue
+    # Verificar si todos los pasos están completos sin errores
+    $completed = ($state.status -notcontains "pending") -and ($state.status -notcontains "error")
+    if ($completed) {
+        Remove-Item -Path "$regPath\$valueName" -ErrorAction SilentlyContinue
+        Write-Output "=== INSTALACIÓN COMPLETADA ==="
+    }
+
+    Write-Output "=== RESUMEN FINAL ==="
+    $state | ForEach-Object {
+        Write-Output "$($_.index): $($_.name) - $($_.status)"
     }
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
 </unattend>
-
