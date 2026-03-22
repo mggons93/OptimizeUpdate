@@ -1674,7 +1674,7 @@ try {
 			}
 		},
         @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "ClearDir"; Script = {				  
+        @{ Name = "ClearDir"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
         }}
@@ -1683,15 +1683,13 @@ try {
     # --- RUNONCE ---
     $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
     $valueName = "ContinueInstall"
-    $scriptPath = "$scriptDir\FirstLogon.ps1"																	   
+    $scriptPath = "$scriptDir\FirstLogon.ps1"
     if (-not (Get-ItemProperty $regPath -Name $valueName -ErrorAction SilentlyContinue)) {
-							 
         Set-ItemProperty $regPath -Name $valueName -Value "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
     }
 
     # --- STATE ---
     if (-not (Test-Path $stateFile)) {
-						
         $init = for ($i = 0; $i -lt $scripts.Count; $i++) {
             [PSCustomObject]@{ index = $i; name = $scripts[$i].Name; status = "pending" }
         }
@@ -1718,24 +1716,19 @@ try {
                                 if ((Get-Content $log -Raw) -match "\[INFO\]\s*Fase 3 finalizada correctamente") {
                                     $state[$i].status = "done"
                                     $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-																					   
                                 }
                             }
-			
-                        }	 
+                        }
                         break
                     }
 
                     default {
-																							   
                         &amp; $scripts[$i].Script
                         $state[$i].status = "done"
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-																																	   
                     }
                 }
- 
-                if ($i -eq 5 -and $state[$i].status -ne "done") {									
+                if ($i -eq 5 -and $state[$i].status -ne "done") {
                     break
                 }
             } catch {
@@ -1745,11 +1738,9 @@ try {
             }
         }
     }
-									   
     if ($state.status -notcontains "pending" -and $state.status -notcontains "error") {
-        Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue		  
+        Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue
     }
-
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
