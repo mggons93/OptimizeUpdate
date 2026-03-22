@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <!-- ============ OFFLINE SERVICING (vacío pero válido) ============ -->
+  <settings pass="offlineServicing">
+  </settings>
+  <!-- ============ WINPE ============ -->
+  <settings pass="windowsPE">
+    <!-- Idioma para WinPE -->
+    <component name="Microsoft-Windows-International-Core-WinPE" 
+               processorArchitecture="amd64" 
+               publicKeyToken="31bf3856ad364e35" 
+               language="neutral" 
+               versionScope="nonSxS">
+      <SetupUILanguage>
+        <UILanguage>neutral</UILanguage>
+      </SetupUILanguage>
+    </component>
+    <!-- Configuración del instalador -->
+    <component name="Microsoft-Windows-Setup" 
+               processorArchitecture="amd64" 
+               publicKeyToken="31bf3856ad364e35" 
+               language="neutral" 
+               versionScope="nonSxS">
+      <ImageInstall>
+        <OSImage>
+          <Compact>true</Compact>
+        </OSImage>
+      </ImageInstall>
+      <UserData>
+        <ProductKey>
+          <Key>00000-00000-00000-00000-00000</Key>
+        </ProductKey>
+        <AcceptEula>true</AcceptEula>
+      </UserData>
+      <UseConfigurationSet>true</UseConfigurationSet>
+    </component>
+  </settings>
+</unattend>
