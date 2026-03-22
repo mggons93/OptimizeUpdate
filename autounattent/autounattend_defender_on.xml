@@ -1653,7 +1653,6 @@ try {
         if ($state[$i].status -in "pending","pending-reboot") {
             try {
                 switch ($i) {
-
                     5 { # PASO EXTERNO – SOLO UNA VEZ
                         if ($state[$i].status -eq "pending") {
                             $state[$i].status = "pending-reboot"
@@ -1680,11 +1679,9 @@ try {
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
                     }
                 }
-
                 if ($i -eq 5 -and $state[$i].status -ne "done") {
                     break
                 }
-
             } catch {
                 $state[$i].status = "error"
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
@@ -1692,7 +1689,6 @@ try {
             }
         }
     }
-
     if ($state.status -notcontains "pending" -and $state.status -notcontains "error") {
         Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue
     }
