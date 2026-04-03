@@ -376,6 +376,17 @@ Write-Output "7% Completado"
 
 $BasePath = "$env:TEMP\WingetFullInstall"
 New-Item $BasePath -ItemType Directory -Force | Out-Null
+
+# ==========================================================
+# FUNCION → VALIDAR SI COMPONENTE APPX EXISTE
+# ==========================================================
+function Test-AppxPackageInstalled {
+    param(
+        [string]$PackageName
+    )
+    return $null -ne (Get-AppxPackage -AllUsers $PackageName -ErrorAction SilentlyContinue)
+}
+
 # ==========================================================
 # FUNCION → INSTALAR MICROSOFT STORE (LTSC / IoT)
 # ==========================================================
@@ -398,8 +409,8 @@ function Install-StoreIfNeeded {
         return
     }
 
-    if (Get-AppxPackage -AllUsers Microsoft.WindowsStore -ErrorAction SilentlyContinue) {
-        Write-Host "Microsoft Store ya instalada"
+    if (Test-AppxPackageInstalled "Microsoft.WindowsStore") {
+        Write-Host "Microsoft Store ya instalada → se omite"
         return
     }
 
@@ -407,6 +418,7 @@ function Install-StoreIfNeeded {
 
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item $TempDir -ItemType Directory | Out-Null
+    
     # ===============================
     # OFFLINE primero
     # ===============================
@@ -437,6 +449,7 @@ function Install-StoreIfNeeded {
             return
         }
     }
+    
     # ===============================
     # Ejecutar Add-Store.cmd
     # ===============================
@@ -450,12 +463,13 @@ function Install-StoreIfNeeded {
         Write-Host "No se encontró Add-Store.cmd"
     }
 }
+
 # ==========================================================
-# FUNCION → INSTALAR WINGET SIN STORE
+# FUNCION → INSTALAR WINGET CON VALIDACIONES
 # ==========================================================
 function Install-Winget {
 
-    Write-Host "Instalando Winget..."
+    Write-Host "Verificando componentes de Winget..."
 
     $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
     $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
@@ -469,37 +483,105 @@ function Install-Winget {
     $WingetoldPath = "$BasePath\Wingetold.appxbundle"
     $WingetPath = "$BasePath\Winget.appxbundle"
 
+    # ===============================
+    # VERIFICAR SI WINGET YA EXISTE
+    # ===============================
+    $WingetExists = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
+    
+    if ($WingetExists) {
+        Write-Host "Winget ya instalado"
+        Write-Host "Versión actual:"
+        winget --version
+        
+        Write-Host "Descargando actualización de Winget..."
+        try {
+            Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Actualizando Winget..."
+            Add-AppxPackage $WingetPath
+            Write-Host "Winget actualizado"
+            winget --version
+        }
+        catch {
+            Write-Host "Error actualizando Winget:"
+            Write-Host $_.Exception.Message
+        }
+        return
+    }
+
+    # ===============================
+    # INSTALAR COMPONENTES FALTANTES
+    # ===============================
+    Write-Host "Winget no detectado → Instalando componentes necesarios..."
+
     try {
+        # VCLibs
+        if (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop") {
+            Write-Host "VCLibs ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando VCLibs..."
+            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando VCLibs..."
+            Add-AppxPackage $VCLibsPath
+            Write-Host "VCLibs instalado"
+        }
 
-        Invoke-WebRequest $VCLibsUrl  -OutFile $VCLibsPath  -UseBasicParsing
-        Invoke-WebRequest $XamlUrl   -OutFile $XamlPath  -UseBasicParsing
-        Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing
-        Invoke-WebRequest $WingetoldUrl  -OutFile $WingetoldPath  -UseBasicParsing
-        Invoke-WebRequest $WingetUrl  -OutFile $WingetPath  -UseBasicParsing
-
-        Write-Host "Instalando VCLibs..."
-        Add-AppxPackage $VCLibsPath
-        Add-AppxPackage $XamlPath
+        # UI.Xaml
+        if (Test-AppxPackageInstalled "Microsoft.UI.Xaml") {
+            Write-Host "Microsoft.UI.Xaml ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando UI.Xaml..."
+            Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando UI.Xaml..."
+            Add-AppxPackage $XamlPath
+            Write-Host "UI.Xaml instalado"
+        }
+        
         Start-Sleep 2
 
-        Write-Host "Instalando Windows App Runtime..."
-        Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait
+        # Windows App Runtime
+        Write-Host "Verificando Windows App Runtime..."
+        $runtimeInstalled = Get-AppxPackage -AllUsers "Microsoft.WindowsAppRuntime" -ErrorAction SilentlyContinue
+        
+        if ($runtimeInstalled) {
+            Write-Host "Windows App Runtime ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando Windows App Runtime..."
+            Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando Windows App Runtime..."
+            Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait -ErrorAction Stop
+            Write-Host "Windows App Runtime instalado"
+        }
+        
         Start-Sleep 3
 
-        Write-Host "Instalando old Winget..."
+        # Winget versión antigua
+        Write-Host "Descargando Winget (versión base)..."
+        Invoke-WebRequest $WingetoldUrl -OutFile $WingetoldPath -UseBasicParsing -ErrorAction Stop
+        Write-Host "Instalando Winget (versión base)..."
         Add-AppxPackage $WingetoldPath
+        Write-Host "Winget versión base instalado"
         Start-Sleep 3
 
+        # Winget versión actualizada
+        Write-Host "Descargando Winget (actualización)..."
+        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
         Write-Host "Actualizando Winget..."
         Add-AppxPackage $WingetPath
+        Write-Host "Winget actualizado"
 
-        Write-Host "Verificando..."
+        Start-Sleep 2
+
+        # Verificación final
+        Write-Host "Verificando instalación..."
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             Write-Host "Winget instalado correctamente"
             winget --version
         }
         else {
-            Write-Host "Winget no se instalo correctamente"
+            Write-Host "Winget no se instaló correctamente"
         }
     }
     catch {
@@ -507,11 +589,19 @@ function Install-Winget {
         Write-Host $_.Exception.Message
     }
 }
+
 # ==========================================================
 # EJECUCIÓN PRINCIPAL
 # ==========================================================
 Install-StoreIfNeeded
 Install-Winget
+
+# ===============================
+# LIMPIEZA DE TEMPORALES
+# ===============================
+Write-Host "Limpiando archivos temporales..."
+Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "Limpieza completada"
 
 Write-Host "Proceso completo finalizado."
 
