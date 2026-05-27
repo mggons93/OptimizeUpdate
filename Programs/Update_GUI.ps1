@@ -16,7 +16,7 @@ if (-not (Test-Admin)) {
     exit
 }
 
-# ================= DETECTAR ARQUITECTURA Y SETEAR URL =================
+# ================= DETECTAR ARQUITECTURA Y URL =================
 if ([Environment]::Is64BitOperatingSystem) {
     $arch = "x64"
     $downloadUrl = "https://syasoporteglobal.online/files/OEM/Update_GUI/Update_GUI_x64.exe"
@@ -44,7 +44,7 @@ function Download-File($url, $output) {
     }
 }
 
-# ================= DESCARGA DIRECTA =================
+# ================= DESCARGA DEL PROGRAMA =================
 Write-Output "Descargando archivo desde $downloadUrl..."
 
 $downloaded = Download-File $downloadUrl $tempPath
@@ -54,7 +54,7 @@ if (-not $downloaded) {
     exit 1
 }
 
-# ================= VALIDACIÓN =================
+# ================= VALIDACIÓN DESCARGA =================
 if (-not (Test-Path $tempPath)) {
     Write-Error "El archivo no existe después de la descarga"
     exit 1
@@ -73,7 +73,6 @@ try {
     if (Test-Path $finalPath) {
         Remove-Item $finalPath -Force
     }
-
     Rename-Item -Path $tempPath -NewName $finalName
 } catch {
     Write-Error "Error renombrando el archivo"
@@ -90,7 +89,54 @@ try {
     Write-Warning "No se pudo agregar la exclusión"
 }
 
-# ================= EJECUTAR =================
+# ================= VERIFICAR E INSTALAR .NET 8.0 DESKTOP RUNTIME =================
+
+function Test-Net80Windows {
+    # Busca en el registro si existe .NET 8.0 Windows Desktop Runtime
+    $netRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+    $net80 = Get-ChildItem $netRegPath | Get-ItemProperty | Where-Object {
+        ($_.DisplayName -like "Microsoft .NET Runtime - 8.0.*(x64)*" -or
+         $_.DisplayName -like "Microsoft .NET Runtime - 8.0.*(x86)*" -or
+         $_.DisplayName -like "Microsoft Windows Desktop Runtime - 8.0.*(x64)*" -or
+         $_.DisplayName -like "Microsoft Windows Desktop Runtime - 8.0.*(x86)*")
+    }
+    return $net80 -ne $null
+}
+
+if (-not (Test-Net80Windows)) {
+    Write-Output "Descargando e instalando .NET 8.0 Desktop Runtime (net8.0-windows)..."
+    if ($arch -eq "x64") {
+        $netUrl = "https://download.visualstudio.microsoft.com/download/pr/5dbeeadd-cf09-40a5-8ab7-bc04d2cba1f3/0d32a1759bfe042b2ea03fbb4d58afed/windowsdesktop-runtime-8.0.5-win-x64.exe"
+        $netExe = "windowsdesktop-runtime-8.0.5-win-x64.exe"
+    } else {
+        $netUrl = "https://download.visualstudio.microsoft.com/download/pr/90cae71a-c5ad-4c3f-af55-6cbebc7d7067/681bafcf625c631c8034c062e88b26ce/windowsdesktop-runtime-8.0.5-win-x86.exe"
+        $netExe = "windowsdesktop-runtime-8.0.5-win-x86.exe"
+    }
+    $netPath = Join-Path -Path $env:TEMP -ChildPath $netExe
+
+    # Descarga el instalador
+    if (-not (Download-File $netUrl $netPath)) {
+        Write-Error "Error descargando el instalador de .NET 8.0 Desktop Runtime"
+        exit 1
+    }
+
+    # Instalación silenciosa
+    Write-Output "Instalando .NET 8.0 Desktop Runtime, espera por favor..."
+    $p = Start-Process -FilePath $netPath -ArgumentList "/install /quiet /norestart" -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        Write-Error ".NET 8.0 Desktop Runtime falló la instalación. Código: $($p.ExitCode)"
+        exit 1
+    }
+
+    # Limpia el instalador
+    Remove-Item $netPath -Force -ErrorAction SilentlyContinue
+
+    Write-Output ".NET 8.0 Desktop Runtime instalado correctamente."
+} else {
+    Write-Output ".NET 8.0 Desktop Runtime ya está instalado."
+}
+
+# ================= EJECUTAR EL PROGRAMA =================
 Write-Output "Ejecutando $finalName..."
 
 try {
