@@ -594,7 +594,14 @@ function Install-Winget {
 # EJECUCIÓN PRINCIPAL
 # ==========================================================
 Install-StoreIfNeeded
-Install-Winget
+
+# Ejecutar Install-Winget sólo si `winget` no está presente (aplica a Windows 10/11)
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "winget no detectado → ejecutando Install-Winget"
+    Install-Winget
+} else {
+    Write-Host "winget detectado → omitiendo Install-Winget"
+}
 
 # ===============================
 # LIMPIEZA DE TEMPORALES
