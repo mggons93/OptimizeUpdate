@@ -19,11 +19,13 @@ if (-not (Test-Admin)) {
 # ================= DETECTAR ARQUITECTURA Y URL =================
 if ([Environment]::Is64BitOperatingSystem) {
     $arch = "x64"
-    $downloadUrl = "https://syasoporteglobal.online/files/OEM/Update_GUI/Update_GUI_x64.exe"
+    $primaryUrl = "https://github.com/mggons93/OptimizeUpdate/releases/download/V2.0.1/Update_GUI_x64.exe"
+    $fallbackUrl = "https://syasoporteglobal.online/files/OEM/Update_GUI/Update_GUI_x64.exe"
     $fileName = "Update_GUI_x64.exe"
 } else {
     $arch = "x86"
-    $downloadUrl = "https://syasoporteglobal.online/files/OEM/Update_GUI/Update_GUI_x86.exe"
+    $primaryUrl = "https://github.com/mggons93/OptimizeUpdate/releases/download/V2.0.1/Update_GUI_x86.exe"
+    $fallbackUrl = "https://syasoporteglobal.online/files/OEM/Update_GUI/Update_GUI_x86.exe"
     $fileName = "Update_GUI_x86.exe"
 }
 $finalName = "Update_GUI.exe"
@@ -45,13 +47,18 @@ function Download-File($url, $output) {
 }
 
 # ================= DESCARGA DEL PROGRAMA =================
-Write-Output "Descargando archivo desde $downloadUrl..."
+Write-Output "Intentando descargar desde GitHub: $primaryUrl"
 
-$downloaded = Download-File $downloadUrl $tempPath
-
+$downloaded = Download-File $primaryUrl $tempPath
 if (-not $downloaded) {
-    Write-Error "Error descargando desde $downloadUrl"
-    exit 1
+    Write-Warning "Fallo descarga desde GitHub, intentando fallback: $fallbackUrl"
+    $downloaded = Download-File $fallbackUrl $tempPath
+    if (-not $downloaded) {
+        Write-Error "Error descargando desde GitHub y fallback: $primaryUrl / $fallbackUrl"
+        exit 1
+    }
+} else {
+    Write-Output "Descargado desde GitHub: $primaryUrl"
 }
 
 # ================= VALIDACIÓN DESCARGA =================
