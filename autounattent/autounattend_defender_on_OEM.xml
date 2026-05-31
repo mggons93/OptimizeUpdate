@@ -124,6 +124,7 @@ $selectors = @(
 	'Clipchamp.Clipchamp';
 	'Microsoft.WindowsAlarms';
 	'Microsoft.549981C3F5F10';
+	'Microsoft.Copilot'; 
 	'Microsoft.Windows.DevHome';
 	'MicrosoftCorporationII.MicrosoftFamily';
 	'Microsoft.WindowsFeedbackHub';
@@ -1066,26 +1067,26 @@ foreach ($drive in $drives) {
     }
 }
 		</File>
-		<File path="C:\Windows\Setup\Scripts\ChangePC-ID.ps1">
-# Script: Detectar tipo de equipo, asignar nombre alfanumérico y registrar log
+				<File path="C:\Windows\Setup\Scripts\ChangePC-ID.ps1">
+# Script: Detectar tipo de equipo, asignar nombre alfanum?rico y registrar log
 # -------------------------------------------------------------
 # Ruta fija del log
 $logFile = "C:\Windows\Setup\Scripts\Equipo.log"
 
-# Función para escribir en log
+# Funci?n para escribir en log
 function Write-Log {
     param([string]$msg)
     $msg | Tee-Object -FilePath $logFile -Append
 }
-# Generar nombre alfanumérico de 7 caracteres (letras y números)
+# Generar nombre alfanum?rico de 7 caracteres (letras y n?meros)
 function Get-RandomName {
     $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     -join ((1..7) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
 }
-# Mapear códigos de chasis a Desktop/Laptop válidos
+# Mapear c?digos de chasis a Desktop/Laptop v?lidos
 $desktopCodes = @(3,4,5,6,7,15,16,35)
 $laptopCodes  = @(8,9,10,14,17,30,31,32)
-# Códigos a ignorar
+# C?digos a ignorar
 $ignoreCodes = @(11,12,18,19,20,21,22,25,26,27)
 # Obtener info del equipo
 $cs = Get-CimInstance -ClassName Win32_ComputerSystem
@@ -1108,7 +1109,7 @@ $tipo = "Desconocido"
 foreach ($c in $chassis) {
     foreach ($code in $c.ChassisTypes) {
         if ($ignoreCodes -contains $code) {
-            Write-Log "Código $code detectado (Ignorado)."
+            Write-Log "C?digo $code detectado (Ignorado)."
             continue
         }
 
@@ -1130,6 +1131,7 @@ foreach ($c in $chassis) {
             Write-Log "===================================="
             Write-Log "Fecha: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
             Write-Log "Chassis Code: $code"
+            Write-Log "Disco: $disco"
             Write-Log "Tipo Detectado: $tipo"
             Write-Log "Nombre asignado: $finalName"
             Write-Log "===================================="
@@ -1141,7 +1143,7 @@ foreach ($c in $chassis) {
 if ($null -ne $finalName) {
     # Renombrar el equipo
     Rename-Computer -NewName $finalName -Force
-    Write-Host "El equipo se renombró a: $finalName"
+    Write-Host "El equipo se renombr? a: $finalName"
     Write-Host "Log guardado en: $logFile"
 } else {
     Write-Host "No se pudo determinar el tipo de equipo. El nombre no fue cambiado."
@@ -1238,7 +1240,7 @@ function Test-Admin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-# Auto-elevación
+# Auto-elevaci?n
 if (-not (Test-Admin)) {
     $scriptPath = $MyInvocation.MyCommand.Path
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
@@ -1265,9 +1267,9 @@ Stop-Service -Name "smphost"
 Set-Service -Name "PhoneSvc" -StartupType Disabled
 Stop-Service -Name "PhoneSvc"
 
-# Verificar si Checkpoint-Computer está disponible
+# Verificar si Checkpoint-Computer est? disponible
 if (-not (Get-Command Checkpoint-Computer -ErrorAction SilentlyContinue)) {
-    Write-Host "Checkpoint-Computer no está disponible en este sistema." -ForegroundColor Red
+    Write-Host "Checkpoint-Computer no est? disponible en este sistema." -ForegroundColor Red
     return
 }
 
@@ -1292,26 +1294,234 @@ $logFile = Join-Path $scriptDirectory "Restauracion.log"
 
 # Crear encabezado si el archivo no existe
 if (-not (Test-Path $logFile)) {
-    Add-Content -Path $logFile -Value "===== Registro de creación de punto de restauración ====="
+    Add-Content -Path $logFile -Value "===== Registro de creaci?n de punto de restauraci?n ====="
 }
 
 # ============================================
 
-Write-Host "Iniciando creación automática de un punto de restauración del sistema..." -ForegroundColor Cyan
+Write-Host "Iniciando creaci?n autom?tica de un punto de restauraci?n del sistema..." -ForegroundColor Cyan
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$logEntry = "[$timestamp] Iniciando creación de punto de restauración..."
+$logEntry = "[$timestamp] Iniciando creaci?n de punto de restauraci?n..."
 
-# Detectar tipo de disco
+# Detectar letra de la unidad donde está instalado Windows de forma robusta
+function Get-WindowsDriveLetter {
+    # Devuelve el drive letter donde está instalado Windows (p. ej. 'C'), o $null.
+    # Estrategia:
+    # 1. Revisar env:SystemRoot / env:WinDir
+    # 2. Leer registro HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRoot
+    # 3. Consultar WMI/CIM Win32_OperatingSystem.SystemDirectory
+    # 4. Buscar en PSDrive la carpeta Windows\System32
+
+    # 1) Env vars
+    try {
+        if ($env:SystemRoot) {
+            $sr = $env:SystemRoot
+            if (Test-Path $sr) { return ([IO.Path]::GetPathRoot((Get-Item $sr).FullName)).TrimEnd(':') }
+            # some cases env may be like C:\Windows\System32 - normalize
+            if ($sr -match '^[A-Za-z]:') { return $sr.Substring(0,1) }
+        }
+        if ($env:WinDir) {
+            $wd = $env:WinDir
+            if (Test-Path $wd) { return ([IO.Path]::GetPathRoot((Get-Item $wd).FullName)).TrimEnd(':') }
+            if ($wd -match '^[A-Za-z]:') { return $wd.Substring(0,1) }
+        }
+    } catch { }
+
+    # 2) Registry
+    try {
+
+        $reg = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'SystemRoot' -ErrorAction SilentlyContinue
+        if ($reg -and $reg.SystemRoot) {
+            $sr = $reg.SystemRoot
+            # Expand any environment variables
+            $expanded = ([Environment]::ExpandEnvironmentVariables($sr))
+            if (Test-Path $expanded) { return ([IO.Path]::GetPathRoot((Get-Item $expanded).FullName)).TrimEnd(':') }
+            if ($expanded -match '^[A-Za-z]:') { return $expanded.Substring(0,1) }
+        }
+    } catch { }
+
+    # 3) WMI / CIM
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+        if ($os -and $os.SystemDirectory) {
+            $sd = $os.SystemDirectory
+            if (Test-Path $sd) { return ([IO.Path]::GetPathRoot((Get-Item $sd).FullName)).TrimEnd(':') }
+            if ($sd -match '^[A-Za-z]:') { return $sd.Substring(0,1) }
+        }
+    } catch { }
+
+    # 4) Buscar unidad que contenga Windows\System32
+    try {
+        $drive = Get-PSDrive -PSProvider FileSystem | Where-Object {
+            try { Test-Path (Join-Path $_.Root 'Windows\System32') } catch { $false }
+        } | Select-Object -First 1
+        if ($drive) { return $drive.Name }
+    } catch { }
+
+    return $null
+}
+
+$mediaType = "No identificado"
 try {
-    $systemDrive = (Get-WmiObject Win32_OperatingSystem).SystemDrive
-    $partition = Get-Partition -DriveLetter $systemDrive.TrimEnd(":")
-    $diskNumber = $partition.DiskNumber
-    $disk = Get-PhysicalDisk | Where-Object { $_.DeviceId -eq $diskNumber }
-    $mediaType = $disk.MediaType
+    $driveLetter = Get-WindowsDriveLetter
+    # Normalizar a una sola letra (C en vez de C:\)
+    if ($driveLetter -match '^[A-Za-z]:') { $driveLetter = $driveLetter.Substring(0,1) }
+    if ($driveLetter -match '^[A-Za-z]$') { $driveLetter = $driveLetter.ToUpper() }
+    Write-Host "driveLetter = $driveLetter"
+    $logEntry += " | driveLetter: $driveLetter"
+        # Intentar mapear la unidad lógica a disco físico vía asociaciones WMI/CIM
+        try {
+            $ld = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID = '$($driveLetter):'" -ErrorAction SilentlyContinue
+            if ($ld) {
+                $parts = Get-CimAssociatedInstance -InputObject $ld -Association Win32_LogicalDiskToPartition -ErrorAction SilentlyContinue
+                if ($parts) {
+                    foreach ($p in $parts) {
+                        $drives = Get-CimAssociatedInstance -InputObject $p -Association Win32_DiskDriveToDiskPartition -ErrorAction SilentlyContinue
+                        if ($drives) {
+                            $driveObj = $drives | Select-Object -First 1
+                            if ($driveObj.Index -ne $null) {
+                                $diskNumber = $driveObj.Index
+                                Write-Host "WMI mapping result: DiskDrive Index = $diskNumber, Model=$($driveObj.Model)"
+                                $logEntry += " | WmiMappedDiskIndex: $diskNumber Model: $($driveObj.Model)"
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            # ignore mapping errors
+        }
+        if ($driveLetter) {
+            # Prefer Get-Disk (provides MediaType). If not available or returns Unspecified, try fallback methods.
+            try {
+                Write-Host "Obteniendo particion y numero de disco para $driveLetter..."
+                $partition = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
+                $diskNumber = $partition.DiskNumber
+                Write-Host "partition.DiskNumber = $diskNumber"
+                $logEntry += " | DiskNumber: $diskNumber"
+
+                $gd = Get-Disk -Number $diskNumber -ErrorAction Stop
+                if ($gd -and $gd.MediaType) {
+                    $mt = $gd.MediaType.ToString()
+                    Write-Host "Get-Disk MediaType raw: '$mt'"
+                    $logEntry += " | GetDiskMediaTypeRaw: $mt"
+                    if ($mt -match '(?i)SSD|NVME') { $mediaType = 'SSD' } 
+                    elseif ($mt -match '(?i)HDD|FIXED|HARD|ROTATIONAL') { $mediaType = 'HDD' } 
+                    else { $mediaType = $mt }
+                }
+            } catch {
+                # ignore and try fallback
+            }
+            if ($mediaType -eq "No identificado" -or [string]::IsNullOrEmpty($mediaType)) {
+                try {
+                    # Fallback: try Get-PhysicalDisk and match by FriendlyName or UniqueId if possible
+                    $phys = Get-PhysicalDisk -ErrorAction SilentlyContinue
+                    if ($phys) {
+                        # Attempt coarse match: if only one physical disk, take its MediaType and normalize
+                        if ($phys.Count -eq 1) { 
+                            $pmt = $phys[0].MediaType
+                            if ($pmt -match '(?i)SSD|NVME') { $mediaType = 'SSD' } 
+                            elseif ($pmt -match '(?i)HDD|FIXED|HARD|ROTATIONAL') { $mediaType = 'HDD' } 
+                            else { $mediaType = $pmt }
+                        }
+                    }
+                } catch {
+                    # final fallback ignored
+                }
+            }
+
+        # Si aún no se identifica, intentar heurística adicional usando Win32_DiskDrive (RotationRate/InterfaceType)
+        if ($mediaType -eq "No identificado" -and $driveLetter) {
+            try {
+                if ($diskNumber -ne $null) {
+                    $wdd = Get-CimInstance -ClassName Win32_DiskDrive -Filter "Index = $diskNumber" -ErrorAction SilentlyContinue
+                    if ($wdd) {
+                            Write-Host "Win32_DiskDrive found: Index=$($wdd.Index) Model='$($wdd.Model)' InterfaceType='$($wdd.InterfaceType)' RotationRate='$($wdd.RotationRate)'"
+                            $logEntry += " | Win32DiskDrive: Index=$($wdd.Index) Model=$($wdd.Model) Interface=$($wdd.InterfaceType) RotationRate=$($wdd.RotationRate)"
+                        # Primero, intentar por modelo (muchas controladoras reportan InterfaceType/RotationRate inconsistentes)
+                        $modelStr = ($wdd.Model | Out-String).Trim().ToUpper()
+                        if ($modelStr -match '(SSD|NVME|M2|M\.2|ADATA|SAMSUNG|CRUCIAL|KINGSTON|INTEL|SKHYNIX|PHISON|970|980|SU630|SU8|PM9|SN)') {
+                            $mediaType = "SSD"
+                        } elseif ($modelStr -match '(WD|WDC|TOSHIBA|ST|SEAGATE|HITACHI|HGST|WD10|WD40|WD60|WD80|WD50)') {
+                            $mediaType = "HDD"
+                        } else {
+                            # RotationRate: 0 => SSD (no rotación), >0 => HDD
+                            if ($wdd.RotationRate -ne $null) {
+                                if ([int]$wdd.RotationRate -eq 0) { $mediaType = "SSD" } else { $mediaType = "HDD" }
+                            } else {
+                                # Use InterfaceType as hint (NVMe likely SSD, SATA/IDE likely HDD)
+                                $it = ($wdd.InterfaceType | Out-String).Trim()
+                                if ($it -match '(?i)NVME|SSD') { $mediaType = "SSD" }
+                                elseif ($it -match '(?i)IDE|SATA|ATAPI|SCSI') { $mediaType = "HDD" }
+                            }
+                        }
+                        if ($mediaType -ne "No identificado") { $logEntry += " | HeuristicaDiskDrive: Interface=$it RotationRate=$($wdd.RotationRate) Model=$($wdd.Model)" }
+                    }
+                }
+            } catch {
+                # ignore
+            }
+        }
+
+        # Si aún no identificado, forzar heurística global buscando modelos SSD en todos los discos
+        if ($mediaType -eq "No identificado") {
+            try {
+                $allDrives = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
+                foreach ($d in $allDrives) {
+                    $m = ($d.Model | Out-String).Trim().ToUpper()
+                    if ($m -match '(SSD|NVME|M2|M\.2|ADATA|SAMSUNG|CRUCIAL|KINGSTON|INTEL|SKHYNIX|PHISON|970|980|SU630|SU8|PM9|SN)') {
+                        # ignore obvious external USB drives
+                        $it = ($d.InterfaceType | Out-String).Trim()
+                        if ($it -match '(?i)USB|USB') { continue }
+                        $mediaType = "SSD"
+                        $logEntry += " | ForcedByModel: $($d.Model) (Interface=$it)"
+                        break
+                    }
+                    if ($m -match '(WD|WDC|TOSHIBA|ST|SEAGATE|HITACHI|HGST|WD10|WD40|WD60|WD80|WD50)') {
+                        $it = ($d.InterfaceType | Out-String).Trim()
+                        if ($it -match '(?i)USB') { continue }
+                        $mediaType = "HDD"
+                        $logEntry += " | ForcedByModel: $($d.Model) (Interface=$it)"
+                        break
+                    }
+                }
+            } catch {
+                # ignore
+            }
+        }
+    }
 } catch {
+    # Si Get-Partition falla, dejamos mediaType en No identificado
     $mediaType = "No identificado"
 }
+
+# Determinar la ruta completa de Windows para registrar
+$windowsPath = $null
+try {
+    if ($env:SystemRoot -and (Test-Path $env:SystemRoot)) { $windowsPath = (Get-Item $env:SystemRoot).FullName }
+    elseif ($env:WinDir -and (Test-Path $env:WinDir)) { $windowsPath = (Get-Item $env:WinDir).FullName }
+    else {
+        try {
+            $reg = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'SystemRoot' -ErrorAction SilentlyContinue
+            if ($reg -and $reg.SystemRoot) { $expanded = [Environment]::ExpandEnvironmentVariables($reg.SystemRoot); if (Test-Path $expanded) { $windowsPath = (Get-Item $expanded).FullName } }
+        } catch { }
+        if (-not $windowsPath -and $driveLetter) {
+            $cand = "$driveLetter`:\Windows"
+            if (Test-Path $cand) { $windowsPath = (Get-Item $cand).FullName }
+        }
+        if (-not $windowsPath) {
+            try { $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue; if ($os -and $os.SystemDirectory -and (Test-Path $os.SystemDirectory)) { $windowsPath = (Get-Item $os.SystemDirectory).FullName } } catch { }
+        }
+    }
+} catch { }
+
+if ($windowsPath) { Write-Host "Ruta de Windows detectada: $windowsPath"; $logEntry += " | WindowsPath: $windowsPath" } else { Write-Host "No se pudo determinar la ruta completa de Windows." -ForegroundColor Yellow; $logEntry += " | WindowsPath: No identificado" }
+
+# Mostrar y loguear el valor final de mediaType para diagnóstico
+Write-Host "mediaType final = '$mediaType'"
+$logEntry += " | mediaTypeFinal: $mediaType"
 
 switch ($mediaType) {
     "SSD" {
@@ -1325,8 +1535,8 @@ switch ($mediaType) {
         }
 
         Set-ItemProperty -Path $regPath -Name $regName -Value 0 -Type DWord
-        Write-Host "Optimización aplicada correctamente."
-        $logEntry += " | Optimización aplicada."
+        Write-Host "Optimizaci?n aplicada correctamente."
+        $logEntry += " | Optimizaci?n aplicada."
     }
     "HDD" {
         Write-Host "Disco del sistema detectado: HDD"
@@ -1339,86 +1549,24 @@ switch ($mediaType) {
 }
 
 $restorePointName = "OptimizacionSyA"
-Write-Host "`nCreando punto de restauración: $restorePointName ..." -ForegroundColor Yellow
+Write-Host "`nCreando punto de restauraci?n: $restorePointName ..." -ForegroundColor Yellow
 $start = Get-Date
 
 try {
     Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
     $end = Get-Date
     $duration = $end - $start
-    $logEntry += " | Estado: Éxito | Duración: $($duration.TotalSeconds) segundos"
+    $logEntry += " | Estado: ?xito | Duraci?n: $($duration.TotalSeconds) segundos"
 
-    Write-Host "`nPunto de restauración creado exitosamente." -ForegroundColor Green
+    Write-Host "`nPunto de restauraci?n creado exitosamente." -ForegroundColor Green
     Write-Host "Tiempo total: $($duration.TotalSeconds) segundos." -ForegroundColor Gray
 } catch {
     $logEntry += " | Estado: ERROR | Detalles: $_"
-    Write-Host "`nOcurrió un error al crear el punto de restauración: $_" -ForegroundColor Red
+    Write-Host "`nOcurri? un error al crear el punto de restauraci?n: $_" -ForegroundColor Red
 }
 
 # Guardar log final
 Add-Content -Path $logFile -Value $logEntry
-		</File>
-		<File Path="C:\Windows\Setup\Scripts\Updates.ps1">
-# Función para verificar si se ejecuta como administrador
-function Test-Admin {
-    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-# Si no es administrador, relanzar el script con privilegios elevados
-if (-not (Test-Admin)) {
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"" -Verb RunAs
-    exit
-}
-
-Write-Host "En caso de no instalar los aplicativos, debes aceptarlos con Y/N"
-Write-Host "Esto es necesario para instalar y actualizar los Drivers y Windows"
-
-# Permitir ejecución de scripts solo en esta sesión y ocultar progreso
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-$ProgressPreference = 'SilentlyContinue'
-
-try {
-    # Instalar NuGet si no está presente
-    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-        Write-Output "Instalando proveedor NuGet..."
-        Install-PackageProvider -Name NuGet -Force -Scope AllUsers -Confirm:$false -ErrorAction Stop
-    }
-
-    # Marcar PSGallery como repositorio confiable si no lo está
-    $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
-    if ($null -eq $psGallery -or $psGallery.InstallationPolicy -ne 'Trusted') {
-        Write-Output "Marcando PSGallery como repositorio confiable..."
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
-    }
-
-    # Instalar PSWindowsUpdate si no está instalado
-    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-        Write-Output "Instalando PSWindowsUpdate..."
-        Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false -ErrorAction Stop
-    }
-
-    # Importar módulo PSWindowsUpdate
-    Import-Module PSWindowsUpdate -Force -ErrorAction Stop
-
-    # Habilitar búsqueda de drivers desde Windows Update
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name SearchOrderConfig -Value 1 -ErrorAction Stop
-
-    # Buscar e instalar solo drivers desde Windows Update automáticamente
-    Write-Output "Buscando e instalando drivers desde Windows Update..."
-    Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot -Category Drivers -ErrorAction Stop
-
-    # Buscar e instalar otras actualizaciones automáticamente (excluyendo drivers)
-    Write-Output "Buscando e instalando otras actualizaciones..."
-    Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -Install -IgnoreReboot | Where-Object { $_.Title -notlike "*driver*" }
-
-    Write-Output "Todo listo. Drivers y actualizaciones aplicadas."
-}
-catch {
-    Write-Error "Error crítico: $_"
-}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
 # URL del script a descargar (usa un enlace directo y confiable)
@@ -1485,24 +1633,53 @@ try {
     }
 
     $scripts = @(
-        @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-		@{ Name = "Run ChangePC-ID"; Script = {
-			$equipoLog = "$scriptDir\Equipo.log"
-			if (Test-Path $equipoLog) {
-				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución de ChangePC-ID.ps1."
-				$state[$i].status = "done"
-				$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-				return
-			}
-			Write-Output "[$(Get-Date)] Ejecutando ChangePC-ID.ps1..."
-			Get-Content -LiteralPath "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
-			Start-Sleep -Seconds 2
-			Restart-Computer -Force
-		} },
-        @{ Name = "Run Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run setup-final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run Windows Update"
+        @{ Name = "Remove Windows.old"; Script = {
+            $path = 'C:\Windows.old'
+            if (Test-Path $path) {
+                try {
+                    Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+                    Write-Output "[$(Get-Date)] Eliminado $path mediante Remove-Item."
+                } catch {
+                    Write-Output "[$(Get-Date)] Remove-Item falló: $_. Intentando fallback con takeown/icacls/rmdir"
+                    cmd.exe /c "takeown /F C:\\Windows.old /R /A & icacls C:\\Windows.old /grant Administrators:F /T & rmdir /S /Q C:\\Windows.old"
+                }
+            } else {
+                Write-Output "[$(Get-Date)] $path no existe."
+            }
+        }},
+        @{ Name = "ChangePC-ID"; Script = {
+            $equipoLog = Join-Path $scriptDir 'Equipo.log'
+            $changeScript = Join-Path $scriptDir 'ChangePC-ID.ps1'
+            if (Test-Path $equipoLog) {
+                Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución de ChangePC-ID.ps1."
+                $state[$i].status = "done"
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                return
+            }
+            if (-not (Test-Path $changeScript)) {
+                Write-Output "[$(Get-Date)] $changeScript no encontrado. Marcando error."
+                $state[$i].status = "error"
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                return
+            }
+            try {
+                Write-Output "[$(Get-Date)] Ejecutando ChangePC-ID.ps1..."
+                Start-Process -FilePath powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$changeScript`"" -Wait -NoNewWindow
+                $state[$i].status = "pending-reboot"
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                Start-Sleep -Seconds 2
+                Restart-Computer -Force
+            } catch {
+                Write-Output "[$(Get-Date)] Error ejecutando ChangePC-ID: $_"
+                $state[$i].status = "error"
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                return
+            }
+        }},
+        @{ Name = "Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Setup_Final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Windows Update + Drivers"
 			Script = {
 
 				if ([Environment]::Is64BitOperatingSystem) {
@@ -1519,14 +1696,12 @@ try {
 				Start-Process `
 					-FilePath $exePath `
 					-Verb RunAs -Wait
-			}
-		},
-        @{ Name = "Configuración y optimización del sistema"; Script = {
+		}},
+		@{ Name = "Configuración y optimización del sistema"; Script = {
             irm https://cutt.ly/NewOptimize | iex
         }},
-        @{ Name = "Run CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run Updates"; Script = { Get-Content "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
         @{ Name = "ClearDir"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
