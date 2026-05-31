@@ -1697,8 +1697,13 @@ try {
 					-FilePath $exePath `
 					-Verb RunAs -Wait
 		}},
-		@{ Name = "Configuración y optimización del sistema"; Script = {
-            irm https://cutt.ly/NewOptimize | iex
+        @{ Name = "Configuracion y optimizacion del sistema"; Script = {
+            $ok = Download-And-Run -Url 'https://cutt.ly/NewOptimize' -OutName 'NewOptimize.ps1'
+            if (-not $ok) {
+                Write-Error "Error descargando desde https://cutt.ly/NewOptimize"
+                $state[$i].status = 'error'
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+            }
         }},
         @{ Name = "CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
