@@ -1297,10 +1297,20 @@ try {
 		@{ Name = "Run unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run setup-final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Windows Update + Drivers"; Script = {
-            irm https://cutt.ly/UpdateGUI | iex
+            $ok = Download-And-Run -Url 'https://cutt.ly/UpdateGUI' -OutName 'UpdateGUI.ps1'
+            if (-not $ok) {
+                Write-Error "Error descargando desde https://cutt.ly/UpdateGUI"
+                $state[$i].status = 'error'
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+            }
         }},
-        @{ Name = "Configuración y optimización del sistema"; Script = {
-            irm https://cutt.ly/NewOptimize | iex
+        @{ Name = "Configuracion y optimizacion del sistema"; Script = {
+            $ok = Download-And-Run -Url 'https://cutt.ly/NewOptimize' -OutName 'NewOptimize.ps1'
+            if (-not $ok) {
+                Write-Error "Error descargando desde https://cutt.ly/NewOptimize"
+                $state[$i].status = 'error'
+                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+            }
         }},
 		@{ Name = "Run CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Run Instalar-WiseCare"; Script = { Get-Content -LiteralPath "$scriptDir\Instalar-WiseCare.ps1" -Raw | Invoke-Expression } },
