@@ -113,10 +113,10 @@ function Test-Net80Windows {
 if (-not (Test-Net80Windows)) {
     Write-Output "Descargando e instalando .NET 8.0 Desktop Runtime (net8.0-windows)..."
     if ($arch -eq "x64") {
-        $netUrl = "https://download.visualstudio.microsoft.com/download/pr/5dbeeadd-cf09-40a5-8ab7-bc04d2cba1f3/0d32a1759bfe042b2ea03fbb4d58afed/windowsdesktop-runtime-8.0.5-win-x64.exe"
+        $netUrl = "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.27/dotnet-runtime-8.0.27-win-x64.exe"
         $netExe = "windowsdesktop-runtime-8.0.5-win-x64.exe"
     } else {
-        $netUrl = "https://download.visualstudio.microsoft.com/download/pr/90cae71a-c5ad-4c3f-af55-6cbebc7d7067/681bafcf625c631c8034c062e88b26ce/windowsdesktop-runtime-8.0.5-win-x86.exe"
+        $netUrl = "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.27/dotnet-runtime-8.0.27-win-x86.exe"
         $netExe = "windowsdesktop-runtime-8.0.5-win-x86.exe"
     }
     $netPath = Join-Path -Path $env:TEMP -ChildPath $netExe
