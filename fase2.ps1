@@ -174,139 +174,139 @@ function Install-AllVCRedistx64 {
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
 	Write-Output '4% Completado'
-    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2005x64 {
     Write-Host "Instalando Microsoft.VCRedist.2005.x64."
 	Write-Output '5% Completado'
-    winget install --id Microsoft.VCRedist.2005.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2005.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2008x64 {
     Write-Host "Instalando Microsoft.VCRedist.2008.x64."
 	Write-Output '6% Completado'
-    winget install --id Microsoft.VCRedist.2008.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2008.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2010x64 {
     Write-Host "Instalando Microsoft.VCRedist.2010.x64."
 	Write-Output '7% Completado'
-    winget install --id Microsoft.VCRedist.2010.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2010.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2012x64 {
     Write-Host "Instalando Microsoft.VCRedist.2012.x64."
 	Write-Output '8% Completado'
-    winget install --id Microsoft.VCRedist.2012.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2012.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2013x64 {
     Write-Host "Instalando Microsoft.VCRedist.2013.x64."
 	Write-Output '9% Completado'
-    winget install --id Microsoft.VCRedist.2013.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2013.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2015x64 {
     Write-Host "Instalando Microsoft.VCRedist.2015+.x64."
 	Write-Output '10% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x64 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2015+.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2005x86 {
     Write-Host "Instalando Microsoft.VCRedist.2005.x86."
 	Write-Output '11% Completado'
-    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2008x86 {
     Write-Host "Instalando Microsoft.VCRedist.2008.x86."
 	Write-Output '12% Completado'
-    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2010x86 {
     Write-Host "Instalando Microsoft.VCRedist.2010.x86."
 	Write-Output '13% Completado'
-    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2012x86 {
     Write-Host "Instalando Microsoft.VCRedist.2012.x86."
 	Write-Output '14% Completado'
-    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2013x86 {
     Write-Host "Instalando Microsoft.VCRedist.2013.x86."
 	Write-Output '15% Completado'
-    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2015x86 {
     Write-Host "Instalando Microsoft.VCRedist.2015+.x86."
 	Write-Output '16% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime31 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.3_1."
 	Write-Output '17% Completado'
-    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime5 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.5."
 	Write-Output '18% Completado'
-    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime6 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.6."
 	Write-Output '19% Completado'
-    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime7 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.7."
 	Write-Output '20% Completado'
-    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime8 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.8."
 	Write-Output '21% Completado'
-    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime31 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.3_1."
 	Write-Output '22% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime5 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.5."
 	Write-Output '23% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime6 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.6."
 	Write-Output '24% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime7 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.7."
 	Write-Output '25% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime8 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.8."
 	Write-Output '26% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-RustDesk {
@@ -318,25 +318,25 @@ function Install-RustDesk {
     } else {
         Write-Host "Instalando RustDesk..."
         Write-Output '27% Completado'
-        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
     }
 }
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
 	Write-Output '28% Completado'
-    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-Notepadplus {
     Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-7Zip {
     Write-Host "Instalando 7zip..."
     Write-Output '29% Completado'
-    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
+    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "7zip instalado correctamente."
@@ -348,7 +348,7 @@ function Install-7Zip {
 
 function Install-VLC {
     Write-Host "Instalando VLC..."
-    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements 2>&1
+    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "VLC instalado correctamente."
@@ -411,103 +411,103 @@ function Install-AllVCRedistx32 {
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
 	Write-Output '4% Completado'
-    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2005x86 {
     Write-Host "Instalando Microsoft.VCRedist.2005.x86."
 	Write-Output '6% Completado'
-    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2008x86 {
     Write-Host "Instalando Microsoft.VCRedist.2008.x86."
 	Write-Output '8% Completado'
-    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2010x86 {
     Write-Host "Instalando Microsoft.VCRedist.2010.x86."
 	Write-Output '10% Completado'
-    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2012x86 {
     Write-Host "Instalando Microsoft.VCRedist.2012.x86."
 	Write-Output '13% Completado'
-    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2013x86 {
     Write-Host "Instalando Microsoft.VCRedist.2013.x86."
 	Write-Output '14% Completado'
-    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-VCRedist2015x86 {
     Write-Host "Instalando Microsoft.VCRedist.2015+.x86."
 	Write-Output '15% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime31 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.3_1."
 	Write-Output '16% Completado'
-    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime5 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.5."
 	Write-Output '17% Completado'
-    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime6 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.6."
 	Write-Output '18% Completado'
-    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime7 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.7."
 	Write-Output '19% Completado'
-    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetRuntime8 {
     Write-Host "Instalando Microsoft.DotNet.Runtime.8."
 	Write-Output '20% Completado'
-    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime31 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.3_1."
 	Write-Output '21% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime5 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.5."
 	Write-Output '22% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime6 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.6."
 	Write-Output '23% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime7 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.7."
 	Write-Output '24% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-DotNetDesktopRuntime8 {
     Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.8."
 	Write-Output '25% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-RustDesk {
@@ -519,26 +519,26 @@ function Install-RustDesk {
     } else {
         Write-Host "Instalando RustDesk..."
         Write-Output '26% Completado'
-        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements > $null
+        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
     }
 }
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
 	Write-Output '27% Completado'
-    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-Notepadplus {
     Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements > $null
+    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-7Zip {
     Write-Host "Instalando 7zip..."
     Write-Output '28% Completado'
 
-    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements 2>&1
+    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "7zip instalado correctamente."
@@ -551,7 +551,7 @@ function Install-7Zip {
 function Install-VLC {
     Write-Host "Instalando VLC..."
 
-    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements 2>&1
+    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "VLC instalado correctamente."
