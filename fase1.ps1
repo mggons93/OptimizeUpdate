@@ -174,39 +174,51 @@ Try {
 }
 
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
-# Obtener todas las tarjetas de red
-#$networkAdapters = Get-NetAdapter
-# Mostrar todos los adaptadores detectados
-#Write-Host "Adaptadores de red detectados:"
-#$networkAdapters | ForEach-Object {
-#    Write-Host "Nombre: $($_.Name) - Estado: $($_.Status) - Descripción: $($_.InterfaceDescription)"
-#}
-# Filtrar adaptadores LAN y Wi-Fi
-#$lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
-#$wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' }
-# Función para aplicar configuración a adaptadores
-#function Configure-Adapters {
-#    param (
-#        [string]$type,
-#        [array]$adapters
-#    )
-#   if ($adapters.Count -gt 0) {
-#        Write-Host "Aplicando configuración para adaptadores $type"
-#        foreach ($adapter in $adapters) {
-#            Write-Host "Agregando DNS de Adguard - Eliminar publicidad en $($adapter.Name)"
-#            Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses 181.57.227.194,8.8.8.8
-#            Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6'
-#        }
-#    }
-#}
-# Aplicar configuración según la disponibilidad de adaptadores
-#if ($lanAdapters.Count -eq 0 -and $wifiAdapters.Count -eq 0) {
-#    Write-Host "No se encontraron adaptadores de red disponibles, omitiendo acción."
-#} else {
-#    Configure-Adapters -type "LAN" -adapters $lanAdapters
-#    Configure-Adapters -type "Wi-Fi" -adapters $wifiAdapters
-#    ipconfig /flushdns
-#}
+Write-Host "Configurando DNS (AdGuard + Cloudflare) y deshabilitando IPv6..."
+
+# Obtener adaptadores físicos disponibles
+$networkAdapters = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Disconnected' }
+
+if (-not $networkAdapters -or $networkAdapters.Count -eq 0) {
+    Write-Host "No se encontraron adaptadores de red disponibles, omitiendo configuración de DNS/IPv6."
+} else {
+    # Filtrar adaptadores LAN y Wi-Fi
+    $lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
+    $wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' -or $_.Name -match 'Wi-Fi' }
+
+    # DNS: AdGuard (bloqueo publicidad), backup AdGuard y Cloudflare
+    $dnsServers = @('94.140.14.14','94.140.15.15','1.1.1.1')
+
+    function Configure-Adapters {
+        param (
+            [string]$type,
+            [array]$adapters
+        )
+        if ($adapters -and $adapters.Count -gt 0) {
+            Write-Host "Aplicando configuración para adaptadores $type"
+            foreach ($adapter in $adapters) {
+                Write-Host "Configurando DNS y deshabilitando IPv6 en: $($adapter.Name)"
+                try {
+                    Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses $dnsServers -ErrorAction Stop
+                } catch {
+                    Write-Warning "No se pudo establecer DNS en $($adapter.Name): $_"
+                }
+                try {
+                    Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6' -Confirm:$false -ErrorAction SilentlyContinue
+                } catch {
+                    Write-Warning "No se pudo deshabilitar IPv6 en $($adapter.Name): $_"
+                }
+            }
+        }
+    }
+
+    Configure-Adapters -type "LAN" -adapters $lanAdapters
+    Configure-Adapters -type "Wi-Fi" -adapters $wifiAdapters
+
+    # Vaciar caché DNS
+    ipconfig /flushdns | Out-Null
+    Write-Host "Configuración de DNS/IPv6 aplicada."
+}
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 
 ############################
