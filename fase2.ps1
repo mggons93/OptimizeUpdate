@@ -12,7 +12,8 @@ if (-not (Test-Admin)) {
     return
 }
 
-Write-Output '1% Completado'
+# Stub progress function to avoid CommandNotFound during early calls.
+function Set-InstallPercent { param([int]$Percent) Write-Output "$Percent% Completado" }
 
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -79,7 +80,7 @@ function Ensure-WingetLatest {
         Set-InstallPercent -Percent 5
         $asset = $latestRelease.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1
         if (-not $asset) {
-            Write-Warning "No se encontró msixbundle en los assets de la release."
+            Write-Warning "No se encontro msixbundle en los assets de la release."
             return
         }
         $wingetUrl = $asset.browser_download_url
@@ -95,19 +96,182 @@ function Ensure-WingetLatest {
             if (Test-Path $destination) { Remove-Item $destination -Force -ErrorAction SilentlyContinue }
         }
     } else {
-        Write-Host "winget ya está en la última versión o es más reciente: $currentVer"
+        Write-Host "winget ya esta en la ultima version o es mas reciente: $currentVer"
     }
+}
+
+ 
+
+########################################### Aprovisionando Apps ###########################################
+Set-InstallPercent -Percent 3
+# Función para obtener arquitectura del sistema
+function Get-SystemArchitecture {
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    return $os.OSArchitecture
+}
+
+# Progreso de instalación (archivo leído por otras aplicaciones)
+$ProgressFile = "$env:TEMP\fase2_install_progress.txt"
+
+function Set-InstallPercent {
+    param(
+        [int]$Percent
+    )
+    if ($Percent -lt 0) { $Percent = 0 }
+    if ($Percent -gt 100) { $Percent = 100 }
+    try {
+        $Percent.ToString() | Out-File -FilePath $ProgressFile -Encoding ASCII -Force
+    } catch {
+        Write-Host "No se pudo escribir el archivo de progreso: $_"
+    }
+    Write-Output "$Percent% Completado"
+}
+
+function Initialize-Progress {
+    param(
+        [int]$TotalItems,
+        [int]$BasePercent = 0,
+        [int]$MaxPercent = 100
+    )
+    $script:ProgressTotal = [int]$TotalItems
+    $script:ProgressCount = 0
+    $script:ProgressBase = [int]$BasePercent
+    $script:ProgressMax = [int]$MaxPercent
+    if ($script:ProgressBase -lt 0) { $script:ProgressBase = 0 }
+    if ($script:ProgressMax -gt 100) { $script:ProgressMax = 100 }
+    if ($script:ProgressMax -lt $script:ProgressBase) { $script:ProgressMax = $script:ProgressBase }
+    Set-InstallPercent -Percent $script:ProgressBase
+}
+
+function Increment-Progress {
+    param()
+    if (-not $script:ProgressTotal -or $script:ProgressTotal -le 0) {
+        return
+    }
+    $script:ProgressCount += 1
+    $ratio = ($script:ProgressCount / $script:ProgressTotal)
+    $range = ($script:ProgressMax - $script:ProgressBase)
+    $percent = [math]::Round(($script:ProgressBase + ($ratio * $range)))
+    Set-InstallPercent -Percent $percent
 }
 
 # Ejecutar comprobación/actualización
 Ensure-WingetLatest
 
-########################################### Aprovisionando Apps ###########################################
-Write-Output '3% Completado'
-# Función para obtener arquitectura del sistema
-function Get-SystemArchitecture {
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem
-    return $os.OSArchitecture
+# Busca paquetes VCRedist con winget e instala los que coincidan según la arquitectura
+function Install-FoundVCRedists {
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet('x86','x64')] [string]$arch
+    )
+
+    $log = "$env:TEMP\fase2_vcredist_install.log"
+    Add-Content $log "=== Install-FoundVCRedists start $arch - $(Get-Date) ==="
+
+    # Fallback: usar search por ID y parsear texto para obtener los IDs exactos
+    $searchOutput = winget search --id Microsoft.VCRedist 2>&1
+    if (-not $searchOutput) {
+        Add-Content $log "winget search returned no results."
+        return
+    }
+
+    $ids = @()
+    foreach ($line in $searchOutput) {
+        if ($line -match 'Microsoft\.VCRedist[^\s]+' ) {
+            $ids += $matches[0]
+        }
+    }
+
+    $ids = $ids | Select-Object -Unique
+
+    foreach ($id in $ids) {
+        $isX64 = $id -match 'x64'
+        $isX86 = $id -match 'x86'
+        if ($arch -eq 'x64' -and -not $isX64) { continue }
+        if ($arch -eq 'x86' -and -not $isX86) { continue }
+
+        Add-Content $log "Found package id: $id - checking if installed..."
+        $installed = winget list --id $id -e 2>&1 | Select-String -SimpleMatch $id
+        if ($installed) {
+            Add-Content $log "$id already installed. Skipping."
+            continue
+        }
+
+        Add-Content $log "Installing $id..."
+        $result = winget install --id $id -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
+        Add-Content $log $result
+        if ($LASTEXITCODE -eq 0) {
+            Add-Content $log "$id installed successfully"
+        } else {
+            Add-Content $log "$id failed with exitcode $LASTEXITCODE"
+        }
+    }
+
+    Add-Content $log "=== Install-FoundVCRedists end $(Get-Date) ==="
+}
+
+# Busca paquetes .NET Runtime y DesktopRuntime e instala los que falten
+function Install-FoundDotNetRuntimes {
+    $log = "$env:TEMP\fase2_dotnet_install.log"
+    Add-Content $log "=== Install-FoundDotNetRuntimes start $(Get-Date) ==="
+
+    $searchOutput = winget search --id Microsoft.DotNet 2>&1
+    if (-not $searchOutput) {
+        Add-Content $log "winget search returned no results for Microsoft.DotNet."
+        return
+    }
+
+    $ids = @()
+    foreach ($line in $searchOutput) {
+        if ($line -match 'Microsoft\.DotNet\.(Runtime|DesktopRuntime)[^\s]+' ) {
+            $ids += $matches[0]
+        }
+    }
+
+    $ids = $ids | Select-Object -Unique
+
+    # Primero calcular qué paquetes realmente necesitan instalación
+    $toInstall = @()
+    foreach ($id in $ids) {
+        Add-Content $log "Found package id: $id - checking if installed..."
+        $installed = winget list --id $id -e 2>&1 | Select-String -SimpleMatch $id
+        if ($installed) {
+            Add-Content $log "$id already installed. Skipping."
+            continue
+        }
+        $toInstall += $id
+    }
+
+    $totalToInstall = $toInstall.Count
+    Add-Content $log "Total .NET packages to install: $totalToInstall"
+
+    # Map .NET install progress into a small percentage range so it doesn't drive global progress to 100%
+    # Choose a conservative range (5%..15%) within the global script progress.
+    Initialize-Progress -TotalItems $totalToInstall -BasePercent 5 -MaxPercent 15
+
+    if ($totalToInstall -eq 0) {
+        Add-Content $log "No .NET packages to install. Setting progress to base percent ($script:ProgressBase)."
+        Set-InstallPercent -Percent $script:ProgressBase
+        Add-Content $log "=== Install-FoundDotNetRuntimes end $(Get-Date) ==="
+        return
+    }
+
+    foreach ($id in $toInstall) {
+        Add-Content $log "Installing $id..."
+        $result = winget install --id $id -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
+        Add-Content $log $result
+        if ($LASTEXITCODE -eq 0) {
+            Add-Content $log "$id installed successfully"
+            Increment-Progress
+        } else {
+            Add-Content $log "$id failed with exitcode $LASTEXITCODE"
+            # Aun así incrementamos para reflejar que el intento se realizó
+            Increment-Progress
+        }
+    }
+    # Al finalizar, asegurar que el progreso llegue al límite máximo del rango reservado
+    Set-InstallPercent -Percent $script:ProgressMax
+
+    Add-Content $log "=== Install-FoundDotNetRuntimes end $(Get-Date) ==="
 }
 
 # Guardar la configuración regional actual
@@ -134,7 +298,7 @@ try {
             Write-Host "Cambiando temporalmente a en-US..."
             Set-WinSystemLocale -SystemLocale "en-US"
         } else {
-            Write-Host "Ya estás en en-US. No es necesario cambiar."
+            Write-Host "Ya estas en en-US. No es necesario cambiar."
         }
     } else {
         Write-Host "No se pudo obtener el idioma original del sistema."
@@ -169,141 +333,10 @@ function Install-AllVCRedistx64 {
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
-	Write-Output '4% Completado'
+    Set-InstallPercent -Percent 4
     winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
-function Install-VCRedist2005x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2005.x64."
-	Write-Output '5% Completado'
-    winget install --id Microsoft.VCRedist.2005.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2008x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2008.x64."
-	Write-Output '6% Completado'
-    winget install --id Microsoft.VCRedist.2008.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2010x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2010.x64."
-	Write-Output '7% Completado'
-    winget install --id Microsoft.VCRedist.2010.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2012x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2012.x64."
-	Write-Output '8% Completado'
-    winget install --id Microsoft.VCRedist.2012.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2013x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2013.x64."
-	Write-Output '9% Completado'
-    winget install --id Microsoft.VCRedist.2013.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2015x64 {
-    Write-Host "Instalando Microsoft.VCRedist.2015+.x64."
-	Write-Output '10% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x64 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2005x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2005.x86."
-	Write-Output '11% Completado'
-    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2008x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2008.x86."
-	Write-Output '12% Completado'
-    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2010x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2010.x86."
-	Write-Output '13% Completado'
-    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2012x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2012.x86."
-	Write-Output '14% Completado'
-    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2013x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2013.x86."
-	Write-Output '15% Completado'
-    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2015x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2015+.x86."
-	Write-Output '16% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime31 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.3_1."
-	Write-Output '17% Completado'
-    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime5 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.5."
-	Write-Output '18% Completado'
-    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime6 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.6."
-	Write-Output '19% Completado'
-    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime7 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.7."
-	Write-Output '20% Completado'
-    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime8 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.8."
-	Write-Output '21% Completado'
-    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime31 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.3_1."
-	Write-Output '22% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime5 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.5."
-	Write-Output '23% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime6 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.6."
-	Write-Output '24% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime7 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.7."
-	Write-Output '25% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime8 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.8."
-	Write-Output '26% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
 
 function Install-RustDesk {
     $appName = "RustDesk"
@@ -313,14 +346,14 @@ function Install-RustDesk {
         Write-Host "RustDesk ya está instalado. Omitiendo instalación."
     } else {
         Write-Host "Instalando RustDesk..."
-        Write-Output '27% Completado'
+        Set-InstallPercent -Percent 27
         winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
     }
 }
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
-	Write-Output '28% Completado'
+    Set-InstallPercent -Percent 28
     winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
@@ -331,7 +364,7 @@ function Install-Notepadplus {
 
 function Install-7Zip {
     Write-Host "Instalando 7zip..."
-    Write-Output '29% Completado'
+    Set-InstallPercent -Percent 29
     $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
     if ($LASTEXITCODE -eq 0) {
@@ -355,32 +388,12 @@ function Install-VLC {
 }
 
 
-# Llamar a las funciones según sea necesario
+# Llamar a las funciones según sea necesario (usar búsqueda dinámica)
 #Install-SeelenUI
 #Install-TranslucentTB
 Install-VCLibsDesktop14
-Install-VCRedist2005x64
-Install-VCRedist2008x64
-Install-VCRedist2010x64
-Install-VCRedist2012x64
-Install-VCRedist2013x64
-Install-VCRedist2015x64
-Install-VCRedist2005x86
-Install-VCRedist2008x86
-Install-VCRedist2010x86
-Install-VCRedist2012x86
-Install-VCRedist2013x86
-Install-VCRedist2015x86
-Install-DotNetRuntime31
-Install-DotNetRuntime5
-Install-DotNetRuntime6
-Install-DotNetRuntime7
-Install-DotNetRuntime8
-Install-DotNetDesktopRuntime31
-Install-DotNetDesktopRuntime5
-Install-DotNetDesktopRuntime6
-Install-DotNetDesktopRuntime7
-Install-DotNetDesktopRuntime8
+Install-FoundVCRedists -arch 'x64'
+Install-FoundDotNetRuntimes
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
@@ -406,104 +419,8 @@ function Install-AllVCRedistx32 {
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
-	Write-Output '4% Completado'
+    Set-InstallPercent -Percent 4
     winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2005x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2005.x86."
-	Write-Output '6% Completado'
-    winget install --id Microsoft.VCRedist.2005.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2008x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2008.x86."
-	Write-Output '8% Completado'
-    winget install --id Microsoft.VCRedist.2008.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2010x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2010.x86."
-	Write-Output '10% Completado'
-    winget install --id Microsoft.VCRedist.2010.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2012x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2012.x86."
-	Write-Output '13% Completado'
-    winget install --id Microsoft.VCRedist.2012.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2013x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2013.x86."
-	Write-Output '14% Completado'
-    winget install --id Microsoft.VCRedist.2013.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-VCRedist2015x86 {
-    Write-Host "Instalando Microsoft.VCRedist.2015+.x86."
-	Write-Output '15% Completado'
-    winget install --id Microsoft.VCRedist.2015+.x86 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime31 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.3_1."
-	Write-Output '16% Completado'
-    winget install --id Microsoft.DotNet.Runtime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime5 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.5."
-	Write-Output '17% Completado'
-    winget install --id Microsoft.DotNet.Runtime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime6 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.6."
-	Write-Output '18% Completado'
-    winget install --id Microsoft.DotNet.Runtime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime7 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.7."
-	Write-Output '19% Completado'
-    winget install --id Microsoft.DotNet.Runtime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetRuntime8 {
-    Write-Host "Instalando Microsoft.DotNet.Runtime.8."
-	Write-Output '20% Completado'
-    winget install --id Microsoft.DotNet.Runtime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime31 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.3_1."
-	Write-Output '21% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.3_1 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime5 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.5."
-	Write-Output '22% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.5 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime6 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.6."
-	Write-Output '23% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.6 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime7 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.7."
-	Write-Output '24% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.7 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-DotNetDesktopRuntime8 {
-    Write-Host "Instalando Microsoft.DotNet.DesktopRuntime.8."
-	Write-Output '25% Completado'
-    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
 function Install-RustDesk {
@@ -514,14 +431,14 @@ function Install-RustDesk {
         Write-Host "RustDesk ya está instalado. Omitiendo instalación."
     } else {
         Write-Host "Instalando RustDesk..."
-        Write-Output '26% Completado'
+        Set-InstallPercent -Percent 26
         winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
     }
 }
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
-	Write-Output '27% Completado'
+	Set-InstallPercent -Percent 27
     winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
@@ -532,7 +449,7 @@ function Install-Notepadplus {
 
 function Install-7Zip {
     Write-Host "Instalando 7zip..."
-    Write-Output '28% Completado'
+    Set-InstallPercent -Percent 28
 
     $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
 
@@ -556,26 +473,12 @@ function Install-VLC {
         Write-Output $result
     }
 }
-# Llamar a las funciones según sea necesario
+# Llamar a las funciones según sea necesario (usar búsqueda dinámica)
 #Install-SeelenUI
 #Install-TranslucentTB
 Install-VCLibsDesktop14
-Install-VCRedist2005x86
-Install-VCRedist2008x86
-Install-VCRedist2010x86
-Install-VCRedist2012x86
-Install-VCRedist2013x86
-Install-VCRedist2015x86
-Install-DotNetRuntime31
-Install-DotNetRuntime5
-Install-DotNetRuntime6
-Install-DotNetRuntime7
-Install-DotNetRuntime8
-Install-DotNetDesktopRuntime31
-Install-DotNetDesktopRuntime5
-Install-DotNetDesktopRuntime6
-Install-DotNetDesktopRuntime7
-Install-DotNetDesktopRuntime8
+Install-FoundVCRedists -arch 'x86'
+Install-FoundDotNetRuntimes
 Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
@@ -590,14 +493,20 @@ Install-VLC
         $architecture = Get-SystemArchitecture
         
         if ($architecture -eq "32-bit") {
-            Install-AllVCRedistx32
-            Write-Host "Todos los paquetes de Microsoft Visual C++ Redistributable han sido instalados en x86"
+            Install-FoundVCRedists -arch 'x86'
+            Write-Host "Instalacion dinamica de VCRedist completada para x86 (ver log en %TEMP%\\fase2_vcredist_install.log)"
+            Install-FoundDotNetRuntimes
+            Write-Host "Instalacion dinamica de .NET completada (ver log en %TEMP%\\fase2_dotnet_install.log)"
         } else {
-            Install-AllVCRedistx64
-            Write-Host "Todos los paquetes de Microsoft Visual C++ Redistributable han sido instalados en x64"
+            # En sistemas x64, instalar tanto x64 como x86 redistributables
+            Install-FoundVCRedists -arch 'x64'
+            Install-FoundVCRedists -arch 'x86'
+            Write-Host "Instalacion dinamica de VCRedist completada para x64 + x86 (ver log en %TEMP%\\fase2_vcredist_install.log)"
+            Install-FoundDotNetRuntimes
+            Write-Host "Instalacion dinamica de .NET completada (ver log en %TEMP%\\fase2_dotnet_install.log)"
         }
     } else {
-        Write-Host "Winget no está instalado en el sistema."
+        Write-Host "Winget no esta instalado en el sistema."
     }
 
 # Configurar inicio automático usando tarea programada
@@ -638,7 +547,7 @@ $primaryServer = "https://syasoporteglobal.online/files/server.txt"
 $secondaryServer = "http://190.165.72.48/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
-Write-Output '30% Completado'
+Set-InstallPercent -Percent 30
 # Función para verificar el estado del servidor
 function Test-ServerStatus {
     param (
@@ -668,15 +577,15 @@ function Invoke-DownloadFile {
 
 # Verificar y descargar desde el servidor primario
 if (Test-ServerStatus $primaryServer) {
-    Write-Host "El servidor primario está en línea. Aplicando Servidor..."
+    Write-Host "El servidor primario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $primaryServer $destinationPath1
 } elseif (Test-ServerStatus $secondaryServer) {
-    Write-Host "El servidor primario está fuera de línea. Intentando con el servidor secundario..."
+    Write-Host "El servidor primario esta fuera de linea. Intentando con el servidor secundario..."
     Start-Sleep 3
-    Write-Host "El servidor secundario está en línea. Aplicando Servidor..."
+    Write-Host "El servidor secundario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $secondaryServer $destinationPath1
 } else {
-    Write-Host "Ambos servidores están fuera de línea. No se pudo descargar el archivo."
+    Write-Host "Ambos servidores estan fuera de linea. No se pudo descargar el archivo."
 }
 
 # Leer y mostrar el contenido del archivo descargado
@@ -689,11 +598,11 @@ if (Test-Path -Path $destinationPath1) {
 
 #########################################################################################
      
-    Write-Output '42% Completado'
-	Start-Sleep 5
+    Set-InstallPercent -Percent 42
+    Start-Sleep 5
 #########################################################################################
     Write-Host "Descargando OOSU10"
-	Write-Output '55% Completado'
+    Set-InstallPercent -Percent 55
     # URL del archivo a descargar
     $oosu10Url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OOSU10.zip"
     $outputZipPath = "C:\OOSU10.zip"
@@ -708,7 +617,7 @@ if (Test-Path -Path $destinationPath1) {
     }
 
     Write-Host "Expandiendo archivos"
-	Write-Output '59% Completado'
+    Set-InstallPercent -Percent 59
     # Expandir el archivo ZIP
     try {
         Expand-Archive -Path $outputZipPath -DestinationPath "C:\" -Force
@@ -717,7 +626,7 @@ if (Test-Path -Path $destinationPath1) {
         Write-Host "Error al expandir archivos: $_"
         exit 1
     }
-	Write-Output '61% Completado'
+    Set-InstallPercent -Percent 61
  
     # Eliminar el archivo ZIP
     Remove-Item -Path $outputZipPath -Force
@@ -730,16 +639,16 @@ if (Test-Path -Path $destinationPath1) {
     Set-ItemProperty -Path "C:\OOSU10.exe" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
     Set-ItemProperty -Path "C:\ooshutup10.cfg" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
 #########################################################################################	
-	Write-Output '64% Completado'
+    Set-InstallPercent -Percent 64
 if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction SilentlyContinue) {
     # Nitro PDF está instalado
     Write-Host "Nitro PDF ya está instalado. Omitiendo."
-	Write-Output '98% Completado'
+    Set-InstallPercent -Percent 98
     Start-Sleep 2
 } else {
     # Nitro PDF no está instalado, ejecutar script de instalación
     Write-Host "Nitro PDF no está instalado. Ejecutando script de instalación..."
-    Write-Output '65% Completado'
+    Set-InstallPercent -Percent 65
     # URL del archivo a descargar
     Write-Host "Descargando Nitro 14 Pro"
     $nitroUrl = "https://$fileContent/files/nitro_pro14_x64.msi"
@@ -747,7 +656,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
 
     # Descargar Nitro PDF 14 Pro
     try {
-        Write-Output '71% Completado'
+        Set-InstallPercent -Percent 71
         Invoke-WebRequest -Uri $nitroUrl -OutFile "$env:TEMP\nitro_pro14_x64.msi"
 	Write-Host "Nitro PDF 14 Pro descargado correctamente."
     } catch {
@@ -759,7 +668,7 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Write-Host "Descargando activador"
     try {
         Invoke-WebRequest -Uri $patchUrl -OutFile "$env:TEMP\Patch.exe"
-	Write-Output '79% Completado'
+    Set-InstallPercent -Percent 79
         Write-Host "Parche descargado correctamente."
     } catch {
         Write-Host "Error al descargar el parche: $_"
@@ -767,17 +676,17 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     }
 
     Write-Host "---------------------------------"
-    Write-Output '85% Completado'
+    Set-InstallPercent -Percent 85
     Write-Host "Instalando Nitro PDF 14 Pro"
     Start-Sleep 3
     # Instalar Nitro PDF
-    Write-Output '89% Completado'
+    Set-InstallPercent -Percent 89
     Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
     Start-Sleep 3
     
     Write-Host "Activando Nitro PDF 14 Pro"
     Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
-	Write-Output '91% Completado'
+    Set-InstallPercent -Percent 91
 	Start-Sleep 5
 }
 
@@ -817,9 +726,9 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
 
-Write-Output '99% Completado'
+Set-InstallPercent -Percent 99
 Start-Sleep -Seconds 4
-Write-Output '100% Completado'
+Set-InstallPercent -Percent 100
 # Reinicio silencioso
 #$os = Get-WmiObject -Class Win32_OperatingSystem
 #$os.PSBase.Scope.Options.EnablePrivileges = $true
