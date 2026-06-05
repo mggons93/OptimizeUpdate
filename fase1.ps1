@@ -96,7 +96,7 @@ function Repair-PowerPlans {
 
     # ================= DETECTAR TIPO DE EQUIPO =================
     $battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
-    Write-Host "`Seleccionando plan óptimo..."
+    Write-Host "`Seleccionando plan optimo..."
     if (-not $battery -and (powercfg /list) -match "Máximo rendimiento") {
         Write-Host "Escritorio → Máximo rendimiento"
         powercfg /setactive $BASE_PLANS["Máximo rendimiento"]
@@ -195,7 +195,7 @@ if (-not $networkAdapters -or $networkAdapters.Count -eq 0) {
             [array]$adapters
         )
         if ($adapters -and $adapters.Count -gt 0) {
-            Write-Host "Aplicando configuración para adaptadores $type"
+            Write-Host "Aplicando configuracion para adaptadores $type"
             foreach ($adapter in $adapters) {
                 Write-Host "Configurando DNS y deshabilitando IPv6 en: $($adapter.Name)"
                 try {
@@ -217,7 +217,7 @@ if (-not $networkAdapters -or $networkAdapters.Count -eq 0) {
 
     # Vaciar caché DNS
     ipconfig /flushdns | Out-Null
-    Write-Host "Configuración de DNS/IPv6 aplicada."
+    Write-Host "Configuracion de DNS/IPv6 aplicada."
 }
 ######################  Asignamiento de DNS y Deshabilitar IPV6 ######################
 
@@ -269,7 +269,7 @@ Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
 $primaryServer = "https://syasoporteglobal.online/files/server.txt"
-$secondaryServer = "http://190.165.72.48/files/server.txt"
+$secondaryServer = "http://181.57.227.194/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
 # Función para verificar el estado del servidor
@@ -300,15 +300,15 @@ function Invoke-DownloadFile {
 
 # Verificar y descargar desde el servidor primario
 if (Test-ServerStatus $primaryServer) {
-    Write-Host "El servidor primario está en línea. Aplicando Servidor..."
+    Write-Host "El servidor primario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $primaryServer $destinationPath1
 } elseif (Test-ServerStatus $secondaryServer) {
-    Write-Host "El servidor primario está fuera de línea. Intentando con el servidor secundario..."
+    Write-Host "El servidor primario esta fuera de linea. Intentando con el servidor secundario..."
     Start-Sleep 3
-    Write-Host "El servidor secundario está en línea. Aplicando Servidor..."
+    Write-Host "El servidor secundario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $secondaryServer $destinationPath1
 } else {
-    Write-Host "Ambos servidores están fuera de línea. No se pudo descargar el archivo."
+    Write-Host "Ambos servidores estan fuera de linea. No se pudo descargar el archivo."
 }
 ######################  Verificado Servers de Script ######################
 
