@@ -168,7 +168,7 @@ function Install-FoundVCRedists {
     Add-Content $log "=== Install-FoundVCRedists start $arch - $(Get-Date) ==="
 
     # Fallback: usar search por ID y parsear texto para obtener los IDs exactos
-    $searchOutput = winget search --id Microsoft.VCRedist 2>&1
+    $searchOutput = winget search --id Microsoft.VCRedist --source winget 2>&1
     if (-not $searchOutput) {
         Add-Content $log "winget search returned no results."
         return
@@ -190,14 +190,14 @@ function Install-FoundVCRedists {
         if ($arch -eq 'x86' -and -not $isX86) { continue }
 
         Add-Content $log "Found package id: $id - checking if installed..."
-        $installed = winget list --id $id -e 2>&1 | Select-String -SimpleMatch $id
+        $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
             continue
         }
 
         Add-Content $log "Installing $id..."
-        $result = winget install --id $id -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
+        $result = winget install --id $id -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
         Add-Content $log $result
         if ($LASTEXITCODE -eq 0) {
             Add-Content $log "$id installed successfully"
@@ -214,7 +214,7 @@ function Install-FoundDotNetRuntimes {
     $log = "$env:TEMP\fase2_dotnet_install.log"
     Add-Content $log "=== Install-FoundDotNetRuntimes start $(Get-Date) ==="
 
-    $searchOutput = winget search --id Microsoft.DotNet 2>&1
+    $searchOutput = winget search --id Microsoft.DotNet --source winget 2>&1
     if (-not $searchOutput) {
         Add-Content $log "winget search returned no results for Microsoft.DotNet."
         return
@@ -233,7 +233,7 @@ function Install-FoundDotNetRuntimes {
     $toInstall = @()
     foreach ($id in $ids) {
         Add-Content $log "Found package id: $id - checking if installed..."
-        $installed = winget list --id $id -e 2>&1 | Select-String -SimpleMatch $id
+        $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
             continue
@@ -257,7 +257,7 @@ function Install-FoundDotNetRuntimes {
 
     foreach ($id in $toInstall) {
         Add-Content $log "Installing $id..."
-        $result = winget install --id $id -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
+        $result = winget install --id $id -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
         Add-Content $log $result
         if ($LASTEXITCODE -eq 0) {
             Add-Content $log "$id installed successfully"
@@ -349,7 +349,7 @@ function Install-VCLibsDesktop14 {
 
 function Install-RustDesk {
     $appName = "RustDesk"
-    $installed = winget list --id RustDesk.RustDesk -e | Select-String $appName
+    $installed = winget list --id RustDesk.RustDesk -e --source winget | Select-String $appName
 
     if ($installed) {
         Write-Host "RustDesk ya está instalado. Omitiendo instalación."
@@ -434,14 +434,14 @@ function Install-VCLibsDesktop14 {
 
 function Install-RustDesk {
     $appName = "RustDesk"
-    $installed = winget list --id RustDesk.RustDesk -e | Select-String $appName
+    $installed = winget list --id RustDesk.RustDesk -e --source winget | Select-String $appName
 
     if ($installed) {
         Write-Host "RustDesk ya está instalado. Omitiendo instalación."
     } else {
         Write-Host "Instalando RustDesk..."
         Set-InstallPercent -Percent 26
-        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
+        winget install --id RustDesk.RustDesk -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
     }
 }
 
@@ -530,13 +530,25 @@ Install-VLC
 #    Write-Host "Error al crear la tarea programada: $_"
 #}
 
-# Restaurar el idioma original después de la instalación
+# Restaurar el idioma original después de la instalación (automático, sin confirmación)
 try {
     if (Test-Path "$env:TEMP\original_locale.txt") {
         $SavedLocale = Get-Content "$env:TEMP\original_locale.txt"
         if ($SavedLocale -and $SavedLocale -ne "0409") {
-            Write-Host "Se detectó una LCID original: $SavedLocale. No se modificó la configuración del sistema en este script, por lo que no se intentará restaurarla automáticamente."
-            Write-Host "Si necesita restaurar la LCID del sistema, ejecute manualmente: Set-WinSystemLocale -SystemLocale $SavedLocale (requiere reinicio)."
+            Write-Host "Se detectó una LCID original: $SavedLocale."
+            if (-not (Test-Admin)) {
+                Write-Host "Se requieren privilegios de administrador para restaurar la LCID del sistema. Ejecute este script como Administrador para que la restauración automática funcione."
+            } else {
+                try {
+                    $lcidDecimal = [int]::Parse($SavedLocale, [System.Globalization.NumberStyles]::HexNumber)
+                    $culture = [System.Globalization.CultureInfo]::GetCultureInfo($lcidDecimal)
+                    Set-WinSystemLocale -SystemLocale $culture.Name
+                    Write-Host "SystemLocale establecido a $($culture.Name). El reinicio se aplicará automáticamente al finalizar el script."
+                    "$((Get-Date).ToString('s')) Restored SystemLocale to $($culture.Name)" | Out-File -FilePath "$env:TEMP\fase2_restore_locale.log" -Append -Encoding UTF8
+                } catch {
+                    Write-Host "Error al intentar aplicar Set-WinSystemLocale: $_"
+                }
+            }
         } else {
             Write-Host "El idioma original era en-US. No se requiere restaurar."
         }
