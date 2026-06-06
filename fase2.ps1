@@ -295,8 +295,17 @@ try {
 
         # Cambiar idioma solo si no es en-US
         if ($culture.Name -ne "en-US") {
-            Write-Host "Cambiando temporalmente a en-US..."
-            Set-WinSystemLocale -SystemLocale "en-US"
+            Write-Host "Cambiando temporalmente a en-US (solo para el proceso)..."
+            try {
+                $ci = [System.Globalization.CultureInfo]::GetCultureInfo('en-US')
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $ci
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $ci
+                Write-Host "Cultura de proceso establecida a en-US."
+            } catch {
+                Write-Host "No se pudo cambiar la cultura del proceso: $_"
+                # Si necesita forzar el cambio a nivel de sistema (requiere reinicio), descomente la siguiente línea
+                # Set-WinSystemLocale -SystemLocale "en-US"
+            }
         } else {
             Write-Host "Ya estas en en-US. No es necesario cambiar."
         }
@@ -526,9 +535,8 @@ try {
     if (Test-Path "$env:TEMP\original_locale.txt") {
         $SavedLocale = Get-Content "$env:TEMP\original_locale.txt"
         if ($SavedLocale -and $SavedLocale -ne "0409") {
-            Write-Host "Restaurando configuración regional original: $SavedLocale"
-            Set-WinSystemLocale -SystemLocale $SavedLocale
-            Write-Host "Recuerda reiniciar para aplicar los cambios."
+            Write-Host "Se detectó una LCID original: $SavedLocale. No se modificó la configuración del sistema en este script, por lo que no se intentará restaurarla automáticamente."
+            Write-Host "Si necesita restaurar la LCID del sistema, ejecute manualmente: Set-WinSystemLocale -SystemLocale $SavedLocale (requiere reinicio)."
         } else {
             Write-Host "El idioma original era en-US. No se requiere restaurar."
         }
