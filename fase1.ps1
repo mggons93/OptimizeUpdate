@@ -1288,7 +1288,7 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	    Manufacturer = "Mggons Support Center"
 	    Model = "Windows 11 - Update 2025 - S`&A"
 	    SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
-	    SupportURL = "https://wa.me/57350560580"
+	    SupportURL = "https://wa.me/573150560580"
 	    SupportPhone = " "
 	}
 
