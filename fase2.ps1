@@ -348,17 +348,120 @@ function Install-VCLibsDesktop14 {
 
 
 function Install-RustDesk {
-    $appName = "RustDesk"
-    $installed = winget list --id RustDesk.RustDesk -e --source winget | Select-String $appName
+    $log = "$env:TEMP\fase2_rustdesk_install.log"
+    Add-Content $log "=== Install-RustDesk start $(Get-Date) ==="
 
-    if ($installed) {
-        Write-Host "RustDesk ya está instalado. Omitiendo instalación."
-    } else {
-        Write-Host "Instalando RustDesk..."
-        Set-InstallPercent -Percent 27
-        winget install --id RustDesk.RustDesk -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
+    $possiblePaths = @(
+        "$env:ProgramFiles\RustDesk\rustdesk.exe",
+        "$env:ProgramFiles(x86)\RustDesk\rustdesk.exe",
+        "$env:ProgramFiles\RustDesk\RustDesk.exe",
+        "$env:ProgramFiles(x86)\RustDesk\RustDesk.exe"
+    )
+
+    foreach ($p in $possiblePaths) {
+        if (Test-Path $p) {
+            Add-Content $log "Found existing install: $p"
+            Write-Host "RustDesk ya está instalado. Omitiendo instalación."
+            Add-Content $log "=== Install-RustDesk end $(Get-Date) ==="
+            return
+        }
     }
+
+    Write-Host "RustDesk no está instalado. Procediendo a instalar (GitHub release preferida)..."
+    Set-InstallPercent -Percent 27
+
+    try {
+        $apiUrl = "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
+        $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' } -ErrorAction Stop
+    } catch {
+        Add-Content $log "Failed to fetch GitHub release: $_"
+        Write-Warning "No se pudo obtener la release de GitHub: $_"
+        return
+    }
+
+    $is64 = [Environment]::Is64BitOperatingSystem
+
+    # Preferir MSI para la arquitectura, luego EXE, con varios fallbacks
+    $asset = $null
+    if ($is64) {
+        $asset = $release.assets | Where-Object { $_.name -match '\.msi$' -and ($_.name -match 'x86_64|x64|x86-64') } | Select-Object -First 1
+    } else {
+        $asset = $release.assets | Where-Object { $_.name -match '\.msi$' -and ($_.name -match '(^|[^0-9])x86(\D|$)|i386') } | Select-Object -First 1
+    }
+    if (-not $asset) { $asset = $release.assets | Where-Object { $_.name -match '\.msi$' } | Select-Object -First 1 }
+    if (-not $asset) {
+        if ($is64) {
+            $asset = $release.assets | Where-Object { $_.name -match '\.exe$' -and ($_.name -match 'x86_64|x64|x86-64') } | Select-Object -First 1
+        } else {
+            $asset = $release.assets | Where-Object { $_.name -match '\.exe$' -and ($_.name -match '(^|[^0-9])x86(\D|$)|i386') } | Select-Object -First 1
+        }
+    }
+    if (-not $asset) { $asset = $release.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1 }
+
+    if (-not $asset) {
+        Add-Content $log "No MSI/EXE asset found in release. Aborting."
+        Write-Warning "No se encontró instalador .msi/.exe en la última release."
+        return
+    }
+
+    $downloadUrl = $asset.browser_download_url
+    $dest = Join-Path $env:TEMP $asset.name
+    Add-Content $log "Selected asset: $($asset.name) -> $downloadUrl"
+
+    try {
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $dest -UseBasicParsing -ErrorAction Stop
+        Add-Content $log "Downloaded to $dest"
+    } catch {
+        Add-Content $log "Download failed: $_"
+        Write-Warning "Fallo al descargar $downloadUrl: $_"
+        return
+    }
+
+    try {
+        if ($dest -match '\.msi$') {
+            Add-Content $log "Installing MSI silently via msiexec"
+            Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$dest`" /qn /norestart" -Wait -NoNewWindow
+        } else {
+            $silentArgsList = @('/S','/silent','/VERYSILENT','/quiet','-s','/SILENT')
+            $installed = $false
+            foreach ($arg in $silentArgsList) {
+                try {
+                    Add-Content $log "Trying EXE silent arg: $arg"
+                    $proc = Start-Process -FilePath $dest -ArgumentList $arg -Wait -PassThru -NoNewWindow -ErrorAction Stop
+                    if ($proc -and $proc.ExitCode -eq 0) { $installed = $true; break }
+                } catch {
+                    Add-Content $log "Silent attempt failed for arg $arg: $_"
+                }
+            }
+
+            if (-not $installed) {
+                Add-Content $log "No silent flag worked; launching interactive installer"
+                Start-Process -FilePath $dest -Wait
+            }
+        }
+    } catch {
+        Add-Content $log "Installation attempt failed: $_"
+        Write-Warning "Error durante la instalación: $_"
+    }
+
+    Start-Sleep -Seconds 3
+
+    # Verificar instalación
+    $installedNow = $false
+    foreach ($p in $possiblePaths) { if (Test-Path $p) { $installedNow = $true; Add-Content $log "Post-install found: $p"; break } }
+    if ($installedNow) {
+        Add-Content $log "RustDesk instalado correctamente."
+        Write-Host "RustDesk instalado correctamente."
+    } else {
+        Add-Content $log "RustDesk no encontrado después de la instalación."
+        Write-Warning "No se detectó RustDesk tras la instalación. Revisa el log: $log"
+    }
+
+    if (Test-Path $dest) { Remove-Item $dest -Force -ErrorAction SilentlyContinue }
+    Add-Content $log "=== Install-RustDesk end $(Get-Date) ==="
 }
+
+# Install-RustDesk consolidated above; duplicate definition removed.
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
@@ -432,18 +535,7 @@ function Install-VCLibsDesktop14 {
     winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
-function Install-RustDesk {
-    $appName = "RustDesk"
-    $installed = winget list --id RustDesk.RustDesk -e --source winget | Select-String $appName
-
-    if ($installed) {
-        Write-Host "RustDesk ya está instalado. Omitiendo instalación."
-    } else {
-        Write-Host "Instalando RustDesk..."
-        Set-InstallPercent -Percent 26
-        winget install --id RustDesk.RustDesk -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-    }
-}
+# Install-RustDesk consolidated above; duplicate definition removed.
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
