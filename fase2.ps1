@@ -413,7 +413,7 @@ function Install-RustDesk {
         Add-Content $log "Downloaded to $dest"
     } catch {
         Add-Content $log "Download failed: $_"
-        Write-Warning "Fallo al descargar $downloadUrl: $_"
+        Write-Warning "Fallo al descargar ${downloadUrl}: $_"
         return
     }
 
@@ -430,7 +430,7 @@ function Install-RustDesk {
                     $proc = Start-Process -FilePath $dest -ArgumentList $arg -Wait -PassThru -NoNewWindow -ErrorAction Stop
                     if ($proc -and $proc.ExitCode -eq 0) { $installed = $true; break }
                 } catch {
-                    Add-Content $log "Silent attempt failed for arg $arg: $_"
+                    Add-Content $log "Silent attempt failed for arg ${arg}: $_"
                 }
             }
 
