@@ -23,16 +23,16 @@ Dism /Online /Set-ReservedStorageState /State:Disabled
 Write-Output "1% Completado"
 ############################
 
+# --- DESACTIVAR BLUR DEL LOGON (Windows 10 y 11) ---
+try {
+    $path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+    if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+    Set-ItemProperty -Path $path -Name "DisableAcrylicBackgroundOnLogon" -Value 1 -Type DWord
 
-########################################### Aprovisionamiento de Apps ###########################################
-# Aprovisionamiento de Apps
-#$username = $env:USERNAME
-#$exePath = "C:\Users\$username\AprovisionamientoApp\AprovisionamientoApp.exe"
-#$regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-#$valueName = "Apps Installer"
-#$valueData = "powershell.exe -ExecutionPolicy Bypass -Command `"Start-Process -FilePath '$exePath'`""
-#Set-ItemProperty -Path $regPath -Name $valueName -Value $valueData
-#$valueData = 'powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/AprovisionandoApps.ps1 | iex"'
+    $path2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    if (-not (Test-Path $path2)) { New-Item -Path $path2 -Force | Out-Null }
+    Set-ItemProperty -Path $path2 -Name "EnableTransparency" -Value 0 -Type DWord
+} catch {}
 
 ## Planes de Energia
 function Repair-PowerPlans {
