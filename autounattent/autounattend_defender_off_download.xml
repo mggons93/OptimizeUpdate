@@ -137,7 +137,7 @@
 				<SynchronousCommand wcm:action="add">
 					<Order>1</Order>
 					<Description>Configuracion y personalizacion</Description>
-					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\FirstLogon.ps1' -Raw | Invoke-Expression;"</CommandLine>
+					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\Launcher.ps1' -Raw | Invoke-Expression;"</CommandLine>
 				</SynchronousCommand>
 			</FirstLogonCommands>
 		</component>
@@ -491,6 +491,17 @@ $scripts = @(
 	{
 		Remove-Item -LiteralPath 'Registry::HKLM\Software\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate' -Force -ErrorAction 'SilentlyContinue';
 	};
+	{
+        try {
+            $path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+            if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+            Set-ItemProperty -Path $path -Name "DisableAcrylicBackgroundOnLogon" -Value 1 -Type DWord
+
+            $path2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+            if (-not (Test-Path $path2)) { New-Item -Path $path2 -Force | Out-Null }
+            Set-ItemProperty -Path $path2 -Name "EnableTransparency" -Value 0 -Type DWord
+        } catch {}
+    };
 	{
 		Remove-Item -LiteralPath 'C:\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk', 'C:\Windows\System32\OneDriveSetup.exe', 'C:\Windows\SysWOW64\OneDriveSetup.exe' -ErrorAction 'Continue';
 	};
@@ -903,24 +914,77 @@ Write-Host " Este script realiza mantenimiento del sistema utilizando la herrami
 Write-Host ""
 Write-Host " Que hace este mantenimiento? "
 Write-Host "- Elimina archivos antiguos de componentes de Windows para liberar espacio en disco."
-Write-Host "- Ayuda a que futuras actualizaciones del sistema se instalen más rápido y con menos errores."
-Write-Host "- Reduce el tamaño de la carpeta WinSxS, que almacena versiones anteriores de archivos del sistema."
+Write-Host "- Ayuda a que futuras actualizaciones del sistema se instalen mas rapido y con menos errores."
+Write-Host "- Reduce el tamano de la carpeta WinSxS, que almacena versiones anteriores de archivos del sistema."
 Write-Host "- Mejora el rendimiento general del sistema eliminando elementos que ya no se usan."
-Write-Host "- Esta opcion ayuda a mejorar mas el espacio en el disfo duro."
+Write-Host "- Esta opcion ayuda a mejorar mas el espacio en el disco duro."
 Write-Host ""
 			
-# Pregunta al usuario
-$confirm = Read-Host "Deseas ejecutar el mantenimiento ahora? (Y/N)"
+# Ejecutar mantenimiento automáticamente (sin interacción)
+Write-Host "`nEjecutando mantenimiento del sistema automaticamente... Por favor espere." -ForegroundColor Yellow
 
-# Validar respuesta
-if ($confirm -eq 'Y' -or $confirm -eq 'y') {
-    Write-Host "`nEjecutando mantenimiento del sistema... Por favor espere." -ForegroundColor Yellow
-    Start-Process -FilePath "dism.exe" -ArgumentList "/online /Cleanup-Image /StartComponentCleanup /ResetBase" -Wait
+# Se elimina la escritura directa a state.json; `firstlogon.ps1` gestiona el estado UI ahora
+
+# Ejecutar DISM y transmitir la salida para que la app la capture
+# Pasar los switches como array para que PowerShell no los una en un solo argumento
+$args = @("/online","/Cleanup-Image","/StartComponentCleanup","/ResetBase")
+$lastPct = -1
+$scriptDir = "C:\Windows\Setup\Scripts"
+$stateFile = Join-Path $scriptDir 'state.json'
+
+function Update-StateEntry {
+    param(
+        [string[]]$matchNames,
+        [string]$newStatus
+    )
+    try {
+        if (-not (Test-Path $stateFile)) { return }
+        $json = Get-Content -Path $stateFile -Raw -ErrorAction Stop | ConvertFrom-Json
+        $changed = $false
+        for ($i = 0; $i -lt $json.Count; $i++) {
+            $name = ($json[$i].name -as [string]) -or ''
+            foreach ($m in $matchNames) {
+                if ($name -and ($name -ieq $m -or $name -like "*$m*")) {
+                    $json[$i].status = $newStatus
+                    if ($newStatus -eq 'error') { $json[$i].progress = 0 }
+                    $changed = $true
+                }
+            }
+        }
+        if ($changed) { $json | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8 }
+    } catch {
+        Write-Host "[WARN] No se pudo actualizar state.json: $($_.Exception.Message)"
+    }
+}
+try {
+    &amp; dism.exe @args 2>&amp;1 | ForEach-Object {
+        $line = $_
+        if ($line -match "([0-9]{1,3}(?:\.[0-9]+)?)%") {
+            $pct = [double]$matches[1]
+            if ($pct -ne $lastPct) {
+                Write-Host $line
+                $lastPct = $pct
+            }
+        }
+        else {
+            Write-Host $line
+        }
+    }
+    $exit = $LASTEXITCODE
+}
+catch {
+    Write-Host "Error al ejecutar DISM: $_" -ForegroundColor Red
+    $exit = 1
+}
+
+if ($exit -eq 0) {
     Write-Host "`nMantenimiento completado." -ForegroundColor Green
-} elseif ($confirm -eq 'N' -or $confirm -eq 'n') {
-    Write-Host "`nOperacion cancelada por el usuario." -ForegroundColor Yellow
+    # Mark the corresponding step as done in state.json
+    Update-StateEntry -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') -newStatus 'done'
 } else {
-    Write-Host "`nOpcion no valida. Por favor ejecuta el script nuevamente e ingresa 'Y' o 'N'." -ForegroundColor Red
+    Write-Host "`nEl comando DISM devolvió un código de error: $exit" -ForegroundColor Red
+    # Mark the corresponding step as error in state.json
+    Update-StateEntry -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') -newStatus 'error'
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Create_Restore_Point.ps1">
@@ -1301,10 +1365,271 @@ try {
 } catch {
     Write-Host "Error durante la descarga o ejecuci&#xF3;n del script: $_" -ForegroundColor Red
 }
-		</File>	
+		</File>
+		<File path="C:\Windows\Setup\Scripts\Launcher.ps1">
+# -------------------------
+# launcher.ps1 (final corregido con delay compatible)
+# -------------------------
+
+# --- Forzar ruta fija del script ---
+$scriptPath = 'C:\Windows\Setup\Scripts\launcher.ps1'
+$scriptDir  = Split-Path -Parent $scriptPath
+
+# --- Delay compatible (20s) ---
+Start-Sleep -Seconds 20
+
+# --- Helper: obtener ruta a powershell.exe adecuada ---
+function Get-PowerShellPath {
+    $isOs64 = [Environment]::Is64BitOperatingSystem
+    $isProc64 = [Environment]::Is64BitProcess
+    if ($isOs64 -and -not $isProc64) {
+        $sysnative = Join-Path $env:WINDIR "Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+        if (Test-Path $sysnative) { return $sysnative }
+    }
+    return Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+}
+
+# --- Paths y variables principales ---
+$exeName = 'FirstlogonGUI.App.exe'
+$exePath = 'C:\Windows\Setup\Scripts\FirstlogonGUI.App.exe'
+$logFile = 'C:\Windows\Setup\Scripts\Launcher.log'
+$taskName = 'FirstLogonGUI_Launcher_Task'
+$markerPath = 'C:\Windows\Setup\Scripts\FirstlogonGUI.installed'
+$stateFilePath = 'C:\Windows\Setup\Scripts\state.json'
+$downloadUrl = 'https://github.com/mggons93/OptimizeUpdate/releases/download/V2.0.1/FirstlogonGUI.App.exe'
+
+# --- Mutex ---
+$mutexName = 'FirstLogonGUI_Launcher_Mutex'
+$mutex = New-Object System.Threading.Mutex($false, $mutexName)
+if (-not $mutex.WaitOne(0)) { Write-Host "Otra instancia ya está ejecutándose" -ForegroundColor Yellow; exit 0 }
+
+# --- Logging ---
+function Write-Log {
+    param([string]$msg)
+    $entry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg"
+    try { Add-Content -Path $logFile -Value $entry -Encoding UTF8 } catch {}
+}
+
+function Show-Info {
+    param([string]$msg, [ConsoleColor]$color = 'White')
+    try { Write-Host $msg -ForegroundColor $color } catch {}
+    try { Write-Log $msg } catch {}
+}
+
+# --- Detect ClearDir entry ---
+function Get-ClearDirEntry {
+    param([string]$StateFilePath)
+    if (-not (Test-Path $StateFilePath)) { return $null }
+    try {
+        $arr = (Get-Content -Path $StateFilePath -Raw) | ConvertFrom-Json
+    } catch {
+        Write-Log ("Get-ClearDirEntry: error parseando " + $StateFilePath + ": " + $_.Exception.Message)
+        return $null
+    }
+    foreach ($item in $arr) {
+        if ($item.name -eq 'ClearDir') { return $item }
+    }
+    return $null
+}
+
+# --- Remove scheduled task ---
+function Remove-LauncherScheduledTask {
+    try {
+        if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+            Write-Log "Tarea programada eliminada: $taskName"
+        } else {
+            Write-Log "No existía tarea programada: $taskName"
+        }
+    } catch {
+        Write-Log "Error eliminando tarea programada: $($_.Exception.Message)"
+    }
+}
+
+# --- Register scheduled task (sin Delay incompatible) ---
+function Register-LauncherScheduledTask {
+    $fixedScriptPath = 'C:\Windows\Setup\Scripts\launcher.ps1'
+
+    if (-not (Test-Path $fixedScriptPath)) {
+        Write-Log "ERROR: ruta fija no existe: $fixedScriptPath. Abortando registro de tarea."
+        return
+    }
+
+    $psExe = Get-PowerShellPath
+    $actionArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$fixedScriptPath`""
+    $currentUser = "$env:USERDOMAIN\$env:USERNAME"
+
+    try {
+        if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+        }
+
+        $action = New-ScheduledTaskAction -Execute $psExe -Argument $actionArgs
+        $trigger = New-ScheduledTaskTrigger -AtLogOn   
+        $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
+
+        $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "FirstLogonGUI launcher"
+
+        Register-ScheduledTask -TaskName $taskName -InputObject $task -Force
+
+        Write-Log "Tarea programada registrada: $taskName para usuario $currentUser"
+        Write-Log "CmdLine tarea: $psExe $actionArgs"
+    } catch {
+        Write-Log "Error registrando tarea programada: $($_.Exception.Message)"
+    }
+}
+
+# --- Ensure scheduled task registered only when needed ---
+function Ensure-LauncherScheduledTaskRegistered {
+    param([string]$state)
+
+    if (Test-Path $markerPath) {
+        Write-Log "Marcador ya existe ($markerPath). No se registra tarea."
+        return
+    }
+
+    if ($state -ne "pending") {
+        Write-Log "No se registra tarea porque state=$state"
+        return
+    }
+
+    Write-Log "Registrando tarea programada (state=pending)..."
+    Register-LauncherScheduledTask
+}
+
+# --- Cleanup final ---
+function Invoke-LauncherCleanup {
+    param([string]$Status)
+    Write-Log "Invoke-LauncherCleanup: $Status"
+
+    if ($Status -eq 'done') { Show-Info "ClearDir completado: limpiando tarea programada" Green }
+    elseif ($Status -eq 'error') { Show-Info "ClearDir error: limpiando tarea programada" Yellow }
+
+    Remove-LauncherScheduledTask
+
+    if ($Status -eq 'done') {
+        try {
+            New-Item -Path $markerPath -ItemType File -Force | Out-Null
+            Show-Info "Marcador creado: $markerPath" Green
+            Write-Log "Marcador creado: $markerPath"
+        } catch {
+            Write-Log "Error creando marcador: $($_.Exception.Message)"
+        }
+    }
+
+    exit 0
+}
+
+# --- Internet check ---
+function Wait-ForInternet {
+    Write-Log "Comprobando conexion a Internet real..."
+    Show-Info "Comprobando conexion a Internet..." Yellow
+    while ($true) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://clients3.google.com/generate_204" -UseBasicParsing -TimeoutSec 3
+            if ($response.StatusCode -eq 204) { Write-Log "Internet OK"; Show-Info "Conexión a Internet detectada." Green; break }
+        } catch { Write-Log "Sin conexion. Reintentando..."; Show-Info "Sin conexion. Reintentando..." Red }
+        Start-Sleep -Seconds 3
+    }
+}
+
+# --- Download helper ---
+function Download-IfMissing {
+    param([string]$url, [string]$dest)
+    if (Test-Path $dest) { Write-Log "Download-IfMissing: ya existe $dest"; return $true }
+    $temp = $dest + '.part'
+    while ($true) {
+        try {
+            $destDir = Split-Path -Parent $dest
+            if (-not (Test-Path $destDir)) { New-Item -Path $destDir -ItemType Directory -Force | Out-Null }
+            if (Test-Path $temp) { Remove-Item $temp -Force }
+            Write-Log "Descargando $url ..."
+            Show-Info "Descargando: $url" White
+            Invoke-WebRequest -Uri $url -OutFile $temp -UseBasicParsing -ErrorAction Stop
+            Move-Item $temp $dest -Force
+            Write-Log "Descarga completada: $dest"
+            Show-Info "Descarga completada: $(Split-Path -Leaf $dest)" Green
+            return $true
+        } catch {
+            Write-Log "Fallo descarga: $($_.Exception.Message). Esperando Internet..."
+            if (Test-Path $temp) { Remove-Item $temp -Force }
+            Wait-ForInternet
+        }
+    }
+}
+
+# --- Elevación ---
+$currentUserIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$windowsPrincipal = New-Object Security.Principal.WindowsPrincipal($currentUserIdentity)
+if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $psPath = Get-PowerShellPath
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+    Start-Process -FilePath $psPath -ArgumentList $arguments -Verb RunAs -WindowStyle Normal
+    return
+}
+
+# --- START ---
+Write-Log "--- Launcher start ---"
+
+if (Test-Path $markerPath) { Write-Log "Instalación ya completada"; exit 0 }
+
+if (-not (Test-Path $exePath)) {
+    Download-IfMissing $downloadUrl $exePath
+}
+
+$entry = Get-ClearDirEntry $stateFilePath
+if ($entry -and $entry.status) { $status = $entry.status.ToLowerInvariant() } else { $status = "pending" }
+
+Ensure-LauncherScheduledTaskRegistered -state $status
+
+if ($status -eq 'done' -or $status -eq 'error') {
+    Invoke-LauncherCleanup $status
+}
+
+if (Test-Path $exePath) {
+    try {
+        $wd = Split-Path -Parent $exePath
+        Start-Process -FilePath $exePath -WorkingDirectory $wd -WindowStyle Normal
+        Write-Log "FirstlogonGUI.App.exe lanzado"
+
+        # --- Minimizar PowerShell después de lanzar la GUI ---
+        try {
+            Add-Type -Name Win -Namespace Native -MemberDefinition '
+                [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+                [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+            '
+            $hwnd = [Native.Win]::GetConsoleWindow()
+            if ($hwnd -ne 0) { [Native.Win]::ShowWindow($hwnd, 6) }  # 6 = SW_MINIMIZE
+            Write-Log "Ventana PowerShell minimizada automáticamente"
+        } catch {
+            Write-Log "Error minimizando ventana PowerShell: $($_.Exception.Message)"
+        }
+
+    } catch {
+        Write-Log "Error lanzando EXE: $($_.Exception.Message)"
+    }
+}
+
+while ($true) {
+    $entry = Get-ClearDirEntry $stateFilePath
+    if ($entry) {
+        try {
+            $status = $entry.status.ToLowerInvariant()
+        } catch {
+            $status = $null
+        }
+        if ($status -eq 'done' -or $status -eq 'error') {
+            Invoke-LauncherCleanup $status
+        }
+    }
+    Start-Sleep -Seconds 15
+}
+		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
-    # --- ELEVAR A ADMINISTRADOR PRIMERO ---
+ # --- ELEVAR A ADMINISTRADOR PRIMERO ---
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $windowsPrincipal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -1313,21 +1638,101 @@ try {
         return
     }
 
-    # --- CONFIGURACIÓN INICIAL ---
+    # --- CONFIGURACI?N INICIAL ---
     $scriptDir = "C:\Windows\Setup\Scripts"
     $stateFile = "$scriptDir\state.json"
     $logFilePath = "$scriptDir\FirstLogon.log"
+
+	function Download-And-Run {
+        param(
+            [string]$Url,
+            [string]$OutName
+        )
+        $maxAttempts = 3
+        $attempt = 0
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $outPath = Join-Path $scriptDir $OutName
+        while ($attempt -lt $maxAttempts) {
+            try {
+                $attempt++
+                Write-Output "[$(Get-Date)] Descargando $Url (intento $attempt)..."
+                Invoke-WebRequest -Uri $Url -OutFile $outPath -TimeoutSec 60 -ErrorAction Stop
+                if (-not (Test-Path $outPath)) { throw "Archivo no encontrado luego de descarga: $outPath" }
+                Write-Output "[$(Get-Date)] Descargado a $outPath"
+                if ($outPath -match '\.ps1$') {
+                    &amp;  $outPath
+                } else {
+                    Start-Process -FilePath $outPath -Wait
+                }
+                return $true
+            } catch {
+                Write-Output ("[{0}] Error descargando {1}: {2}" -f (Get-Date), $Url, $_)
+                if ($attempt -ge $maxAttempts) { return $false }
+                Start-Sleep -Seconds 5
+            }
+        }
+    }
 
     if (-not (Test-Path $scriptDir)) {
         New-Item -ItemType Directory -Path $scriptDir -Force
     }
 
+    # Add separator in log to separate outputs from different runs
+    try {
+        $sep = "`n=== Inicio ejecución: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===`n"
+        Add-Content -Path $logFilePath -Value $sep -Encoding UTF8
+    } catch {
+        Write-Output "[$(Get-Date)] No se pudo escribir separador en ${logFilePath}: $($_)"
+    }
+
+        function Add-DefenderExclusion {
+            param([string]$Path)
+            try {
+                if (-not (Get-Command Add-MpPreference -ErrorAction SilentlyContinue)) {
+                    Import-Module Defender -ErrorAction SilentlyContinue
+                }
+                if (Get-Command Add-MpPreference -ErrorAction SilentlyContinue) {
+                    Write-Output "[$(Get-Date)] Añadiendo exclusión de Defender para $Path"
+                    try { Add-MpPreference -ExclusionPath $Path -ErrorAction Stop } catch {}
+                    try { Add-MpPreference -ExclusionProcess $Path -ErrorAction Stop } catch {}
+                    return $true
+                } else {
+                    Write-Output "[$(Get-Date)] Cmdlets de Defender no disponibles; omitiendo exclusión"
+                    return $false
+                }
+            } catch {
+                Write-Output "[$(Get-Date)] Error añadiendo exclusión de Defender: $($_.Exception.Message)"
+                return $false
+            }
+        }
+
+        function Start-ForegroundProcess {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string]$FilePath,
+                [string[]]$ArgumentList = @()
+            )
+
+            $startParams = @{
+                FilePath    = $FilePath
+                WindowStyle = 'Normal'
+                ErrorAction = 'Stop'
+            }
+            if ($ArgumentList.Count -gt 0) {
+                $startParams.ArgumentList = $ArgumentList
+            }
+
+            $process = Start-Process -PassThru @startParams
+            try { $null = $process.WaitForInputIdle(10000) } catch {}
+            return $process
+        }
+
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-		@{ Name = "Run ChangePC-ID"; Script = {
+		@{ Name = "ChangePC-ID"; Script = {
 			$equipoLog = "$scriptDir\Equipo.log"
 			if (Test-Path $equipoLog) {
-				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecución de ChangePC-ID.ps1."
+				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecuci?n de ChangePC-ID.ps1."
 				$state[$i].status = "done"
 				$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
 				return
@@ -1337,28 +1742,176 @@ try {
 			Start-Sleep -Seconds 2
 			Restart-Computer -Force
 		} },
-        @{ Name = "Run Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run setup-final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Setup-final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Windows Update + Drivers"; Script = {
-            $ok = Download-And-Run -Url 'https://cutt.ly/UpdateGUI' -OutName 'UpdateGUI.ps1'
+            $updateGuiPath = Join-Path $scriptDir 'UpdateGUI.ps1'
+            $updateGuiExePath = $null
+            $exeHits = @()
+
+            $exactCandidates = @(
+                (Join-Path $env:USERPROFILE 'Update_GUI.exe'),
+                (Join-Path $scriptDir 'Update_GUI.exe'),
+                'C:\Windows\System32\config\systemprofile\Update_GUI.exe'
+            )
+
+            foreach ($candidate in $exactCandidates) {
+                if (Test-Path $candidate) {
+                    try { $exeHits += Get-Item -LiteralPath $candidate -ErrorAction Stop } catch { }
+                }
+            }
+
+            foreach ($pattern in @('C:\Users\*\Update_GUI*.exe', 'C:\Windows\Setup\Scripts\Update_GUI*.exe', 'C:\Windows\System32\config\systemprofile\Update_GUI*.exe')) {
+                try {
+                    $exeHits += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue
+                } catch { }
+            }
+
+            $exeHits = $exeHits |
+                Group-Object -Property FullName |
+                ForEach-Object { $_.Group | Select-Object -First 1 }
+
+            if ($exeHits.Count -gt 0) {
+                $updateGuiExePath = ($exeHits | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+                Write-Output "[$(Get-Date)] Update_GUI encontrado(s): $($exeHits.Count). Seleccionado: $updateGuiExePath"
+            } else {
+                Write-Output "[$(Get-Date)] No se encontró Update_GUI*.exe en rutas locales."
+            }
+
+            $ok = $true
+
+            if ($updateGuiExePath) {
+                Write-Output "[$(Get-Date)] Update_GUI.exe ya existe en $updateGuiExePath. Ejecutando archivo local..."
+                try {
+                    Write-Output "[$(Get-Date)] Lanzando Update_GUI..."
+                    # Añadir exclusión en Defender para el ejecutable antes de ejecutar
+                    try { Add-DefenderExclusion -Path $updateGuiExePath } catch {}
+                    Start-ForegroundProcess -FilePath $updateGuiExePath | Out-Null
+                } catch {
+                    Write-Error "No se pudo ejecutar $updateGuiExePath"
+                    if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
+                        $state[$i].status = 'error'
+                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                    }
+                    return
+                }
+            } elseif (Test-Path $updateGuiPath) {
+                Write-Output "[$(Get-Date)] UpdateGUI.ps1 ya existe en $updateGuiPath. Ejecutando archivo local..."
+                try { Add-DefenderExclusion -Path $updateGuiPath } catch {}
+                Write-Output "[$(Get-Date)] Lanzando Update_GUI..."
+                Start-Process -FilePath powershell.exe -WindowStyle Normal -ArgumentList @(
+                    '-NoProfile',
+                    '-ExecutionPolicy', 'Bypass',
+                    '-File', $updateGuiPath
+                )
+            } else {
+                # Ensure Download-And-Run exists in this session before attempting download
+                if (-not (Get-Command Download-And-Run -ErrorAction SilentlyContinue)) {
+                    Write-Error "Download-And-Run no est? disponible en esta sesi?n. Aseg?rate de ejecutar el script principal FirstLogon.ps1"
+                    if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
+                        $state[$i].status = 'error'
+                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                    }
+                    return
+                }
+
+                # Añadir exclusión al archivo destino antes de descargar y ejecutarlo
+                try { Add-DefenderExclusion -Path (Join-Path $scriptDir 'UpdateGUI.ps1') } catch {}
+                Write-Output "[$(Get-Date)] Descargando Update_GUI..."
+                $ok = Download-And-Run -Url 'https://cutt.ly/UpdateGUI' -OutName 'UpdateGUI.ps1'
+            }
+
             if (-not $ok) {
                 Write-Error "Error descargando desde https://cutt.ly/UpdateGUI"
+                if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
+                    $state[$i].status = 'error'
+                    $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                }
+                return
+            }
+
+            $updatesLog = 'C:\Updates.log'
+            $matchText = 'Todo listo. Drivers y actualizaciones aplicadas.'
+            $maxWaitSeconds = 1800
+            $interval = 10
+            $elapsed = 0
+            Write-Output "[$(Get-Date)] Esperando confirmaci?n en $updatesLog..."
+            while ($elapsed -lt $maxWaitSeconds) {
+                if (Test-Path $updatesLog) {
+                    try {
+                        $content = Get-Content $updatesLog -Raw -ErrorAction Stop
+                        if ($content -match [regex]::Escape($matchText)) {
+                            Write-Output "[$(Get-Date)] Texto encontrado en $updatesLog"
+                            if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
+                                $state[$i].status = 'done'
+                                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                            } else {
+                                Write-Warning "No se puede actualizar state.json: variable \$state o ?ndice \$i no v?lidos."
+                            }
+                            return
+                        }
+                    } catch {
+                        Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $updatesLog, $_)
+                    }
+                }
+                Start-Sleep -Seconds $interval
+                $elapsed += $interval
+            }
+
+            Write-Error "Timeout esperando $matchText en $updatesLog"
+            if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
                 $state[$i].status = 'error'
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
             }
         }},
         @{ Name = "Configuracion y optimizacion del sistema"; Script = {
-            $ok = Download-And-Run -Url 'https://cutt.ly/NewOptimize' -OutName 'NewOptimize.ps1'
-            if (-not $ok) {
-                Write-Error "Error descargando desde https://cutt.ly/NewOptimize"
-                $state[$i].status = 'error'
-                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+            $windowsOptimizePath = $null
+            $optHits = @()
+
+            $optExactCandidates = @(
+                (Join-Path $env:USERPROFILE 'WindowsOptimize.exe'),
+                (Join-Path $scriptDir 'WindowsOptimize.exe'),
+                'C:\Windows\System32\config\systemprofile\WindowsOptimize.exe'
+            )
+
+            foreach ($candidate in $optExactCandidates) {
+                if (Test-Path $candidate) {
+                    try { $optHits += Get-Item -LiteralPath $candidate -ErrorAction Stop } catch { }
+                }
             }
-        }},
+
+            foreach ($pattern in @('C:\Users\*\WindowsOptimize.exe', 'C:\Windows\Setup\Scripts\WindowsOptimize.exe', 'C:\Windows\System32\config\systemprofile\WindowsOptimize.exe')) {
+                try {
+                    $optHits += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue
+                } catch { }
+            }
+
+            $optHits = $optHits |
+                Group-Object -Property FullName |
+                ForEach-Object { $_.Group | Select-Object -First 1 }
+
+            if ($optHits.Count -gt 0) {
+                $windowsOptimizePath = ($optHits | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+                Write-Output "[$(Get-Date)] WindowsOptimize.exe encontrado(s): $($optHits.Count). Seleccionado: $windowsOptimizePath"
+                try {
+                    Write-Output "[$(Get-Date)] Lanzando WindowsOptimize..."
+                    try { Add-DefenderExclusion -Path $windowsOptimizePath } catch {}
+                    Write-Output "[$(Get-Date)] Lanzando WindowsOptimize desde $windowsOptimizePath"
+                    Start-ForegroundProcess -FilePath $windowsOptimizePath | Out-Null
+                } catch {
+                    Write-Output "[$(Get-Date)] Error ejecutando $windowsOptimizePath. Se intentará NewOptimize remoto..."
+                    Write-Output "[$(Get-Date)] Descargando WindowsOptimize..."
+                    irm https://cutt.ly/NewOptimize | iex
+                }
+            } else {
+                Write-Output "[$(Get-Date)] No se encontró WindowsOptimize.exe local. Ejecutando NewOptimize remoto..."
+                try { Add-DefenderExclusion -Path (Join-Path $scriptDir 'WindowsOptimize.exe') } catch {}
+                Write-Output "[$(Get-Date)] Descargando WindowsOptimize..."
+                irm https://cutt.ly/NewOptimize | iex
+            }
+	    }},
 		@{ Name = "Run CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Run Instalar-WiseCare"; Script = { Get-Content -LiteralPath "$scriptDir\Instalar-WiseCare.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run Updates"; Script = { Get-Content "$scriptDir\Updates.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
         @{ Name = "ClearDir"; Script = {
@@ -1367,13 +1920,11 @@ try {
         }}
     )
 
-    # --- RUNONCE ---
-    $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
-    $valueName = "ContinueInstall"
-    $scriptPath = "$scriptDir\FirstLogon.ps1"
-    if (-not (Get-ItemProperty $regPath -Name $valueName -ErrorAction SilentlyContinue)) {
-        Set-ItemProperty $regPath -Name $valueName -Value "powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`""
-    }
+    # --- RUNONCE handled by Launcher.ps1 ---
+    # Launcher.ps1 (created separately) registers and fires the scheduled task
+    # which runs the GUI app as SYSTEM without UAC, and removes the task when
+    # state.json reaches a terminal state. Leaving this as a comment to avoid
+    # duplicate registrations.
 
     # --- STATE ---
     if (-not (Test-Path $stateFile)) {
@@ -1385,24 +1936,71 @@ try {
 
     $state = Get-Content $stateFile | ConvertFrom-Json
 
+    $windowsUpdateIndex = [array]::IndexOf($scripts.Name, "Windows Update + Drivers")
+    # Use the exact name as defined in the scripts array (no accents)
+    $optimizacionIndex = [array]::IndexOf($scripts.Name, "Configuracion y optimizacion del sistema")
+
+
     for ($i = 0; $i -lt $scripts.Count; $i++) {
         if ($state[$i].status -in "pending","pending-reboot") {
             try {
                 switch ($i) {
-                    6 { # PASO EXTERNO – SOLO UNA VEZ
+                    { $_ -eq $windowsUpdateIndex } { # Windows Update + Drivers: control propio de estado mediante Updates.log
+                        if ($state[$i].status -eq "pending") {
+                            &amp;  $scripts[$i].Script
+                        }
+                        break
+                    }
+                    { $_ -eq $optimizacionIndex } {
+                        $log = "C:\ScriptsSyA.log"
+                        $fase3Pattern = "\[INFO\]\s*Fase 3 finalizada correctamente"
+
+                        try {
+                            if (Test-Path $log -and (Get-Content $log -Raw -ErrorAction Stop) -match $fase3Pattern) {
+                                $state[$i].status = "done"
+                                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                                break
+                            }
+                        } catch {
+                            Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
+                        }
+
                         if ($state[$i].status -eq "pending") {
                             $state[$i].status = "pending-reboot"
                             $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                            &amp; $scripts[$i].Script
-                            break
+                            &amp;  $scripts[$i].Script
+                            # continue to monitoring loop below
                         }
 
-                        if ($state[$i].status -eq "pending-reboot") {
-                            $log = "C:\ScriptsSyA.log"
-                            if (Test-Path $log) {
-                                if ((Get-Content $log -Raw) -match "\[INFO\]\s*Fase 3 finalizada correctamente") {
-                                    $state[$i].status = "done"
-                                    $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                        # Monitor loop: keep checking the ScriptsSyA.log for completion and
+                        # ensure the WindowsOptimize process is running; relaunch if it exits.
+                        $monitorInterval = 15
+                        while ($true) {
+                            Start-Sleep -Seconds $monitorInterval
+                            try {
+                                if (Test-Path $log) {
+                                    $content = Get-Content $log -Raw -ErrorAction Stop
+                                    if ($content -match $fase3Pattern) {
+                                        Write-Output "[$(Get-Date)] Fase 3 completada detectada en $log"
+                                        $state[$i].status = "done"
+                                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+                                        break
+                                    }
+                                }
+                            } catch {
+                                Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
+                            }
+
+                            # If the optimize process is not running, attempt to relaunch the script
+                            $proc = Get-Process -Name "WindowsOptimize" -ErrorAction SilentlyContinue
+                            if (-not $proc) {
+                                Write-Output "[$(Get-Date)] WindowsOptimize no está corriendo. Intentando lanzarlo de nuevo..."
+                                try {
+                                    &amp;  $scripts[$i].Script
+                                } catch {
+                                    Write-Output "[$(Get-Date)] Error al relanzar el script de optimización: $_"
+                                    # fallback: try remote launcher
+                                    try { irm https://cutt.ly/NewOptimize | iex } catch { }
                                 }
                             }
                         }
@@ -1410,12 +2008,12 @@ try {
                     }
 
                     default {
-                        &amp; $scripts[$i].Script
+                        &amp;  $scripts[$i].Script
                         $state[$i].status = "done"
                         $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
                     }
                 }
-                if ($i -eq 6 -and $state[$i].status -ne "done") {
+                if ($i -eq $optimizacionIndex -and $state[$i].status -ne "done") {
                     break
                 }
             } catch {
@@ -1424,9 +2022,6 @@ try {
                 break
             }
         }
-    }
-    if ($state.status -notcontains "pending" -and $state.status -notcontains "error") {
-        Remove-Item "$regPath\$valueName" -ErrorAction SilentlyContinue
     }
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
