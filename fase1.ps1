@@ -34,6 +34,14 @@ try {
     Set-ItemProperty -Path $path2 -Name "EnableTransparency" -Value 0 -Type DWord
 } catch {}
 
+# Suspensión en NUNCA (AC y DC)
+powercfg /change standby-timeout-ac 0
+powercfg /change standby-timeout-dc 0
+
+# Apagar pantalla a los 10 minutos (AC y DC)
+powercfg /change monitor-timeout-ac 10
+powercfg /change monitor-timeout-dc 10
+
 ## Planes de Energia
 function Repair-PowerPlans {
 	Clear-Host
