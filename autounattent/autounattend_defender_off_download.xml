@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&ComputerNameMode=Random&CompactOsMode=Always&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=Hidden&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Label&TaskbarIconsMode=Custom&TaskbarIconsXml=%3CLayoutModificationTemplate+xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22+xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22+xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22+xmlns%3Ataskbar%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FTaskbarLayout%22+Version%3D%221%22%3E%0D%0A++%3CCustomTaskbarLayoutCollection+PinListPlacement%3D%22Replace%22%3E%0D%0A++++%3Cdefaultlayout%3ATaskbarLayout%3E%0D%0A++++++%3Ctaskbar%3ATaskbarPinList%3E%0D%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CMicrosoft+Edge.lnk%22+%2F%3E%0D%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CFile+Explorer.lnk%22+%2F%3E%0D%0A++++++%3C%2Ftaskbar%3ATaskbarPinList%3E%0D%0A++++%3C%2Fdefaultlayout%3ATaskbarLayout%3E%0D%0A++%3C%2FCustomTaskbarLayoutCollection%3E%0D%0A%3C%2FLayoutModificationTemplate%3E&DisableWidgets=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Custom&StartPinsJson=%7B%0D%0A++%22pinnedList%22%3A+%5B%0D%0A++++%7B%0D%0A++++++%22desktopAppLink%22%3A+%22%25ALLUSERSPROFILE%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CMicrosoft+Edge.lnk%22%0D%0A++++%7D%2C%0D%0A++++%7B%0D%0A++++++%22desktopAppLink%22%3A+%22%25APPDATA%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CFile+Explorer.lnk%22%0D%0A++++%7D%0D%0A++%5D%0D%0A%7D&DisableFastStartup=true&EnableLongPaths=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&DisablePointerPrecision=true&DeleteWindowsOld=true&EffectsMode=Default&DesktopIconsMode=Custom&IconControlPanel=true&IconRecycleBin=true&StartFoldersMode=Custom&StartFolderFileExplorer=true&StartFolderNetwork=true&StartFolderSettings=true&WifiMode=Interactive&ExpressSettings=DisableAll&LockKeysMode=Skip&StickyKeysMode=Default&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%230078d4&WallpaperMode=Default&LockScreenMode=Default&Remove3DViewer=true&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveClock=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGameAssist=true&RemoveGetHelp=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePhotos=true&RemovePowerAutomate=true&RemoveRecall=true&RemoveSkype=true&RemoveSolitaire=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&WdacMode=Skip-->
+	<!-- Windows Unattend SyA | By Mggons93 Rev: 7.0-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -1627,6 +1627,81 @@ while ($true) {
     Start-Sleep -Seconds 15
 }
 		</File>
+		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
+# Script: detectar volumen donde está Windows y aplicar regla CompactOS
+try {
+    # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
+    $winPath = (Get-Item $env:SystemRoot).FullName
+    $root = [System.IO.Path]::GetPathRoot($winPath)
+
+    # Intento 1: usar .NET DriveInfo
+    try {
+        $drive = New-Object System.IO.DriveInfo($root)
+        if (-not $drive.IsReady) { throw "Drive not ready" }
+        $totalBytes = $drive.TotalSize
+    }
+    catch {
+        # Fallback: resolver ruta física del hive SYSTEM y extraer HarddiskN
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class PR {
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    public static extern uint GetFinalPathNameByHandle(IntPtr hFile, StringBuilder lpszFilePath, uint cchFilePath, uint dwFlags);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+}
+"@ -ErrorAction SilentlyContinue
+
+        $systemHive = Join-Path $env:SystemRoot "System32\config\SYSTEM"
+        if (-not (Test-Path $systemHive)) { throw "No SYSTEM hive found" }
+
+        $FILE_READ_ATTRIBUTES = [uint32]0x80
+        $SHARE = [uint32]($([uint32]1) -bor $([uint32]2) -bor $([uint32]4))
+        $OPEN_EXISTING = [uint32]3
+        $BACKUP = [uint32]0x02000000
+
+        $h = [PR]::CreateFile($systemHive, $FILE_READ_ATTRIBUTES, $SHARE, [IntPtr]::Zero, $OPEN_EXISTING, $BACKUP, [IntPtr]::Zero)
+        if ($h -eq [IntPtr]::Zero -or $h.ToInt64() -eq -1) { throw "CreateFile failed (sharing or privileges)" }
+
+        $sb = New-Object System.Text.StringBuilder 1024
+        $res = [PR]::GetFinalPathNameByHandle($h, $sb, [uint32]$sb.Capacity, 0)
+        [PR]::CloseHandle($h) | Out-Null
+        if ($res -eq 0) { throw "GetFinalPathNameByHandle failed" }
+
+        $phys = $sb.ToString()
+        if ($phys -match "Harddisk(\d+)\\Partition") {
+            $diskNumber = [int]$matches[1]
+            # intentar Get-Disk por número (puede fallar en algunos contextos)
+            $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
+            if ($disk) { $totalBytes = $disk.Size } else { throw "No se pudo mapear disco físico" }
+        }
+        else { throw "No se pudo extraer HarddiskN" }
+    }
+
+    # Convertir a GB y aplicar lógica
+    $sizeGB = [math]::Round($totalBytes / 1GB)
+    Write-Host "Volumen raíz: $root  —  Tamaño total: $sizeGB GB"
+
+    if ($sizeGB -le 64) {
+        Write-Host "El disco es menor o igual a 64GB. CompactOS NO se modifica."
+    }
+    elseif ($sizeGB -ge 100) {
+        Write-Host "El disco es mayor o igual a 100GB. CompactOS sera DESACTIVADO..."
+        compact.exe /compactos:never
+    }
+    else {
+        Write-Host "El disco esta entre 65GB y 99GB. No se realiza ninguna accion."
+    }
+}
+catch {
+    Write-Host "Error: $($_.Exception.Message)"
+    exit 1
+}
+		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
  # --- ELEVAR A ADMINISTRADOR PRIMERO ---
@@ -1913,6 +1988,7 @@ while ($true) {
 	    }},
 		@{ Name = "Run CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Run OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Modulo CompactOS"; Script = { Get-Content "$scriptDir\CompactOS.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
         @{ Name = "ClearDir"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
