@@ -368,7 +368,7 @@ function Install-RustDesk {
     }
 
     Write-Host "RustDesk no está instalado. Procediendo a instalar (GitHub release preferida)..."
-    Set-InstallPercent -Percent 27
+    #Set-InstallPercent -Percent 27
 
     try {
         $apiUrl = "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
@@ -518,16 +518,6 @@ Install-VLC
 function Install-AllVCRedistx32 {
 
 # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
-
-#function Install-TranslucentTB {
-#	Write-Host "Actualizando TranslucentTB"
-#	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
-
-#function Install-SeelenUI {
-#	Write-Host "Actualizando Seelen.SeelenUI"
-#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
@@ -793,11 +783,11 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Start-Sleep 3
     # Instalar Nitro PDF
     Set-InstallPercent -Percent 89
-    Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
+    #Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
     Start-Sleep 3
     
     Write-Host "Activando Nitro PDF 14 Pro"
-    Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
+    #Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
     Set-InstallPercent -Percent 91
 	Start-Sleep 5
 }
