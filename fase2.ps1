@@ -645,7 +645,7 @@ Write-Host "Algunos cambios podrían requerir un reinicio manual para aplicarse 
 
 #########################################################################################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "https://syasoporteglobal.online/files/server.txt"
+$primaryServer = "http://syasoporteglobal.online/files/server.txt"
 $secondaryServer = "http://190.165.72.48/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
@@ -753,8 +753,8 @@ if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction Si
     Set-InstallPercent -Percent 65
     # URL del archivo a descargar
     Write-Host "Descargando Nitro 14 Pro"
-    $nitroUrl = "https://$fileContent/files/nitro_pro14_x64.msi"
-    $patchUrl = "https://$fileContent/files/Patch.exe"
+    $nitroUrl = "http://$fileContent/files/nitro_pro14_x64.msi"
+    $patchUrl = "http://$fileContent/files/Patch.exe"
 
     # Descargar Nitro PDF 14 Pro
     try {
