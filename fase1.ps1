@@ -276,7 +276,7 @@ Write-Output "5% Completado"
 Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "https://syasoporteglobal.online/files/server.txt"
+$primaryServer = "http://syasoporteglobal.online/files/server.txt"
 $secondaryServer = "http://181.57.227.194/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
@@ -332,7 +332,7 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Descargando en segundo plano Archivos de instalación OEM"
 	
     # URL del archivo a descargar
-    $oemUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OEM.exe"
+    $oemUrl = "http://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OEM.exe"
     $outputPath = "C:\OEM.exe"
 
     # Descargar el archivo OEM
@@ -648,7 +648,7 @@ Write-Output "9% Completado"
 	Write-Output "11% Completado"
 	start-sleep 2
     # URL del archivo a descargar
-    $ecmExeUrl = "https://$fileContent/files/ECM.exe"
+    $ecmExeUrl = "http://$fileContent/files/ECM.exe"
     $ecmRegUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
     $outputExePath = "$env:TEMP\ECM.exe"
     $outputRegPath = "$env:TEMP\ECM.reg"
