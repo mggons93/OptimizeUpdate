@@ -276,8 +276,8 @@ Write-Output "5% Completado"
 Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "http://syasoporteglobal.online/files/server.txt"
-$secondaryServer = "http://181.57.227.194/files/server.txt"
+$primaryServer = "https://syasoporteglobal.online/files/server.txt"
+$secondaryServer = "http://syasoporteglobal.online/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
 # Función para verificar el estado del servidor
@@ -332,7 +332,7 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Descargando en segundo plano Archivos de instalación OEM"
 	
     # URL del archivo a descargar
-    $oemUrl = "http://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OEM.exe"
+    $oemUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OEM.exe"
     $outputPath = "C:\OEM.exe"
 
     # Descargar el archivo OEM
@@ -635,43 +635,66 @@ Write-Host "Proceso completo finalizado."
 ############################
 Write-Output "9% Completado"
 ############################
+if (Get-Command "C:\Program Files\Easy Context Menu\EcMenu.exe" -ErrorAction SilentlyContinue) {
+    # Easy Context Menu esta instalado
+    Write-Host "Easy Context Menu ya esta instalado. Omitiendo."
+    Write-Output "10% Completado"
+    Write-Host "---------------------------------"
+    Start-Sleep 2
+}
+else {
+    Write-Host "---------------------------------"
+    Write-Host "Descargando en segundo plano Archivos de instalación ECM"
+    Write-Output "11% Completado"
+    Start-Sleep 2
 
-    if (Get-Command "C:\Program Files\Easy Context Menu\EcMenu.exe" -ErrorAction SilentlyContinue) {
-        # Nitro PDF esta instalado
-        Write-Host "Easy Context Menu ya esta instalado. Omitiendo."
-	Write-Output "10% Completado"
-        Write-Host "---------------------------------"
-        start-sleep 2
-    } else {    
-        Write-Host "---------------------------------"
-        Write-Host "Descargando en segundo plano Archivos de instalación ECM"
-	Write-Output "11% Completado"
-	start-sleep 2
-    # URL del archivo a descargar
-    $ecmExeUrl = "http://$fileContent/files/ECM.exe"
-    $ecmRegUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
+    # URLs de descarga
+    $ecmExeUrlOriginal = "https://$fileContent/files/ECM.exe"
+    $ecmExeUrlFallback = "http://$fileContent/files/ECM.exe"
+
+    $ecmRegUrlOriginal = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
+    $ecmRegUrlFallback = "http://$fileContent/files/ECM.reg"
+
     $outputExePath = "$env:TEMP\ECM.exe"
     $outputRegPath = "$env:TEMP\ECM.reg"
 
     # Descargar ECM.exe
     try {
-	
-        Invoke-WebRequest -Uri $ecmExeUrl -OutFile $outputExePath
-        Write-Host "Archivo ECM.exe descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar ECM.exe: $_"
-        exit 1
+        Invoke-WebRequest -Uri $ecmExeUrlOriginal -OutFile $outputExePath -ErrorAction Stop
+        Write-Host "Archivo ECM.exe descargado desde el servidor principal."
     }
+    catch {
+        Write-Host "No se pudo descargar ECM.exe desde HTTPS. Intentando servidor fallback..."
+
+        try {
+            Invoke-WebRequest -Uri $ecmExeUrlFallback -OutFile $outputExePath -ErrorAction Stop
+            Write-Host "Archivo ECM.exe descargado desde el servidor fallback."
+        }
+        catch {
+            Write-Host "Error al descargar ECM.exe desde ambos servidores."
+            exit 1
+        }
+    }
+
     Start-Sleep 2
     Write-Output "12% Completado"
+
     # Descargar ECM.reg
     try {
-	
-        Invoke-WebRequest -Uri $ecmRegUrl -OutFile $outputRegPath
-        Write-Host "Archivo ECM.reg descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar ECM.reg: $_"
-        exit 1
+        Invoke-WebRequest -Uri $ecmRegUrlOriginal -OutFile $outputRegPath -ErrorAction Stop
+        Write-Host "Archivo ECM.reg descargado desde GitHub."
+    }
+    catch {
+        Write-Host "No se pudo descargar ECM.reg desde GitHub. Intentando servidor fallback..."
+
+        try {
+            Invoke-WebRequest -Uri $ecmRegUrlFallback -OutFile $outputRegPath -ErrorAction Stop
+            Write-Host "Archivo ECM.reg descargado desde el servidor fallback."
+        }
+        catch {
+            Write-Host "Error al descargar ECM.reg desde ambos servidores."
+            exit 1
+        }
     }
 
     Write-Host "Expandiendo archivos ECM a Archivos de Programa"
@@ -680,10 +703,11 @@ Write-Output "9% Completado"
     Start-Process -FilePath $outputExePath -ArgumentList "/s" -Wait
 
     # Ejecutar el archivo .reg para aplicar cambios en el registro
-    Start-Process "regedit.exe" -ArgumentList "/s $outputRegPath" -Wait
+    Start-Process "regedit.exe" -ArgumentList "/s `"$outputRegPath`"" -Wait
 
     # Establecer atributos de la carpeta como ocultos
     Set-ItemProperty -Path "C:\Program Files\Easy Context Menu" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
+
     Write-Host "Aplicando cambios"
     Start-Sleep 5
 
@@ -692,7 +716,7 @@ Write-Output "9% Completado"
     Remove-Item -Path $outputRegPath -Force
 
     Write-Host "---------------------------------"
-    }
+}
 start-sleep 5
 #############################
 Write-Output "13% Completado"
