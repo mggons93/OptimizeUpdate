@@ -1944,6 +1944,108 @@ catch {
     exit 1
 }
 		</File>
+		<File path="C:\Windows\Setup\Scripts\Rustdesk_Download.ps1">
+# ============================================================
+# RustDesk - Descargar e instalar la última versión x86_64
+# ============================================================
+$ErrorActionPreference = "Stop"
+$Repo = "rustdesk/rustdesk"
+$ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "       ACTUALIZADOR DE RUSTDESK x64" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host ""
+# ------------------------------------------------------------
+# 1. Consultar última versión estable
+# ------------------------------------------------------------
+Write-Host "[1/4] Consultando última versión de RustDesk..." -ForegroundColor Yellow
+$Headers = @{
+    "User-Agent" = "PowerShell-RustDesk-Updater"
+    "Accept"     = "application/vnd.github+json"
+}
+$Release = Invoke-RestMethod `
+    -Uri $ApiUrl `
+    -Headers $Headers `
+    -Method Get
+$Version = $Release.tag_name
+Write-Host "Última versión encontrada: $Version" -ForegroundColor Green
+# ------------------------------------------------------------
+# 2. Buscar MSI x86_64
+# ------------------------------------------------------------
+Write-Host ""
+Write-Host "[2/4] Buscando instalador MSI x86_64..." -ForegroundColor Yellow
+$MsiAsset = $Release.assets |
+    Where-Object {
+        $_.name -match '\.msi$' -and
+        $_.name -match '(x86_64|x64|amd64)'
+    } |
+    Select-Object -First 1
+if (-not $MsiAsset) {
+    Write-Host "No se encontró un MSI x86_64 en el release $Version." -ForegroundColor Red
+    exit 1
+}
+$DownloadUrl = $MsiAsset.browser_download_url
+$FileName = $MsiAsset.name
+$TempFile = Join-Path $env:TEMP $FileName
+Write-Host "Archivo: $FileName" -ForegroundColor Green
+Write-Host "URL: $DownloadUrl" -ForegroundColor DarkGray
+# ------------------------------------------------------------
+# 3. Descargar
+# ------------------------------------------------------------
+Write-Host ""
+Write-Host "[3/4] Descargando RustDesk..." -ForegroundColor Yellow
+if (Test-Path $TempFile) {
+    Remove-Item $TempFile -Force
+}
+Invoke-WebRequest `
+    -Uri $DownloadUrl `
+    -Headers $Headers `
+    -OutFile $TempFile
+if (-not (Test-Path $TempFile)) {
+    Write-Host "La descarga falló." -ForegroundColor Red
+    exit 1
+}
+$FileSize = (Get-Item $TempFile).Length
+if ($FileSize -lt 1MB) {
+    Write-Host "El archivo descargado parece inválido." -ForegroundColor Red
+    Remove-Item $TempFile -Force
+    exit 1
+}
+Write-Host "Descarga completada." -ForegroundColor Green
+Write-Host "Tamaño: $([math]::Round($FileSize / 1MB, 2)) MB"
+# ------------------------------------------------------------
+# 4. Ejecutar MSI
+# ------------------------------------------------------------
+Write-Host ""
+Write-Host "[4/4] Ejecutando instalador..." -ForegroundColor Yellow
+Write-Host ""
+$Arguments = "/i `"$TempFile`""
+$Process = Start-Process `
+    -FilePath "msiexec.exe" `
+    -ArgumentList $Arguments `
+    -Wait `
+    -PassThru
+Write-Host ""
+if ($Process.ExitCode -eq 0) {
+    Write-Host "============================================" -ForegroundColor Green
+    Write-Host " RustDesk $Version instalado correctamente" -ForegroundColor Green
+    Write-Host "============================================" -ForegroundColor Green
+}
+elseif ($Process.ExitCode -eq 3010) {
+    Write-Host "============================================" -ForegroundColor Yellow
+    Write-Host "Instalación correcta. Es necesario reiniciar." -ForegroundColor Yellow
+    Write-Host "============================================" -ForegroundColor Yellow
+}
+else {
+    Write-Host "============================================" -ForegroundColor Red
+    Write-Host "La instalación terminó con código: $($Process.ExitCode)" -ForegroundColor Red
+    Write-Host "============================================" -ForegroundColor Red
+}
+# ------------------------------------------------------------
+# Limpieza
+# ------------------------------------------------------------
+Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
  # --- ELEVAR A ADMINISTRADOR PRIMERO ---
@@ -2046,7 +2148,7 @@ catch {
 
     $scripts = @(
         @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-		@{ Name = "ChangePC-ID"; Script = {
+		@{ Name = "Cambiando ID Equipo"; Script = {
 			$equipoLog = "$scriptDir\Equipo.log"
 			if (Test-Path $equipoLog) {
 				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecuci?n de ChangePC-ID.ps1."
@@ -2059,10 +2161,11 @@ catch {
 			Start-Sleep -Seconds 2
 			Restart-Computer -Force
 		} },
-        ## @{ Name = "Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Unattend-02"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Setup-final"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Windows Update + Drivers"; Script = {
+        ##@{ Name = "Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Verificando Desatendido"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Configurando Sistema"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Instalando Actualizaciones"; Script = {
             $updateGuiPath = Join-Path $scriptDir 'UpdateGUI.ps1'
             $updateGuiExePath = $null
             $exeHits = @()
@@ -2182,7 +2285,7 @@ catch {
                 $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
             }
         }},
-        @{ Name = "Configuracion y optimizacion del sistema"; Script = {
+        @{ Name = "Optimizando Sistema"; Script = {
             $windowsOptimizePath = $null
             $optHits = @()
 
@@ -2228,11 +2331,11 @@ catch {
                 irm https://cutt.ly/NewOptimize | iex
             }
 	    }},
-		@{ Name = "Run CursorVista"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Run OfficeInstaller"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Cambiando Cursor"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Instalando Office 365"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
 		## @{ Name = "Modulo CompactOS"; Script = { Get-Content "$scriptDir\CompactOS.ps1" -Raw | Invoke-Expression } },
         ## @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "ClearDir"; Script = {
+        @{ Name = "Finalizado"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
         }}
