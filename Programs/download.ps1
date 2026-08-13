@@ -23,7 +23,7 @@ if (-not (Test-Path $scriptDir)) {
     New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
 }
 
-$officeUrl = "https://raw.githubusercontent.com/mggons93/Office-Online-Installer/refs/heads/main/OfficeExecutableInstaller.ps1"
+$officeUrl = "https://raw.githubusercontent.com/mggons93/Office-Online-Installer/refs/heads/main/OfficeAutoInstall.ps1"
 $officeExe = "$scriptDir\OfficeInstaller.ps1"
 
 try {
