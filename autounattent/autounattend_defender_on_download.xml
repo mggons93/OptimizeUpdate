@@ -2309,9 +2309,9 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
 
     $state = Get-Content $stateFile | ConvertFrom-Json
 
-    $windowsUpdateIndex = [array]::IndexOf($scripts.Name, "Windows Update + Drivers")
+    $windowsUpdateIndex = [array]::IndexOf($scripts.Name, "Instalando Actualizaciones")
     # Use the exact name as defined in the scripts array (no accents)
-    $optimizacionIndex = [array]::IndexOf($scripts.Name, "Configuracion y optimizacion del sistema")
+    $optimizacionIndex = [array]::IndexOf($scripts.Name, "Optimizando Sistema")
 
 
     for ($i = 0; $i -lt $scripts.Count; $i++) {
