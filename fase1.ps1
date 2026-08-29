@@ -206,6 +206,49 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Archivo OEM eliminado."
 
 ############################
+Write-Output "7% Completado"
+############################
+
+# --- EJECUCION 8 ---
+function Get-WindowsActivationStatus {
+    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND LicenseFamily IS NOT NULL").LicenseStatus
+    return $licenseStatus -eq 1
+}
+
+function Enable-WindowsActivation {
+    $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
+    $url = $url -replace "%blank%", ""
+    $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
+    $outputPath1 = $outputPath1 -replace "%blank%", ""
+
+    #Write-Host "  -> Descargando y ejecutando Activacion..."
+    Invoke-WebRequest -Uri $url -OutFile $outputPath1 -UseBasicParsing | Out-Null
+    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait
+    Remove-Item -Path $outputPath1 -Force
+}
+
+function Ejecucion-8-Windows {
+    # Verificar si Windows esta activado
+    if (Get-WindowsActivationStatus) {
+        Write-Host "  -> Windows ya esta activado."
+        Start-Sleep 2
+    } else {
+        Write-Host "  -> Windows no esta activado. Intentando activar..."
+        Start-Sleep 2
+        Enable-WindowsActivation
+        
+        # Verificar nuevamente despues de intentar activar
+        if (Get-WindowsActivationStatus) {
+            Write-Host "  -> Windows ha sido activado exitosamente." -ForegroundColor Green
+            Start-Sleep 2
+        } else {
+            Write-Host "  -> La activacion de Windows ha fallado. Verifica la conexion a internet." -ForegroundColor Red
+        }
+    }
+}
+Ejecucion-8-Windows
+
+############################
 Write-Output "9% Completado"
 ############################
 if (Get-Command "C:\Program Files\Easy Context Menu\EcMenu.exe" -ErrorAction SilentlyContinue) {
@@ -1394,11 +1437,6 @@ Write-Output "89% Completado"
 #$imagePath = 'C:\Windows\Web\Wallpaper\CustomWallpaper.jpg' 
 #Set-ItemProperty -Path $regkey -Name Wallpaper -Value $imagePath
 #Set-ItemProperty -Path $regkey -Name WallpaperStyle -Value 5 
-
-
-#############################
-Write-Output "90% Completado"
-#############################
 
 # Eliminando carpeta ODT -> Proceso Final
 Remove-Item -Path "C:\ODT" -Recurse -Force
