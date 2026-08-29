@@ -1896,7 +1896,7 @@ Write-Host "Tamaño: $([math]::Round($FileSize / 1MB, 2)) MB"
 Write-Host ""
 Write-Host "[4/4] Ejecutando instalador..." -ForegroundColor Yellow
 Write-Host ""
-$Arguments = "/Passive `"$TempFile`""
+$Arguments = "/i /Passive `"$TempFile`""
 $Process = Start-Process `
     -FilePath "msiexec.exe" `
     -ArgumentList $Arguments `
