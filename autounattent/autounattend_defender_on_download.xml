@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!-- Windows Unattend SyA | By Mggons93 Rev: 7.2-->
+	<!-- Windows Unattend SyA | By Mggons93 Rev: 7.1-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -1896,7 +1896,7 @@ Write-Host "Tamaño: $([math]::Round($FileSize / 1MB, 2)) MB"
 Write-Host ""
 Write-Host "[4/4] Ejecutando instalador..." -ForegroundColor Yellow
 Write-Host ""
-$Arguments = "/passive `"$TempFile`""
+$Arguments = "/Passive `"$TempFile`""
 $Process = Start-Process `
     -FilePath "msiexec.exe" `
     -ArgumentList $Arguments `
@@ -1922,6 +1922,254 @@ else {
 # Limpieza
 # ------------------------------------------------------------
 Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+		</File>
+		<File path="C:\Windows\Setup\Scripts\InstallWinget.ps1">
+# ==========================================================
+# STORE + WINGET INSTALLER TODO EN UNO
+# Orden:
+#   1) Microsoft Store (solo LTSC/IoT)
+#   2) VCLibs
+#   3) Windows App Runtime
+#   4) Winget (Última versión desde GitHub)
+# ==========================================================
+
+# TLS 1.2 obligatorio
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$BasePath = "$env:TEMP\WingetFullInstall"
+New-Item $BasePath -ItemType Directory -Force | Out-Null
+
+# ==========================================================
+# FUNCION → VALIDAR SI COMPONENTE APPX EXISTE
+# ==========================================================
+function Test-AppxPackageInstalled {
+    param(
+        [string]$PackageName
+    )
+    return $null -ne (Get-AppxPackage -AllUsers $PackageName -ErrorAction SilentlyContinue)
+}
+
+# ==========================================================
+# FUNCION → INSTALAR MICROSOFT STORE (LTSC / IoT)
+# ==========================================================
+function Install-StoreIfNeeded {
+
+    $OfflineFolder = "$PSScriptRoot\StoreOffline"
+    $TempDir       = "$BasePath\StorePack"
+    $ZipFile       = "$BasePath\store_pack.zip"
+    $CmdName       = "Add-Store.cmd"
+
+    $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    $edition = $cv.EditionID
+
+    $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
+
+    Write-Host "Edición detectada: $edition"
+
+    if (-not $esLTSC) {
+        Write-Host "No es LTSC/IoT → se omite instalación de Store"
+        return
+    }
+
+    if (Test-AppxPackageInstalled "Microsoft.WindowsStore") {
+        Write-Host "Microsoft Store ya instalada → se omite"
+        return
+    }
+
+    Write-Host "Instalando Microsoft Store..."
+
+    Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item $TempDir -ItemType Directory | Out-Null
+    
+    # ===============================
+    # OFFLINE primero
+    # ===============================
+    if (Test-Path $OfflineFolder) {
+        Write-Host "Modo OFFLINE detectado"
+        Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
+    }
+    else {
+        Write-Host "Descargando última versión de la Store desde GitHub..."
+
+        try {
+            $latest = Invoke-RestMethod `
+                "https://api.github.com/repos/mggons93/LTSC_STORE/releases/latest" `
+                -ErrorAction Stop
+
+            $StoreZipURL = $latest.zipball_url
+
+            Write-Host "Versión: $($latest.tag_name)"
+
+            Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing -ErrorAction Stop
+            Expand-Archive $ZipFile -DestinationPath $TempDir -Force
+        }
+        catch {
+            Write-Host "ERROR descargando Microsoft Store → se omite"
+            Write-Host $_.Exception.Message
+            return
+        }
+    }
+    
+    # ===============================
+    # Ejecutar Add-Store.cmd
+    # ===============================
+    $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName |
+               Select-Object -First 1 -ExpandProperty FullName
+
+    if ($cmdPath) {
+        Start-Process $cmdPath -Verb RunAs -Wait
+    }
+    else {
+        Write-Host "No se encontró Add-Store.cmd"
+    }
+}
+
+# ==========================================================
+# FUNCION → INSTALAR WINGET CON VALIDACIONES
+# ==========================================================
+function Install-Winget {
+
+    Write-Host "Verificando componentes de Winget..."
+
+    $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
+    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
+    
+    $VCLibsPath = "$BasePath\VCLibs.appx"
+    $XamlPath   = "$BasePath\UI.Xaml.appx"
+    $RuntimeExe = "$BasePath\Runtime.exe"
+    $WingetPath = "$BasePath\Winget.msixbundle"
+
+    # ===============================
+    # OBTENER ÚLTIMA VERSIÓN DE WINGET DESDE GITHUB
+    # ===============================
+    Write-Host "Consultando la última versión de Winget en GitHub..."
+    try {
+        $githubRelease = Invoke-RestMethod "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -ErrorAction Stop
+        $WingetUrl = ($githubRelease.assets | Where-Object { $_.name -match "\.msixbundle$" }).browser_download_url | Select-Object -First 1
+        
+        if (-not $WingetUrl) {
+            throw "No se encontró un archivo .msixbundle en la última versión."
+        }
+        Write-Host "Última versión encontrada: $($githubRelease.tag_name)"
+    } catch {
+        Write-Host "Error obteniendo la URL de Winget desde GitHub:"
+        Write-Host $_.Exception.Message
+        return
+    }
+
+    # ===============================
+    # VERIFICAR SI WINGET YA EXISTE
+    # ===============================
+    $WingetExists = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
+    
+    if ($WingetExists) {
+        Write-Host "Winget ya instalado"
+        Write-Host "Versión actual:"
+        winget --version
+        
+        Write-Host "Descargando actualización de Winget ($($githubRelease.tag_name))..."
+        try {
+            Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Actualizando Winget..."
+            Add-AppxPackage $WingetPath
+            Write-Host "Winget actualizado"
+            winget --version
+        }
+        catch {
+            Write-Host "Error actualizando Winget:"
+            Write-Host $_.Exception.Message
+        }
+        return
+    }
+
+    # ===============================
+    # INSTALAR COMPONENTES FALTANTES
+    # ===============================
+    Write-Host "Winget no detectado → Instalando componentes necesarios..."
+
+    try {
+        # VCLibs
+        if (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop") {
+            Write-Host "VCLibs ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando VCLibs..."
+            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando VCLibs..."
+            Add-AppxPackage $VCLibsPath
+            Write-Host "VCLibs instalado"
+        }
+
+        # UI.Xaml
+        if (Test-AppxPackageInstalled "Microsoft.UI.Xaml") {
+            Write-Host "Microsoft.UI.Xaml ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando UI.Xaml..."
+            Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando UI.Xaml..."
+            Add-AppxPackage $XamlPath
+            Write-Host "UI.Xaml instalado"
+        }
+        
+        Start-Sleep 2
+
+        # Windows App Runtime
+        Write-Host "Verificando Windows App Runtime..."
+        $runtimeInstalled = Get-AppxPackage -AllUsers "Microsoft.WindowsAppRuntime" -ErrorAction SilentlyContinue
+        
+        if ($runtimeInstalled) {
+            Write-Host "Windows App Runtime ya instalado → se omite descarga"
+        }
+        else {
+            Write-Host "Descargando Windows App Runtime..."
+            Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
+            Write-Host "Instalando Windows App Runtime..."
+            Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait -ErrorAction Stop
+            Write-Host "Windows App Runtime instalado"
+        }
+        
+        Start-Sleep 3
+
+        # Winget versión actualizada desde GitHub
+        Write-Host "Descargando Winget $($githubRelease.tag_name)..."
+        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+        Write-Host "Instalando Winget..."
+        Add-AppxPackage $WingetPath
+        Write-Host "Winget instalado correctamente"
+
+        Start-Sleep 2
+
+        # Verificación final
+        Write-Host "Verificando instalación..."
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget --version
+        }
+        else {
+            Write-Host "Winget no se instaló correctamente"
+        }
+    }
+    catch {
+        Write-Host "Error instalando Winget:"
+        Write-Host $_.Exception.Message
+    }
+}
+
+# ==========================================================
+# EJECUCIÓN PRINCIPAL
+# ==========================================================
+Install-StoreIfNeeded
+
+# Ejecutar Install-Winget siempre para permitir actualización, la función maneja la lógica si ya existe
+Install-Winget
+
+# ===============================
+# LIMPIEZA DE TEMPORALES
+# ===============================
+Write-Host "Limpiando archivos temporales..."
+Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "Limpieza completada"
 		</File>
 		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
 # Script: detectar volumen donde está Windows y aplicar regla CompactOS
@@ -2000,7 +2248,7 @@ catch {
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Integrity.ps1">
 ###############################################################################################
-# 1. PROCESO DE ELEVACION (Se ejecuta de inmediato al abrir el script)
+# 1. PROCESO DE ELEVACIÓN (Se ejecuta de inmediato al abrir el script)
 ###############################################################################################
 function Test-Admin {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -2016,13 +2264,22 @@ if (-not (Test-Admin)) {
     exit # Sale de esta ventana para continuar en la nueva con permisos
 }
 
+###############################################################################################
+# 2. PREPARACIÓN DEL ENTORNO
+###############################################################################################
+# TLS 1.2 obligatorio para descargas de GitHub y Microsoft
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Variables globales para Winget/Store
+$BasePath = "$env:TEMP\WingetFullInstall"
+New-Item $BasePath -ItemType Directory -Force | Out-Null
 
 ###############################################################################################
-# 2. CODIGO DE EJECUCION (Logica principal paso a paso)
+# 3. CÓDIGO DE EJECUCIÓN (Lógica principal paso a paso)
 ###############################################################################################
 function Start-Execution {
     Clear-Host
-    Write-Host "Iniciando optimizacion del sistema..." -ForegroundColor Cyan
+    Write-Host "Iniciando optimizacion del sistema y despliegue de utilidades..." -ForegroundColor Cyan
 
     Write-Host "`n[Paso 1] Aplicando exclusiones en Windows Defender..."
     Ejecucion-1-Defender
@@ -2030,24 +2287,33 @@ function Start-Execution {
     Write-Host "`n[Paso 2] Desactivando el desenfoque (Blur) en el inicio de sesion..."
     Ejecucion-2-LogonBlur
 
-    Write-Host "`n[Paso 3] Configurando opciones de energi­a (Pantalla y Suspension)..."
+    Write-Host "`n[Paso 3] Configurando opciones de energia (Pantalla y Suspension)..."
     Ejecucion-3-Energia
 
     Write-Host "`n[Paso 4] Reparando planes de energia..."
     Ejecucion-4-Planes
 
-    Write-Host "`n[Paso 5] Verificando y activando Windows 10/11..."
-    Ejecucion-5-Windows
-
-    #Write-Host "`n=================================================" -ForegroundColor Green
-    #Write-Host " Tareas finalizadas correctamente." -ForegroundColor Green
-    #Write-Host "=================================================" -ForegroundColor Green
+    Write-Host "`n[Paso 5] Configurando DNS (AdGuard + Cloudflare) y deshabilitando IPv6..."
+    Ejecucion-5-DNS
     
+    Write-Host "`n[Paso 6] Verificando e instalando Microsoft Store (LTSC/IoT)..."
+    Ejecucion-6-Store
+
+    Write-Host "`n[Paso 7] Verificando e instalando/actualizando Winget..."
+    Ejecucion-7-Winget
+
+    Write-Host "`n[Paso 8] Verificando y activando Windows 10/11..."
+    Ejecucion-8-Windows
+
+
+    Write-Host "`n[Paso 9] Limpieza de temporales..."
+    Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  -> Archivos temporales de instalacion eliminados."
+
 }
 
-
 ###############################################################################################
-# 3. CODIGO DE UNO EN UNO (Definicion de cada proceso)
+# 4. DEFINICIÓN DE CADA PROCESO (Optimizaciones y Activación)
 ###############################################################################################
 
 # --- EJECUCION 1 ---
@@ -2154,6 +2420,182 @@ function Ejecucion-4-Planes {
 }
 
 # --- EJECUCION 5 ---
+function Ejecucion-5-DNS {
+    $networkAdapters = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Disconnected' }
+
+    if (-not $networkAdapters -or $networkAdapters.Count -eq 0) {
+        Write-Host "  -> No se encontraron adaptadores de red activos. Se omite DNS/IPv6."
+        return
+    }
+
+    $dnsServers = @('94.140.14.14','94.140.15.15','1.1.1.1')
+
+    # Filtrar adaptadores LAN y Wi-Fi para configurarlos
+    $lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
+    $wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' -or $_.Name -match 'Wi-Fi' }
+    $targetAdapters = $lanAdapters + $wifiAdapters
+
+    if ($targetAdapters.Count -gt 0) {
+        foreach ($adapter in $targetAdapters) {
+            Write-Host "  -> Configurando $($adapter.Name)..."
+            try {
+                Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses $dnsServers -ErrorAction Stop
+            } catch {
+                Write-Host "     - No se pudo establecer DNS en $($adapter.Name)" -ForegroundColor Red
+            }
+
+            try {
+                Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6' -Confirm:$false -ErrorAction SilentlyContinue
+            } catch {
+                Write-Host "     - No se pudo deshabilitar IPv6 en $($adapter.Name)" -ForegroundColor Red
+            }
+        }
+        
+        ipconfig /flushdns | Out-Null
+        Write-Host "  -> Configuracion de DNS/IPv6 aplicada y cache de red liberada."
+    } else {
+        Write-Host "  -> No hay adaptadores de tipo LAN/Wi-Fi compatibles. Se omite."
+    }
+}
+
+###############################################################################################
+# 5. DEFINICIÓN DE CADA PROCESO (Microsoft Store, Winget, DNS)
+###############################################################################################
+
+function Test-AppxPackageInstalled {
+    param([string]$PackageName)
+    return $null -ne (Get-AppxPackage -AllUsers $PackageName -ErrorAction SilentlyContinue)
+}
+
+# --- EJECUCION 6 ---
+function Ejecucion-6-Store {
+    $OfflineFolder = "$PSScriptRoot\StoreOffline"
+    $TempDir       = "$BasePath\StorePack"
+    $ZipFile       = "$BasePath\store_pack.zip"
+    $CmdName       = "Add-Store.cmd"
+
+    $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    $edition = $cv.EditionID
+    $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
+
+    Write-Host "  -> Edicion detectada: $edition"
+
+    if (-not $esLTSC) {
+        Write-Host "  -> No es LTSC/IoT. Se omite instalacion de Store."
+        return
+    }
+
+    if (Test-AppxPackageInstalled "Microsoft.WindowsStore") {
+        Write-Host "  -> Microsoft Store ya esta instalada. Se omite."
+        return
+    }
+
+    Write-Host "  -> Preparando instalacion de Microsoft Store..."
+    Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item $TempDir -ItemType Directory | Out-Null
+    
+    if (Test-Path $OfflineFolder) {
+        Write-Host "  -> Modo OFFLINE detectado. Copiando archivos..."
+        Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
+    }
+    else {
+        Write-Host "  -> Descargando ultima version de la Store desde GitHub (mggons93)..."
+        try {
+            $latest = Invoke-RestMethod "https://api.github.com/repos/mggons93/LTSC_STORE/releases/latest" -ErrorAction Stop
+            Invoke-WebRequest $latest.zipball_url -OutFile $ZipFile -UseBasicParsing -ErrorAction Stop
+            Expand-Archive $ZipFile -DestinationPath $TempDir -Force
+        }
+        catch {
+            Write-Host "  -> ERROR descargando Microsoft Store. Se omite." -ForegroundColor Red
+            return
+        }
+    }
+    
+    $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName | Select-Object -First 1 -ExpandProperty FullName
+    if ($cmdPath) {
+        Write-Host "  -> Inyectando Store en el sistema..."
+        Start-Process $cmdPath -Verb RunAs -Wait
+        Write-Host "  -> Instalacion de Store completada."
+    } else {
+        Write-Host "  -> No se encontro Add-Store.cmd" -ForegroundColor Red
+    }
+}
+
+# --- EJECUCION 7 ---
+function Ejecucion-7-Winget {
+    $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
+    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
+    
+    $VCLibsPath = "$BasePath\VCLibs.appx"
+    $XamlPath   = "$BasePath\UI.Xaml.appx"
+    $RuntimeExe = "$BasePath\Runtime.exe"
+    $WingetPath = "$BasePath\Winget.msixbundle"
+
+    Write-Host "  -> Consultando la ultima version de Winget en GitHub..."
+    try {
+        $githubRelease = Invoke-RestMethod "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -ErrorAction Stop
+        $WingetUrl = ($githubRelease.assets | Where-Object { $_.name -match "\.msixbundle$" }).browser_download_url | Select-Object -First 1
+        
+        if (-not $WingetUrl) { throw "No se encontro .msixbundle." }
+        Write-Host "  -> Version encontrada: $($githubRelease.tag_name)"
+    } catch {
+        Write-Host "  -> Error obteniendo URL de Winget. Se omite." -ForegroundColor Red
+        return
+    }
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "  -> Winget ya detectado. Verificando actualizacion..."
+        try {
+            Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+            Add-AppxPackage $WingetPath
+            Write-Host "  -> Winget ha sido actualizado a $($githubRelease.tag_name)."
+        } catch {
+            Write-Host "  -> Error al actualizar Winget." -ForegroundColor Red
+        }
+        return
+    }
+
+    Write-Host "  -> Winget no detectado. Instalando dependencias..."
+    try {
+        # VCLibs
+        if (-not (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
+            Write-Host "     - Descargando e instalando VCLibs..."
+            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
+            Add-AppxPackage $VCLibsPath
+        }
+
+        # UI.Xaml
+        if (-not (Test-AppxPackageInstalled "Microsoft.UI.Xaml")) {
+            Write-Host "     - Descargando e instalando UI.Xaml..."
+            Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
+            Add-AppxPackage $XamlPath
+        }
+        
+        Start-Sleep 2
+
+        # Windows App Runtime
+        if (-not (Get-AppxPackage -AllUsers "Microsoft.WindowsAppRuntime" -ErrorAction SilentlyContinue)) {
+            Write-Host "     - Descargando e instalando Windows App Runtime..."
+            Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
+            Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait -ErrorAction Stop
+        }
+        
+        Start-Sleep 3
+
+        # Instalar Winget
+        Write-Host "  -> Descargando e instalando Winget $($githubRelease.tag_name)..."
+        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+        Add-AppxPackage $WingetPath
+        Write-Host "  -> Winget instalado correctamente."
+    }
+    catch {
+        Write-Host "  -> Error instalando dependencias de Winget:" $_.Exception.Message -ForegroundColor Red
+    }
+}
+
+
+# --- EJECUCION 8 ---
 function Get-WindowsActivationStatus {
     $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND LicenseFamily IS NOT NULL").LicenseStatus
     return $licenseStatus -eq 1
@@ -2165,13 +2607,13 @@ function Enable-WindowsActivation {
     $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
     $outputPath1 = $outputPath1 -replace "%blank%", ""
 
-    Write-Host "  -> Ejecutando Activacion..."
+    #Write-Host "  -> Descargando y ejecutando Activacion..."
     Invoke-WebRequest -Uri $url -OutFile $outputPath1 -UseBasicParsing | Out-Null
-    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait -Verb RunAs
+    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait
     Remove-Item -Path $outputPath1 -Force
 }
 
-function Ejecucion-5-Windows {
+function Ejecucion-8-Windows {
     # Verificar si Windows esta activado
     if (Get-WindowsActivationStatus) {
         Write-Host "  -> Windows ya esta activado."
@@ -2190,11 +2632,10 @@ function Ejecucion-5-Windows {
         }
     }
 }
-
 ###############################################################################################
 # INICIO DEL SCRIPT
 ###############################################################################################
-Start-Execution	
+Start-Execution
 		</File>
 		<File path="C:\Windows\Setup\Scripts\PSUpdates.ps1">
 ##=============================================================================
@@ -2340,7 +2781,7 @@ try {
 } catch {
     Write-Log "ERROR CRÍTICO: $_"
 }
-		</file>
+		</File>
 		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
 ##############################
 # OPTIMIZAR DISCO SSD
@@ -2613,10 +3054,10 @@ Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -Wi
 			Start-Sleep -Seconds 2
 			Restart-Computer -Force
 		} },
-		@{ Name = "Verificando Desatendido"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Confirmando Configuracion"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
+		@{ Name = "Verificando Sistema"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
+        @{ Name = "Verificando Configuracion"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Comprobar Integritdad"; Script = { Get-Content "$scriptDir\Integrity.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },		
+		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Instalando Actualizaciones"; Script = { Get-Content "$scriptDir\PSUpdates.ps1" -Raw | Invoke-Expression } },		
         @{ Name = "Optimizando Sistema"; Script = {
             $windowsOptimizePath = $null
