@@ -2350,11 +2350,7 @@ function Start-Execution {
     Write-Host "`n[Paso 7] Verificando e instalando/actualizando Winget..."
     Ejecucion-7-Winget
 
-    Write-Host "`n[Paso 8] Verificando y activando Windows 10/11..."
-    Ejecucion-8-Windows
-
-
-    Write-Host "`n[Paso 9] Limpieza de temporales..."
+    Write-Host "`n[Paso 8] Limpieza de temporales..."
     Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "  -> Archivos temporales de instalacion eliminados."
 
