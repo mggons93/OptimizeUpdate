@@ -986,23 +986,7 @@ if ($entradas) {
     Write-Host "No se encontraron entradas en el Registro."
 }
 
-# Establecer ruta del registro para Edge
-$edgeRegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-
-# Crear clave si no existe
-if (!(Test-Path $edgeRegistryPath)) {
-    New-Item -Path $edgeRegistryPath -Force | Out-Null
-}
-
-# Deshabilitar Startup Boost
-Set-ItemProperty -Path $edgeRegistryPath -Name "StartupBoostEnabled" -Type DWord -Value 0
-
-# Deshabilitar ejecución en segundo plano
-Set-ItemProperty -Path $edgeRegistryPath -Name "BackgroundModeEnabled" -Type DWord -Value 0
-
-Write-Host "Startup Boost y la ejecución en segundo plano de Microsoft Edge han sido deshabilitados."
-
-# Configuración de bienvenida de Edge
+############## Configuración de bienvenida de Edge ####################
 $EdgeRegistryPath = "HKCU:\Software\Microsoft\Edge"
 
 # Crear clave si no existe
@@ -1022,25 +1006,63 @@ if ($HideFirstRun.HideFirstRunExperience -eq 1) {
     Write-Host "No se pudo desactivar la pantalla de bienvenida de Microsoft Edge."
 }
 
-# Configurar instalación automática de AdGuard
-$extensionID = "pdffkfellgipmhklpdmokmckkkfcopbh"
-$updateUrl   = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
-$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+############## Configurar Políticas para Edge, Chrome, Brave y Opera ####################
+# Definimos los datos de cada navegador
+$Navegadores = @(
+    @{
+        Nombre = "Microsoft Edge"
+        Ruta   = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+        ExtID  = "pdffkfellgipmhklpdmokmckkkfcopbh;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+    },
+    @{
+        Nombre = "Google Chrome"
+        Ruta   = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+    },
+    @{
+        Nombre = "Brave"
+        Ruta   = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave"
+        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+    },
+    @{
+        Nombre = "Opera"
+        Ruta   = "HKLM:\SOFTWARE\Policies\Opera"
+        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+    }
+)
 
-# Crear clave si no existe
-if (-not (Test-Path $registryPath)) {
-    New-Item -Path $registryPath -Force | Out-Null
+foreach ($Nav in $Navegadores) {
+    # Crear clave principal si no existe
+    if (!(Test-Path $Nav.Ruta)) {
+        New-Item -Path $Nav.Ruta -Force | Out-Null
+    }
+
+    # Deshabilitar ejecución en segundo plano
+    Set-ItemProperty -Path $Nav.Ruta -Name "BackgroundModeEnabled" -Type DWord -Value 0 -Force
+    
+    # Si es Edge, también deshabilitamos el Startup Boost
+    if ($Nav.Nombre -eq "Microsoft Edge") {
+        Set-ItemProperty -Path $Nav.Ruta -Name "StartupBoostEnabled" -Type DWord -Value 0 -Force
+        Write-Host "Startup Boost de Microsoft Edge deshabilitado."
+    }
+
+    # Configurar instalación automática de AdGuard
+    $registryPath = "$($Nav.Ruta)\ExtensionInstallForcelist"
+    
+    # Crear clave si no existe
+    if (-not (Test-Path $registryPath)) {
+        New-Item -Path $registryPath -Force | Out-Null
+    }
+
+    # CORRECCIÓN IMPORTANTE:
+    # El error era causado por caracteres Unicode rotos justo antes de esta línea.
+    # Esta versión está 100% limpia.
+    Set-ItemProperty -Path $registryPath -Name "1" -Value $Nav.ExtID -Force
+
+    Write-Host "La ejecución en segundo plano y AdGuard han sido configurados para $($Nav.Nombre)."
 }
 
-# CORRECCIÓN IMPORTANTE:
-# El error era causado por caracteres Unicode rotos justo antes de esta línea.
-# Esta versión está 100% limpia.
-Set-ItemProperty -Path $registryPath -Name "1" -Value "$extensionID;$updateUrl" -Force
-
-Write-Host "La extensión AdGuard ha sido configurada para instalarse automáticamente en Microsoft Edge."
-
-
-# Verificar si el proceso de Microsoft Edge estÃ¡ en ejecuciÃ³n y detenerlo
+############## Verificar si el proceso de Microsoft Edge está en ejecución y detenerlo ####################
 $processName = "msedge"
 Start-Process "msedge.exe"
 Start-Sleep 30
