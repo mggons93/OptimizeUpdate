@@ -265,11 +265,11 @@ else {
     Start-Sleep 2
 
     # URLs de descarga
-    $ecmExeUrlOriginal = "https:///181.57.227.194/files/ECM.exe"
-    $ecmExeUrlFallback = "http:///181.57.227.194/files/ECM.exe"
+    $ecmExeUrlOriginal = "https://181.57.227.194/files/ECM.exe"
+    $ecmExeUrlFallback = "http://181.57.227.194/files/ECM.exe"
 
     $ecmRegUrlOriginal = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/ECM.reg"
-    $ecmRegUrlFallback = "http:///181.57.227.194/files/ECM.reg"
+    $ecmRegUrlFallback = "http://181.57.227.194/files/ECM.reg"
 
     $outputExePath = "$env:TEMP\ECM.exe"
     $outputRegPath = "$env:TEMP\ECM.reg"
