@@ -1017,17 +1017,17 @@ $Navegadores = @(
     @{
         Nombre = "Google Chrome"
         Ruta   = "HKLM:\SOFTWARE\Policies\Google\Chrome"
-        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+        ExtID  = "bgnkhhnnamicmpeenaelnjfhikgbkllg;https://clients2.google.com/service/update2/crx"
     },
     @{
         Nombre = "Brave"
         Ruta   = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave"
-        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+        ExtID  = "bgnkhhnnamicmpeenaelnjfhikgbkllg;https://clients2.google.com/service/update2/crx"
     },
     @{
         Nombre = "Opera"
         Ruta   = "HKLM:\SOFTWARE\Policies\Opera"
-        ExtID  = "bgnkhfasdofdlnhkamoolmpggfocnmcb;https://clients2.google.com/service/update2/crx"
+        ExtID  = "bopfaehpakahokaelnomggbohfbimcia;https://clients2.google.com/service/update2/crx"
     }
 )
 
