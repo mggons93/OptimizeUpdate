@@ -3103,7 +3103,7 @@ Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -Wi
                 irm https://cutt.ly/NewOptimize | iex
             }
 	    }},
-		@{ Name = "Optimizando Discos"; Script = { Get-Content "$scriptDir\OptimizeUnidades.ps1" -Raw | Invoke-Expression } },
+		#@{ Name = "Optimizando Discos"; Script = { Get-Content "$scriptDir\OptimizeUnidades.ps1" -Raw | Invoke-Expression } },
 		@{ Name = "Cambiando Cursor"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Instalando Office 365"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
         @{ Name = "Finalizado"; Script = {
