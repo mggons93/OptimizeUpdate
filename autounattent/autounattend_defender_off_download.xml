@@ -2353,7 +2353,7 @@ function Start-Execution {
 	Write-Host "`n[Paso 8] Verificando Windows.."
 	Ejecucion-8-Windows
 
-    Write-Host "`n[Paso 8] Limpieza de temporales..."
+    Write-Host "`n[Paso 9] Limpieza de temporales..."
     Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "  -> Archivos temporales de instalacion eliminados."
 
