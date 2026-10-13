@@ -133,13 +133,6 @@
 				<HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>
 				<HideOnlineAccountScreens>true</HideOnlineAccountScreens>
 			</OOBE>
-			<FirstLogonCommands>
-				<SynchronousCommand wcm:action="add">
-					<Order>1</Order>
-					<Description>Configuracion y personalizacion</Description>
-					<CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\Launcher.ps1' -Raw | Invoke-Expression;"</CommandLine>
-				</SynchronousCommand>
-			</FirstLogonCommands>
 		</component>
 	</settings>
 	<Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
@@ -491,7 +484,7 @@ $scripts = @(
 	{
 		Remove-Item -LiteralPath 'Registry::HKLM\Software\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\DevHomeUpdate' -Force -ErrorAction 'SilentlyContinue';
 	};
-	{
+    {
         try {
             $path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
             if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
@@ -563,6 +556,77 @@ $scripts = @(
 	};
 	{
 		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-01.ps1' -Raw | Invoke-Expression;
+	};
+	{
+		# 1. Desactivar el almacenamiento reservado mediante DISM
+		dism.exe /Online /Set-ReservedStorageState /State:Disabled /NoRestart | Out-Null;
+
+		# 2. Asegurar en el registro que no se vuelva a inicializar tras actualizaciones
+		reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager" /v ShippedWithReserves /t REG_DWORD /d 0 /f;
+		reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager" /v PassedPolicy /t REG_DWORD /d 0 /f;
+	};
+	{
+		# Deshabilitar servicios de telemetria, rastreo y funciones prescindibles
+		$servicesToDisable = @(
+			"DiagTrack",          # Experiencias del usuario y telemetria
+			"dmwappushservice",   # Enrutamiento de mensajes WAP (telemetria)
+			"MapsBroker",         # Gestor de mapas descargados
+			"RetailDemo",         # Servicio de demostracion de tienda
+			# "SensorService",      # Sensores de orientacion (innecesario en PCs de escritorio)
+			"TroubleshootingSvc", # Servicio de diagnostico y resolucion de problemas
+			"wisvc"               # Windows Insider Program
+		)
+
+		foreach ($svc in $servicesToDisable) {
+			Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+			Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
+		}
+	};
+	{
+		# Registrar tarea con privilegios elevados para Launcher.ps1
+
+		$ErrorActionPreference = 'Stop'
+
+		$taskName = 'FirstLogonGUI_Launcher_Task'
+		$launcherPath = 'C:\Windows\Setup\Scripts\Launcher.ps1'
+		$psPath = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+		if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+			throw "No existe Launcher.ps1: $launcherPath"
+		}
+
+		$psArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$launcherPath`""
+
+		$action = New-ScheduledTaskAction `
+			-Execute $psPath `
+			-Argument $psArgs
+
+		# Crear el principal mediante SID, sin nombres localizados
+		$adminSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+
+		$principal = New-ScheduledTaskPrincipal `
+			-GroupId $adminSid.Value `
+			-RunLevel Highest
+
+		$trigger = New-ScheduledTaskTrigger -AtLogOn
+		
+		$settings = New-ScheduledTaskSettingsSet `
+			-AllowStartIfOnBatteries `
+			-DontStopIfGoingOnBatteries `
+			-StartWhenAvailable
+
+
+		Register-ScheduledTask `
+			-TaskName $taskName `
+			-Action $action `
+			-Trigger $trigger `
+			-Principal $principal `
+			-Settings $settings `
+			-Force `
+			-ErrorAction Stop
+
+		Get-ScheduledTask -TaskName $taskName -ErrorAction Stop |
+			Format-List TaskName, TaskPath, State
 	};
 );
 
@@ -646,6 +710,15 @@ $scripts = @(
 			$_.SessionId -eq ( Get-Process -Id $PID ).SessionId;
 		} | Stop-Process -Force;
 	};
+	{
+		# Pausa de 3 segundos para que Explorer termine de levantar el escritorio con el tema cargado
+		Start-Sleep -Seconds 3;
+		
+		# Disparar la tarea elevada (corre como Administrador directo, sin ventana de UAC)
+		Start-Process -FilePath "schtasks.exe" `
+			-ArgumentList "/run /tn `"FirstLogonGUI_Launcher_Task`"" `
+			-WindowStyle Hidden;
+	};
 );
 
 &amp; {
@@ -713,6 +786,33 @@ $scripts = @(
 	};
 	{
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v "UnattendedSetup" /t REG_SZ /d "powershell.exe -WindowStyle Normal -NoProfile -Command \""Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\UserOnce.ps1' -Raw | Invoke-Expression;\""" /f;
+	};
+	{
+		# Desactivar opciones de Personalización > Inicio en el perfil por defecto
+		$advKey = "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+		reg.exe add $advKey /v "Start_TrackDocs" /t REG_DWORD /d 0 /f
+		reg.exe add $advKey /v "Start_TrackProgs" /t REG_DWORD /d 0 /f
+		reg.exe add $advKey /v "Start_ShowRecent" /t REG_DWORD /d 0 /f
+		reg.exe add $advKey /v "Start_AccountNotifications" /t REG_DWORD /d 0 /f
+		reg.exe add $advKey /v "Start_AllAppsView" /t REG_DWORD /d 1 /f
+
+		$cdmKey = "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+		reg.exe add $cdmKey /v "SubscribedContent-338388Enabled" /t REG_DWORD /d 0 /f
+	};
+	{
+		# Reducir el retardo de apertura de menus de 400ms a 20ms
+		reg.exe add "HKU\DefaultUser\Control Panel\Desktop" /v MenuShowDelay /t REG_SZ /d "20" /f;
+
+		# Desactivar animaciones innecesarias de ventanas (mantiene fuentes suaves)
+		reg.exe add "HKU\DefaultUser\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d "0" /f;
+
+		# Desactivar retardo de apertura de aplicaciones en el arranque
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" /v StartupDelayInMSec /t REG_DWORD /d 0 /f;
+
+		# Desactivar sugerencias emergentes y consejos de Windows (reduce uso de CPU en idle)
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SoftLandingEnabled /t REG_DWORD /d 0 /f;
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v RotatingLockScreenEnabled /t REG_DWORD /d 0 /f;
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v RotatingLockScreenOverlayEnabled /t REG_DWORD /d 0 /f;
 	};
 );
 
@@ -1565,47 +1665,88 @@ try {
 Add-Content -Path $logFile -Value $logEntry
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
-# URL del script a descargar (usa un enlace directo y confiable)
-$scriptUrl = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/download.ps1"
+# Directorio base de destino
+$scriptDir = "C:\Windows\Setup\Scripts"
+if (-not (Test-Path $scriptDir)) {
+    New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
+}
 
-# Ruta temporal donde guardar el script descargado
-$tempScriptPath = "C:\Windows\Setup\Scripts\setup-final.ps1"
+# Lista de descargas indicando si debe ejecutarse inmediatamente
+$downloads = @(
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/download.ps1"
+        FileName = "setup-final.ps1"
+        Execute  = $true
+    },
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase1.ps1"
+        FileName = "OptimizarWindows.ps1"
+        Execute  = $false
+    },
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase2.ps1"
+        FileName = "InstalarApps.ps1"
+        Execute  = $false
+    }
+)
 
-# Funci&#xF3;n para verificar si hay conexi&#xF3;n a Internet
+# Función de comprobaci&#xF3;n de red
 function Test-InternetConnection {
     try {
-        $null = Invoke-WebRequest -uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
-        Return $true
+        $test = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
+        return $true
     } catch {
-        Return $false
+        return $false
     }
 }
 
-# Esperar conexi&#xF3;n a Internet antes de continuar
-$maxRetries = 5
-$retry = 0
+# Variables de reintento claramente separadas
+$maxRetries = 5;
+$retry = 0;
+
 while (-not (Test-InternetConnection)) {
     Write-Host "No hay conexi&#xF3;n a Internet. Reintentando en 5 segundos... ($($retry + 1)/$maxRetries)" -ForegroundColor Yellow
     Start-Sleep -Seconds 5
     $retry++
-    if ($retry -ge $maxRetries) {
+    if ($retry -ge$maxRetries) {
         Write-Host "No se pudo establecer conexi&#xF3;n a Internet. Abortando descarga." -ForegroundColor Red
-        exit
+        exit 1
     }
 }
 
-# Conexi&#xF3;n establecida, proceder a descargar
-Write-Host "Conexi&#xF3;n a Internet detectada. Descargando script..." -ForegroundColor Green
+Write-Host "Conexi&#xF3;n a Internet detectada. Iniciando descargas..." -ForegroundColor Green
 
-try {
-    Invoke-WebRequest -URI $scriptUrl -OutFile $tempScriptPath -UseBasicParsing
-    Unblock-File -Path $tempScriptPath
-    Write-Host "Script descargado y desbloqueado exitosamente." -ForegroundColor Green
+# Procesamiento de descargas
+foreach ($item in $downloads) {
+    $fileName =$item.FileName
+    $url =$item.Url
+    $execute =$item.Execute
 
-    # Ejecutar el script descargado
-    Start-Process "powershell.exe" -ArgumentList "-executionPolicy bypass -NoProfile -file `"$tempScriptPath`"" -Wait
-} catch {
-    Write-Host "Error durante la descarga o ejecuci&#xF3;n del script: $_" -ForegroundColor Red
+    if ([string]::IsNullOrWhiteSpace($fileName)) {
+        Write-Host "Error: Nombre de archivo no definido para $url" -ForegroundColor Red
+        continue
+    }
+
+    $targetPath = "$scriptDir\$fileName"
+
+    try {
+        Write-Host "Descargando $fileName..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $url -OutFile "$targetPath" -UseBasicParsing -ErrorAction Stop
+
+        Unblock-File -Path "$targetPath" -ErrorAction SilentlyContinue
+        #Write-Host "$fileName descargado y desbloqueado exitosamente." -ForegroundColor Green
+
+        # Solo se ejecuta si Execute está marcado en $true
+        if ($execute -eq$true) {
+            Write-Host "Ejecutando $fileName..." -ForegroundColor Gray
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$targetPath`"" -Wait
+        } else {
+            Write-Host "$fileName descargado para ejecuci&#xF3;n posterior (omitida ejecución inmediata)." -ForegroundColor DarkGray
+        }
+
+    } catch {
+        Write-Host "Error durante el procesamiento de ${fileName}:$_" -ForegroundColor Red
+    }
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Launcher.ps1">
@@ -1617,8 +1758,8 @@ try {
 $scriptPath = 'C:\Windows\Setup\Scripts\launcher.ps1'
 $scriptDir  = Split-Path -Parent $scriptPath
 
-# --- Delay compatible (20s) ---
-Start-Sleep -Seconds 20
+# --- Delay compatible (10s) ---
+Start-Sleep -Seconds 10
 
 # --- Helper: obtener ruta a powershell.exe adecuada ---
 function Get-PowerShellPath {
@@ -1669,7 +1810,7 @@ function Get-ClearDirEntry {
         return $null
     }
     foreach ($item in $arr) {
-        if ($item.name -eq 'ClearDir') { return $item }
+        if ($item.name -eq 'Finalizado') { return $item }
     }
     return $null
 }
@@ -2358,7 +2499,6 @@ function Start-Execution {
     Write-Host "  -> Archivos temporales de instalacion eliminados."
 
 }
-
 ###############################################################################################
 # 4. DEFINICIÓN DE CADA PROCESO (Optimizaciones y Activación)
 ###############################################################################################
@@ -2830,10 +2970,17 @@ try {
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
-##############################
+############################################################
 # OPTIMIZAR DISCO SSD
-# Win10/11/LTSC/IoT/PS5/PS7 compatible
-##############################
+# Compatible con Win10 / Win11 (hasta 26H2) / LTSC / IoT / PS5 / PS7
+############################################################
+
+# Requerir elevacion de privilegios (Administrador)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Warning "Este script requiere ejecutarse como Administrador para configurar servicios, TRIM y directivas de disco."
+    exit 1
+}
 
 $ErrorActionPreference = "SilentlyContinue"
 
@@ -2841,81 +2988,123 @@ Write-Host ""
 Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
 
 # ==========================================
-# FUNCION: Obtener disco del sistema
+# FUNCION: Deteccion robusta del disco del sistema
 # ==========================================
-function Get-SystemDisk {
-
+function Get-SystemDiskInfo {
     $driveLetter = ($env:SystemDrive).TrimEnd(':')
 
+    # Metodo 1: Modulo Storage nativo (Get-Partition -> Get-Disk)
     try {
-        $p = Get-Partition -DriveLetter $driveLetter
-        if ($p) { return Get-Disk -Number $p.DiskNumber }
+        $part = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
+        $disk = Get-Disk -Number $part.DiskNumber -ErrorAction Stop
+
+        $mediaType = "Unknown"
+        try {
+            $pd = Get-PhysicalDisk | Where-Object { 
+                $_.FriendlyName -eq $disk.FriendlyName -or $_.DeviceId -eq "$($disk.Number)" 
+            }
+            if ($pd) { $mediaType = $pd[0].MediaType }
+        } catch {}
+
+        return [PSCustomObject]@{
+            Index       = $disk.Number
+            Model       = $disk.FriendlyName
+            BusType     = $disk.BusType.ToString()
+            MediaType   = $mediaType
+            Size        = $disk.Size
+            SizeGB      = [math]::Round($disk.Size / 1GB, 0)
+            DriveLetter = $driveLetter
+        }
     } catch {}
 
+    # Metodo 2: Extraccion de particion via WMI/CIM
     try {
-        $logical = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${driveLetter}:'"
-        $partition = Get-CimAssociatedInstance $logical -Association Win32_LogicalDiskToPartition
-        $disk = Get-CimAssociatedInstance $partition -Association Win32_DiskDriveToDiskPartition
-        return $disk
+        $logical = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${driveLetter}:'" -ErrorAction Stop
+        $partAssoc = Get-CimAssociatedInstance $logical -Association Win32_LogicalDiskToPartition -ErrorAction Stop
+        $driveAssoc = Get-CimAssociatedInstance $partAssoc -Association Win32_DiskDriveToDiskPartition -ErrorAction Stop
+
+        if ($driveAssoc) {
+            return [PSCustomObject]@{
+                Index       = $driveAssoc.Index
+                Model       = $driveAssoc.Model
+                BusType     = $driveAssoc.InterfaceType
+                MediaType   = $driveAssoc.MediaType
+                Size        = $driveAssoc.Size
+                SizeGB      = [math]::Round($driveAssoc.Size / 1GB, 0)
+                DriveLetter = $driveLetter
+            }
+        }
+    } catch {}
+
+    # Metodo 3: Contingencia para controladoras NVMe/VMD (asume disco 0 del sistema)
+    try {
+        $firstDisk = Get-CimInstance Win32_DiskDrive | Where-Object { $_.Index -eq 0 }
+        if ($firstDisk) {
+            return [PSCustomObject]@{
+                Index       = $firstDisk.Index
+                Model       = $firstDisk.Model
+                BusType     = $firstDisk.InterfaceType
+                MediaType   = $firstDisk.MediaType
+                Size        = $firstDisk.Size
+                SizeGB      = [math]::Round($firstDisk.Size / 1GB, 0)
+                DriveLetter = $driveLetter
+            }
+        }
     } catch {}
 
     return $null
 }
 
 # ==========================================
-# LISTADO DE DISCOS
+# MOSTRAR DISCOS DEL EQUIPO
 # ==========================================
-$allDisks = Get-CimInstance Win32_DiskDrive
+$allDisks = @(Get-CimInstance Win32_DiskDrive)
 
 foreach ($d in $allDisks) {
     Write-Host ""
-    Write-Host "Disco #" $d.Index
-    Write-Host "Modelo     :" $d.Model
-    Write-Host "Interface  :" $d.InterfaceType
-    Write-Host "MediaType  :" $d.MediaType
-    Write-Host "Tamano     :" ([math]::Round($d.Size/1GB,0)) "GB"
+    Write-Host "Disco #      : $($d.Index)"
+    Write-Host "Modelo       : $($d.Model)"
+    Write-Host "Interface    : $($d.InterfaceType)"
+    Write-Host "MediaType    : $($d.MediaType)"
+    Write-Host "Tamano       : $([math]::Round($d.Size / 1GB, 0)) GB"
 }
 
 # ==========================================
-# DISCO DEL SISTEMA
+# IDENTIFICACION DEL DISCO DEL SISTEMA
 # ==========================================
-$disk = Get-SystemDisk
+$sysDisk = Get-SystemDiskInfo
 
-if (-not $disk) {
-    Write-Host "No se pudo detectar el disco del sistema."
-    exit
+if (-not $sysDisk) {
+    Write-Host ""
+    Write-Host "Error: No se pudo detectar el disco del sistema." -ForegroundColor Red
+    exit 1
 }
-
-$sizeGB = [math]::Round($disk.Size/1GB,0)
 
 Write-Host ""
-Write-Host "===== DISCO DEL SISTEMA (C:) =====" -ForegroundColor Green
-Write-Host "Disco fisico :" $disk.Index
-Write-Host "Modelo       :" $disk.Model
-Write-Host "Interface    :" $disk.InterfaceType
-Write-Host "MediaType    :" $disk.MediaType
-Write-Host "Tamano       :" "$sizeGB GB"
+Write-Host "===== DISCO DEL SISTEMA ($($sysDisk.DriveLetter):) =====" -ForegroundColor Green
+Write-Host "Disco fisico : $($sysDisk.Index)"
+Write-Host "Modelo       : $($sysDisk.Model)"
+Write-Host "Interface    : $($sysDisk.BusType)"
+Write-Host "MediaType    : $($sysDisk.MediaType)"
+Write-Host "Tamano       : $($sysDisk.SizeGB) GB"
 Write-Host "================================="
 
 Write-Output "93% Completado"
 
 # ==========================================
-# DETECCION SSD
+# EVALUACION DE TIPO DE DISCO (SSD / NVMe)
 # ==========================================
 $isSSD = $false
 
-try {
-    $pd = Get-PhysicalDisk | Where-Object {
-        $_.FriendlyName -like "*$($disk.Model)*"
-    }
+# Criterio 1: Clasificacion del subsistema de almacenamiento
+if ($sysDisk.MediaType -in @('SSD', 'SCM') -or $sysDisk.BusType -in @('NVMe', 'PCIe')) {
+    $isSSD = $true
+}
 
-    if ($pd -and $pd.MediaType -eq "SSD") {
-        $isSSD = $true
-    }
-} catch {}
-
+# Criterio 2: Coincidencia por modelo (cubre NVMe detras de controladoras Intel RST/SCSI)
 if (-not $isSSD) {
-    if ($disk.Model -match "SSD|ADATA|SU[0-9]+|NVME|M\.2|KINGSTON|WD GREEN|CRUCIAL|SAMSUNG") {
+    $ssdPatterns = "SSD|NVME|M\.2|KBG|KIOXIA|ADATA|SU[0-9]+|KINGSTON|WD GREEN|WD BLUE|WD BLACK|CRUCIAL|SAMSUNG|SK hynix|SANDISK|MICRON"
+    if ($sysDisk.Model -match $ssdPatterns) {
         $isSSD = $true
     }
 }
@@ -2928,334 +3117,250 @@ if ($isSSD) {
     Write-Host ""
     Write-Host "SSD detectado - Aplicando optimizaciones..." -ForegroundColor Cyan
 
-    # TRIM
+    # 1. Habilitar TRIM para NTFS y ReFS (0 = Activado)
     fsutil behavior set DisableDeleteNotify 0 | Out-Null
+    fsutil behavior set DisableDeleteNotify ReFS 0 | Out-Null
 
-    # ReTrim oficial
-    defrag C: /L /O | Out-Null
+    # 2. ReTrim oficial mediante cmdlet nativo
+    Optimize-Volume -DriveLetter $sysDisk.DriveLetter -ReTrim -ErrorAction SilentlyContinue
 
     Write-Output "95% Completado"
 
-    # Hibernacion OFF
+    # 3. Desactivar Hibernacion (ahorra decenas de GB y reduce escrituras en SSD)
     powercfg -h off
 
-    # SysMain OFF
-    Stop-Service SysMain -Force
-    Set-Service SysMain -StartupType Disabled
+    # 4. Desactivar SysMain / SuperFetch (innecesario y genera escrituras constantes en SSD)
+    $sysMain = Get-Service -Name SysMain -ErrorAction SilentlyContinue
+    if ($sysMain) {
+        Stop-Service -Name SysMain -Force -ErrorAction SilentlyContinue
+        Set-Service -Name SysMain -StartupType Disabled -ErrorAction SilentlyContinue
+    }
 
-    # Ultimo acceso OFF
+    # 5. Deshabilitar registro de fecha del ultimo acceso a archivos
     fsutil behavior set DisableLastAccess 1 | Out-Null
 
-    # Restauracion sistema
-    Enable-ComputerRestore -Drive "C:\" -Confirm:$false
+    # 6. Restauracion del sistema protegida para compatibilidad con LTSC e IoT
+    try {
+        Enable-ComputerRestore -Drive "$($sysDisk.DriveLetter):\" -ErrorAction Stop
+    } catch {
+        # Ignora el error si las directivas de LTSC/IoT tienen deshabilitado VSS
+    }
 
     Write-Output "98% Completado"
 
-    # CompactOS automatico
+    # 7. Evaluacion automatica de CompactOS
     Write-Host ""
     Write-Host "Evaluando tamano del disco..."
 
-    if ($sizeGB -le 64) {
-
-        Write-Host "Disco pequeno ($sizeGB GB) - Activando CompactOS..." -ForegroundColor Yellow
+    if ($sysDisk.SizeGB -le 64) {
+        Write-Host "Disco pequeno ($($sysDisk.SizeGB) GB) - Activando CompactOS..." -ForegroundColor Yellow
 
         $state = compact.exe /compactOS:query
-
         if ($state -notmatch "already") {
             compact.exe /compactOS:always | Out-Null
             Write-Host "CompactOS habilitado (ahorra 2-6 GB)."
-        }
-        else {
+        } else {
             Write-Host "CompactOS ya activo."
         }
-    }
-    else {
-        Write-Host "Disco suficiente ($sizeGB GB) - No se requiere compresion."
+    } else {
+        Write-Host "Disco suficiente ($($sysDisk.SizeGB) GB) - No se requiere compresion."
     }
 
-    # Ocultar carpeta ODT
+    # 8. Ocultar carpeta ODT si existe
     if (Test-Path "C:\ODT") {
         (Get-Item "C:\ODT").Attributes = "Hidden"
     }
-}
-else {
+
+} else {
     Write-Host ""
-    Write-Host "HDD detectado - No se aplican optimizaciones SSD" -ForegroundColor Yellow
+    Write-Host "HDD detectado - No se aplican optimizaciones exclusivas para SSD." -ForegroundColor Yellow
 }
 
-# Configuración y ejecución de Cleanmgr
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c Cleanmgr /sagerun:65535" -WindowStyle Hidden -Wait
+# Limpieza silenciosa del sistema
+Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/autoclean" -WindowStyle Hidden -Wait
+
+Write-Host ""
+Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
- # --- ELEVAR A ADMINISTRADOR PRIMERO ---
+    $ErrorActionPreference = 'Stop'
+
+    # --- ELEVAR A ADMINISTRADOR ---
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $windowsPrincipal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-        Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs
+        Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -Verb RunAs
         return
     }
 
-    # --- CONFIGURACI?N INICIAL ---
-    $scriptDir = "C:\Windows\Setup\Scripts"
-    $stateFile = "$scriptDir\state.json"
-    $logFilePath = "$scriptDir\FirstLogon.log"
+    # --- CONFIGURACIÓN INICIAL ---
+    $scriptDir   = 'C:\Windows\Setup\Scripts'
+    $stateFile   = Join-Path $scriptDir 'state.json'
+    $logFilePath = Join-Path $scriptDir 'FirstLogon_1.log'
+    $equipoLog   = Join-Path $scriptDir 'Equipo.log'
 
-	function Download-And-Run {
-        param(
-            [string]$Url,
-            [string]$OutName
-        )
-        $maxAttempts = 3
-        $attempt = 0
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $outPath = Join-Path $scriptDir $OutName
-        while ($attempt -lt $maxAttempts) {
-            try {
-                $attempt++
-                Write-Output "[$(Get-Date)] Descargando $Url (intento $attempt)..."
-                Invoke-WebRequest -Uri $Url -OutFile $outPath -TimeoutSec 60 -ErrorAction Stop
-                if (-not (Test-Path $outPath)) { throw "Archivo no encontrado luego de descarga: $outPath" }
-                Write-Output "[$(Get-Date)] Descargado a $outPath"
-                if ($outPath -match '\.ps1$') {
-                    &amp;  $outPath
-                } else {
-                    Start-Process -FilePath $outPath -Wait
-                }
-                return $true
-            } catch {
-                Write-Output ("[{0}] Error descargando {1}: {2}" -f (Get-Date), $Url, $_)
-                if ($attempt -ge $maxAttempts) { return $false }
-                Start-Sleep -Seconds 5
-            }
+    if (-not (Test-Path -LiteralPath $scriptDir)) {
+        New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
+    }
+
+    function Write-Log {
+        param([Parameter(Mandatory = $true)][string]$Message)
+        $line = '[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Message
+        # Tee-Object al final del controlador escribe cada línea en FirstLogon.log.
+        Write-Output $line
+    }
+
+    function Save-State {
+        param([Parameter(Mandatory = $true)]$Items)
+        $tempFile = "$stateFile.tmp"
+        ConvertTo-Json -InputObject @($Items) -Depth 10 |
+            Set-Content -LiteralPath $tempFile -Encoding UTF8
+        Move-Item -LiteralPath $tempFile -Destination $stateFile -Force
+    }
+
+    function Invoke-LocalScript {
+        param([Parameter(Mandatory = $true)][string]$Name)
+        $path = Join-Path $scriptDir $Name
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "No se encuentra el script requerido: $path"
         }
+        Write-Log "Ejecutando $Name..."
+        $content = Get-Content -LiteralPath $path -Raw -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($content)) { throw "El script está vacío: $path" }
+        Invoke-Expression -Command $content
+        Write-Log "Finalizó la invocación de $Name."
     }
 
-    if (-not (Test-Path $scriptDir)) {
-        New-Item -ItemType Directory -Path $scriptDir -Force
-    }
-
-    # Add separator in log to separate outputs from different runs
     try {
-        $sep = "`n=== Inicio ejecución: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===`n"
-        Add-Content -Path $logFilePath -Value $sep -Encoding UTF8
+        Add-Content -LiteralPath $logFilePath -Value "`r`n=== Inicio de ejecución: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding UTF8
     } catch {
-        Write-Output "[$(Get-Date)] No se pudo escribir separador en ${logFilePath}: $($_)"
+        Write-Output "No se pudo escribir el separador del registro: $($_.Exception.Message)"
     }
 
-        function Add-DefenderExclusion {
-            param([string]$Path)
-            try {
-                if (-not (Get-Command Add-MpPreference -ErrorAction SilentlyContinue)) {
-                    Import-Module Defender -ErrorAction SilentlyContinue
-                }
-                if (Get-Command Add-MpPreference -ErrorAction SilentlyContinue) {
-                    Write-Output "[$(Get-Date)] Añadiendo exclusión de Defender para $Path"
-                    try { Add-MpPreference -ExclusionPath $Path -ErrorAction Stop } catch {}
-                    try { Add-MpPreference -ExclusionProcess $Path -ErrorAction Stop } catch {}
-                    return $true
-                } else {
-                    Write-Output "[$(Get-Date)] Cmdlets de Defender no disponibles; omitiendo exclusión"
-                    return $false
-                }
-            } catch {
-                Write-Output "[$(Get-Date)] Error añadiendo exclusión de Defender: $($_.Exception.Message)"
-                return $false
-            }
-        }
-
-        function Start-ForegroundProcess {
-            param(
-                [Parameter(Mandatory = $true)]
-                [string]$FilePath,
-                [string[]]$ArgumentList = @()
-            )
-
-            $startParams = @{
-                FilePath    = $FilePath
-                WindowStyle = 'Normal'
-                ErrorAction = 'Stop'
-            }
-            if ($ArgumentList.Count -gt 0) {
-                $startParams.ArgumentList = $ArgumentList
-            }
-
-            $process = Start-Process -PassThru @startParams
-            try { $null = $process.WaitForInputIdle(10000) } catch {}
-            return $process
-        }
-
+    # --- TAREAS ---
+    # Optimizar unidades y Optimizar Windows son tareas normales e independientes.
     $scripts = @(
-        @{ Name = "Remove Windows.old"; Script = { cmd.exe /c "rmdir C:\Windows.old /s /q" } },
-		@{ Name = "Cambiando ID Equipo"; Script = {
-			$equipoLog = "$scriptDir\Equipo.log"
-			if (Test-Path $equipoLog) {
-				Write-Output "[$(Get-Date)] Equipo.log ya existe. Se omite ejecuci?n de ChangePC-ID.ps1."
-				$state[$i].status = "done"
-				$state | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
-				return
-			}
-			Write-Output "[$(Get-Date)] Ejecutando ChangePC-ID.ps1..."
-			Get-Content -LiteralPath "$scriptDir\ChangePC-ID.ps1" -Raw | Invoke-Expression
-			Start-Sleep -Seconds 2
-			Restart-Computer -Force
-		} },
-		@{ Name = "Verificando Sistema"; Script = { Get-Content -LiteralPath "$scriptDir\unattend-02.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Verificando Configuracion"; Script = { Get-Content "$scriptDir\setup-final.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Comprobar Integritdad"; Script = { Get-Content "$scriptDir\Integrity.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Instalando Rustdesk"; Script = { Get-Content "$scriptDir\Rustdesk_Download.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Instalando Actualizaciones"; Script = { Get-Content "$scriptDir\PSUpdates.ps1" -Raw | Invoke-Expression } },		
-        @{ Name = "Optimizando Sistema"; Script = {
-            $windowsOptimizePath = $null
-            $optHits = @()
-
-            $optExactCandidates = @(
-                (Join-Path $env:USERPROFILE 'WindowsOptimize.exe'),
-                (Join-Path $scriptDir 'WindowsOptimize.exe'),
-                'C:\Windows\System32\config\systemprofile\WindowsOptimize.exe'
-            )
-
-            foreach ($candidate in $optExactCandidates) {
-                if (Test-Path $candidate) {
-                    try { $optHits += Get-Item -LiteralPath $candidate -ErrorAction Stop } catch { }
+        @{ Name = 'Remove Windows.old'
+            Script = {
+                $oldPath = 'C:\Windows.old'
+                if (Test-Path -LiteralPath $oldPath) {
+                    Write-Log 'Intentando eliminar C:\Windows.old...'
+                    &amp; cmd.exe /c 'rmdir C:\Windows.old /s /q'
+                    if (Test-Path -LiteralPath $oldPath) {
+                        Write-Log 'Aviso: C:\Windows.old sigue existiendo; Windows puede impedir su eliminación.'
+                    } else { Write-Log 'C:\Windows.old eliminado.' }
+                } else { Write-Log 'C:\Windows.old no existe; se omite.' }
+            }
+        },
+        @{ Name = 'Cambiando ID Equipo'
+            Script = {
+                # Equipo.log debe ser creado por ChangePC-ID.ps1 al completar su operación.
+                # Si el equipo se reinicia dentro de ese script, esta tarea se reintentará al volver.
+                if (Test-Path -LiteralPath $equipoLog) {
+                    Write-Log 'Equipo.log ya existe; se omite ChangePC-ID.ps1.'
+                    return
                 }
+                Invoke-LocalScript -Name 'ChangePC-ID.ps1'
             }
-
-            foreach ($pattern in @('C:\Users\*\WindowsOptimize.exe', 'C:\Windows\Setup\Scripts\WindowsOptimize.exe', 'C:\Windows\System32\config\systemprofile\WindowsOptimize.exe')) {
-                try {
-                    $optHits += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue
-                } catch { }
+        },
+        @{ Name = 'Verificando Sistema'; Script = { Invoke-LocalScript -Name 'unattend-02.ps1' } },
+        @{ Name = 'Verificando Configuracion'; Script = { Invoke-LocalScript -Name 'setup-final.ps1' } },
+        @{ Name = 'Comprobar Integridad'; Script = { Invoke-LocalScript -Name 'Integrity.ps1' } },
+        @{ Name = 'Cambiando Cursor'; Script = { Invoke-LocalScript -Name 'CursorVista.ps1' } },
+        @{ Name = 'Instalando Actualizaciones'; Script = { Invoke-LocalScript -Name 'PSUpdates.ps1' } },
+        @{ Name = 'Instalando Aplicaciones'; Script = { Invoke-LocalScript -Name 'InstalarApps.ps1' } },
+        @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
+        @{ Name = 'Instalando Office 365'; Script = { Invoke-LocalScript -Name 'OfficeInstaller.ps1' } },
+        @{ Name = 'Optimizando Windows'; Script = { Invoke-LocalScript -Name 'OptimizarWindows.ps1' } },
+        @{ Name = 'Finalizado'
+            Script = {
+                # Preservar el controlador, lanzador, estado y registros.
+                $protectedNames = @('FirstLogon.ps1', 'Launcher.ps1', 'state.json', 'FirstLogon.log', 'Equipo.log')
+                Write-Log 'Iniciando limpieza final de archivos auxiliares...'
+                Get-ChildItem -LiteralPath $scriptDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+                    Where-Object {
+                        $_.Extension -in @('.ps1', '.vbs', '.xml') -and
+                        $protectedNames -notcontains $_.Name
+                    } |
+                    ForEach-Object {
+                        try {
+                            Write-Log "Eliminando archivo auxiliar: $($_.FullName)"
+                            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+                        } catch { Write-Log "No se pudo eliminar $($_.FullName): $($_.Exception.Message)" }
+                    }
+                Write-Log 'Limpieza final completada.'
             }
-
-            $optHits = $optHits |
-                Group-Object -Property FullName |
-                ForEach-Object { $_.Group | Select-Object -First 1 }
-
-            if ($optHits.Count -gt 0) {
-                $windowsOptimizePath = ($optHits | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
-                Write-Output "[$(Get-Date)] WindowsOptimize.exe encontrado(s): $($optHits.Count). Seleccionado: $windowsOptimizePath"
-                try {
-                    Write-Output "[$(Get-Date)] Lanzando WindowsOptimize..."
-                    try { Add-DefenderExclusion -Path $windowsOptimizePath } catch {}
-                    Write-Output "[$(Get-Date)] Lanzando WindowsOptimize desde $windowsOptimizePath"
-                    Start-ForegroundProcess -FilePath $windowsOptimizePath | Out-Null
-                } catch {
-                    Write-Output "[$(Get-Date)] Error ejecutando $windowsOptimizePath. Se intentará NewOptimize remoto..."
-                    Write-Output "[$(Get-Date)] Descargando WindowsOptimize..."
-                    irm https://cutt.ly/NewOptimize | iex
-                }
-            } else {
-                Write-Output "[$(Get-Date)] No se encontró WindowsOptimize.exe local. Ejecutando NewOptimize remoto..."
-                try { Add-DefenderExclusion -Path (Join-Path $scriptDir 'WindowsOptimize.exe') } catch {}
-                Write-Output "[$(Get-Date)] Descargando WindowsOptimize..."
-                irm https://cutt.ly/NewOptimize | iex
-            }
-	    }},
-		#@{ Name = "Optimizando Discos"; Script = { Get-Content "$scriptDir\OptimizeUnidades.ps1" -Raw | Invoke-Expression } },
-		@{ Name = "Cambiando Cursor"; Script = { Get-Content "$scriptDir\CursorVista.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Instalando Office 365"; Script = { Get-Content "$scriptDir\OfficeInstaller.ps1" -Raw | Invoke-Expression } },
-        @{ Name = "Finalizado"; Script = {
-            Get-ChildItem $scriptDir -Recurse -Include *.ps1,*.vbs,*.xml -Force -ErrorAction SilentlyContinue |
-            Remove-Item -Force -ErrorAction SilentlyContinue
-        }}
+        }
     )
 
-    # --- RUNONCE handled by Launcher.ps1 ---
-    # Launcher.ps1 (created separately) registers and fires the scheduled task
-    # which runs the GUI app as SYSTEM without UAC, and removes the task when
-    # state.json reaches a terminal state. Leaving this as a comment to avoid
-    # duplicate registrations.
-
-    # --- STATE ---
-    if (-not (Test-Path $stateFile)) {
-        $init = for ($i = 0; $i -lt $scripts.Count; $i++) {
-            [PSCustomObject]@{ index = $i; name = $scripts[$i].Name; status = "pending" }
+    # --- ESTADO ---
+    if (-not (Test-Path -LiteralPath $stateFile)) {
+        $state = @(
+            for ($index = 0; $index -lt $scripts.Count; $index++) {
+                [PSCustomObject]@{ index = $index; name = $scripts[$index].Name; status = 'pending' }
+            }
+        )
+        Save-State -Items $state
+        Write-Log 'Se creó state.json con el estado inicial.'
+    } else {
+        try {
+            $loaded = Get-Content -LiteralPath $stateFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            $state = @($loaded)
+        } catch {
+            Write-Log "ERROR: state.json no se puede leer como JSON válido: $($_.Exception.Message)"
+            throw
         }
-        $init | ConvertTo-Json | Set-Content $stateFile -Encoding UTF8
+
+        # No reutilizar silenciosamente un estado de otra versión u otro orden de tareas.
+        if ($state.Count -ne $scripts.Count) {
+            throw "state.json contiene $($state.Count) tareas, pero esta versión requiere $($scripts.Count). Haz una copia y migra o reinicia el estado conscientemente."
+        }
+        for ($index = 0; $index -lt $scripts.Count; $index++) {
+            if ([int]$state[$index].index -ne $index -or [string]$state[$index].name -ne [string]$scripts[$index].Name) {
+                throw "La tarea $index de state.json no coincide con la lista actual ('$($state[$index].name)' frente a '$($scripts[$index].Name)'). Haz una copia y revisa el estado antes de continuar."
+            }
+        }
     }
 
-    $state = Get-Content $stateFile | ConvertFrom-Json
-	$optimizacionIndex = [array]::IndexOf($scripts.Name, "Optimizando Sistema")
+    Write-Log "Controlador iniciado. Tareas configuradas: $($scripts.Count)."
 
-	for ($i = 0; $i -lt $scripts.Count; $i++) {
-		if ($state[$i].status -in "pending","pending-reboot") {
-			try {
-				switch ($i) {
-					# --- CASO ESPECIAL: OPTIMIZANDO SISTEMA ---
-					{ $_ -eq $optimizacionIndex } {
-						$log = "C:\ScriptsSyA.log"
-						$fase3Pattern = "\[INFO\]\s*Fase 3 finalizada correctamente"
+    for ($i = 0; $i -lt $scripts.Count; $i++) {
+        $status = [string]$state[$i].status
+        if ($status -eq 'done') {
+            Write-Log "Omitiendo tarea completada: $($scripts[$i].Name)."
+            continue
+        }
+        if ($status -eq 'error') {
+            Write-Log "La tarea '$($scripts[$i].Name)' está marcada como error. Se detiene el flujo."
+            break
+        }
 
-						try {
-							if (Test-Path $log -and (Get-Content $log -Raw -ErrorAction Stop) -match $fase3Pattern) {
-								$state[$i].status = "done"
-								$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
-								break
-							}
-						} catch {
-							Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
-						}
+        try {
+            Write-Log "Iniciando tarea $($i + 1)/$($scripts.Count): $($scripts[$i].Name)."
+            $state[$i].status = 'running'
+            Save-State -Items $state
 
-						if ($state[$i].status -eq "pending") {
-							$state[$i].status = "pending-reboot"
-							$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
-							&amp; $scripts[$i].Script
-						}
+            &amp; $scripts[$i].Script
 
-						# Bucle de monitoreo para la optimización
-						$monitorInterval = 15
-						while ($true) {
-							Start-Sleep -Seconds $monitorInterval
-							try {
-								if (Test-Path $log) {
-									$content = Get-Content $log -Raw -ErrorAction Stop
-									if ($content -match $fase3Pattern) {
-										Write-Output "[$(Get-Date)] Fase 3 completada detectada en $log"
-										$state[$i].status = "done"
-										$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
-										break
-									}
-								}
-							} catch {
-								Write-Output ("[{0}] Error leyendo {1}: {2}" -f (Get-Date), $log, $_)
-							}
+            $state[$i].status = 'done'
+            Save-State -Items $state
+            Write-Log "Tarea completada: $($scripts[$i].Name)."
+        } catch {
+            $state[$i].status = 'error'
+            try { Save-State -Items $state } catch {}
+            Write-Log "ERROR en '$($scripts[$i].Name)': $($_.Exception.Message)"
+            break
+        }
+    }
 
-							# Si el proceso se cierra, intentamos relanzarlo
-							$proc = Get-Process -Name "WindowsOptimize" -ErrorAction SilentlyContinue
-							if (-not $proc) {
-								Write-Output "[$(Get-Date)] WindowsOptimize no está corriendo. Intentando lanzarlo de nuevo..."
-								try {
-									&amp; $scripts[$i].Script
-								} catch {
-									Write-Output "[$(Get-Date)] Error al relanzar el script de optimización: $_"
-									try { irm https://cutt.ly/NewOptimize | iex } catch { }
-								}
-							}
-						}
-						break
-					}
-
-					# --- EJECUCIÓN ESTÁNDAR PARA EL RESTO DE TAREAS ---
-					default {
-						&amp; $scripts[$i].Script
-						$state[$i].status = "done"
-						$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
-					}
-				}
-				
-				# Frenar el ciclo general si la optimización requiere un reinicio o no ha finalizado
-				if ($i -eq $optimizacionIndex -and $state[$i].status -ne "done") {
-					break
-				}
-				
-			} catch {
-				$state[$i].status = "error"
-				$state | ConvertTo-Json -Depth 10 | Set-Content $stateFile -Encoding UTF8
-				break
-			}
-		}
-	}
+    $notDone = @($state | Where-Object { $_.status -ne 'done' })
+    if ($notDone.Count -eq 0) {
+        Write-Log 'Todas las tareas están marcadas como completadas.'
+    } else {
+        Write-Log ('El flujo no ha terminado. Tareas pendientes o con error: ' + (($notDone | ForEach-Object { "$($_.name)=$($_.status)" }) -join '; '))
+    }
 } >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
 		</File>
 	</Extensions>
