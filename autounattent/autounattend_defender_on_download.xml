@@ -1637,7 +1637,7 @@ $downloads = @(
     },
     @{
         Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase2.ps1"
-        FileName = "InstalarApps.ps1"
+        FileName = "InstallApps.ps1"
         Execute  = $false
     }
 )
