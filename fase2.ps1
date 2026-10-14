@@ -894,6 +894,6 @@ Set-InstallPercent -Percent 99
 Start-Sleep -Seconds 4
 Set-InstallPercent -Percent 100
 # Reinicio silencioso
-#$os = Get-WmiObject -Class Win32_OperatingSystem
-#$os.PSBase.Scope.Options.EnablePrivileges = $true
-#$os.Win32Shutdown(6)
+$os = Get-WmiObject -Class Win32_OperatingSystem
+$os.PSBase.Scope.Options.EnablePrivileges = $true
+$os.Win32Shutdown(6)
