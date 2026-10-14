@@ -12,6 +12,8 @@ if (-not (Test-Admin)) {
     return
 }
 
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
 # Stub progress function to avoid CommandNotFound during early calls.
 function Set-InstallPercent { param([int]$Percent) Write-Output "$Percent% Completado" }
 
@@ -100,8 +102,6 @@ function Ensure-WingetLatest {
     }
 }
 
- 
-
 ########################################### Aprovisionando Apps ###########################################
 Set-InstallPercent -Percent 3
 # Función para obtener arquitectura del sistema
@@ -155,6 +155,27 @@ function Increment-Progress {
     Set-InstallPercent -Percent $percent
 }
 
+function Invoke-WingetInstallLive {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackageId,
+        [Parameter(Mandatory = $true)][string]$LogPath
+    )
+
+    Write-Output "[PRERREQUISITO] Instalando $PackageId con winget..."
+    $wingetArgs = @(
+        'install', '--id', $PackageId, '-e', '--source', 'winget', '--silent',
+        '--disable-interactivity', '--accept-source-agreements', '--accept-package-agreements'
+    )
+    & winget @wingetArgs 2>&1 | ForEach-Object {
+        $line = [string]$_
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Add-Content -LiteralPath $LogPath -Value $line
+            Write-Output "[$PackageId] $line"
+        }
+    }
+    $script:LastWingetExitCode = $LASTEXITCODE
+}
+
 # Ejecutar comprobación/actualización
 Ensure-WingetLatest
 
@@ -190,19 +211,23 @@ function Install-FoundVCRedists {
         if ($arch -eq 'x86' -and -not $isX86) { continue }
 
         Add-Content $log "Found package id: $id - checking if installed..."
+        Write-Output "[VCRedist $arch] Revisando $id..."
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
+            Write-Output "[VCRedist $arch] $id ya está instalado; se omite."
             continue
         }
 
         Add-Content $log "Installing $id..."
-        $result = winget install --id $id -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-        Add-Content $log $result
-        if ($LASTEXITCODE -eq 0) {
+        Invoke-WingetInstallLive -PackageId $id -LogPath $log
+        $installExitCode = $script:LastWingetExitCode
+        if ($installExitCode -eq 0) {
             Add-Content $log "$id installed successfully"
+            Write-Output "[VCRedist $arch] $id instalado correctamente."
         } else {
-            Add-Content $log "$id failed with exitcode $LASTEXITCODE"
+            Add-Content $log "$id failed with exitcode $installExitCode"
+            Write-Output "[VCRedist $arch] Error instalando $id (código $installExitCode)."
         }
     }
 
@@ -233,9 +258,11 @@ function Install-FoundDotNetRuntimes {
     $toInstall = @()
     foreach ($id in $ids) {
         Add-Content $log "Found package id: $id - checking if installed..."
+        Write-Output "[.NET] Revisando $id..."
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
+            Write-Output "[.NET] $id ya está instalado; se omite."
             continue
         }
         $toInstall += $id
@@ -257,13 +284,15 @@ function Install-FoundDotNetRuntimes {
 
     foreach ($id in $toInstall) {
         Add-Content $log "Installing $id..."
-        $result = winget install --id $id -e --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-        Add-Content $log $result
-        if ($LASTEXITCODE -eq 0) {
+        Invoke-WingetInstallLive -PackageId $id -LogPath $log
+        $installExitCode = $script:LastWingetExitCode
+        if ($installExitCode -eq 0) {
             Add-Content $log "$id installed successfully"
+            Write-Output "[.NET] $id instalado correctamente."
             Increment-Progress
         } else {
-            Add-Content $log "$id failed with exitcode $LASTEXITCODE"
+            Add-Content $log "$id failed with exitcode $installExitCode"
+            Write-Output "[.NET] Error instalando $id (código $installExitCode)."
             # Aun así incrementamos para reflejar que el intento se realizó
             Increment-Progress
         }
@@ -368,7 +397,7 @@ function Install-RustDesk {
     }
 
     Write-Host "RustDesk no está instalado. Procediendo a instalar (GitHub release preferida)..."
-    #Set-InstallPercent -Percent 27
+    Set-InstallPercent -Percent 27
 
     try {
         $apiUrl = "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
@@ -464,38 +493,48 @@ function Install-RustDesk {
 # Install-RustDesk consolidated above; duplicate definition removed.
 
 function Install-WindowsTerminal {
-    Write-Host "Instalando Microsoft.WindowsTerminal."
+    $log = Join-Path $env:TEMP 'fase2_windows_terminal_install.log'
+    Write-Output '[Aplicaciones] Instalando Microsoft.WindowsTerminal...'
     Set-InstallPercent -Percent 28
-    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
+    Invoke-WingetInstallLive -PackageId 'Microsoft.WindowsTerminal' -LogPath $log
+    if ($script:LastWingetExitCode -eq 0) {
+        Write-Output '[Aplicaciones] Microsoft.WindowsTerminal instalado correctamente.'
+    } else {
+        Write-Output "[Aplicaciones] Error instalando Microsoft.WindowsTerminal (código $script:LastWingetExitCode)."
+    }
 }
 
 function Install-Notepadplus {
-    Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
+    $log = Join-Path $env:TEMP 'fase2_notepadpp_install.log'
+    Write-Output '[Aplicaciones] Instalando Notepad++...'
+    Invoke-WingetInstallLive -PackageId 'Notepad++.Notepad++' -LogPath $log
+    if ($script:LastWingetExitCode -eq 0) {
+        Write-Output '[Aplicaciones] Notepad++ instalado correctamente.'
+    } else {
+        Write-Output "[Aplicaciones] Error instalando Notepad++ (código $script:LastWingetExitCode)."
+    }
 }
 
 function Install-7Zip {
-    Write-Host "Instalando 7zip..."
+    $log = Join-Path $env:TEMP 'fase2_7zip_install.log'
+    Write-Output '[Aplicaciones] Instalando 7-Zip...'
     Set-InstallPercent -Percent 29
-    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "7zip instalado correctamente."
+    Invoke-WingetInstallLive -PackageId '7zip.7zip' -LogPath $log
+    if ($script:LastWingetExitCode -eq 0) {
+        Write-Output '[Aplicaciones] 7-Zip instalado correctamente.'
     } else {
-        Write-Host "Error al instalar 7zip:"
-        Write-Output $result
+        Write-Output "[Aplicaciones] Error instalando 7-Zip (código $script:LastWingetExitCode)."
     }
 }
 
 function Install-VLC {
-    Write-Host "Instalando VLC..."
-    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "VLC instalado correctamente."
+    $log = Join-Path $env:TEMP 'fase2_vlc_install.log'
+    Write-Output '[Aplicaciones] Instalando VLC...'
+    Invoke-WingetInstallLive -PackageId 'VideoLAN.VLC' -LogPath $log
+    if ($script:LastWingetExitCode -eq 0) {
+        Write-Output '[Aplicaciones] VLC instalado correctamente.'
     } else {
-        Write-Host "Error al instalar VLC:"
-        Write-Output $result
+        Write-Output "[Aplicaciones] Error instalando VLC (código $script:LastWingetExitCode)."
     }
 }
 
@@ -518,6 +557,16 @@ Install-VLC
 function Install-AllVCRedistx32 {
 
 # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
+
+#function Install-TranslucentTB {
+#	Write-Host "Actualizando TranslucentTB"
+#	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
+
+#function Install-SeelenUI {
+#	Write-Host "Actualizando Seelen.SeelenUI"
+#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
+#}
 
 function Install-VCLibsDesktop14 {
     Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
@@ -579,7 +628,20 @@ Install-VLC
     }
 
     # Comprobar si Winget está instalado
+    function Install-VCLibsDesktop14 {
+        $log = Join-Path $env:TEMP 'fase2_vclibs_install.log'
+        Write-Output '[VCLibs] Comprobando Microsoft.VCLibs.Desktop.14...'
+        Invoke-WingetInstallLive -PackageId 'Microsoft.VCLibs.Desktop.14' -LogPath $log
+        $installExitCode = $script:LastWingetExitCode
+        if ($installExitCode -eq 0) {
+            Write-Output '[VCLibs] Microsoft.VCLibs.Desktop.14 instalado o ya estaba actualizado.'
+        } else {
+            Write-Output "[VCLibs] Winget terminó con código $installExitCode."
+        }
+    }
+
     if (Test-WingetInstalled) {
+        Install-VCLibsDesktop14
         # Obtener la arquitectura del sistema
         $architecture = Get-SystemArchitecture
         
@@ -742,55 +804,55 @@ if (Test-Path -Path $destinationPath1) {
     Set-ItemProperty -Path "C:\ooshutup10.cfg" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
 #########################################################################################	
     Set-InstallPercent -Percent 64
-if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction SilentlyContinue) {
-    # Nitro PDF está instalado
-    Write-Host "Nitro PDF ya está instalado. Omitiendo."
-    Set-InstallPercent -Percent 98
-    Start-Sleep 2
-} else {
+#if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction SilentlyContinue) {
+   # Nitro PDF está instalado
+   # Write-Host "Nitro PDF ya está instalado. Omitiendo."
+   # Set-InstallPercent -Percent 98
+   # Start-Sleep 2
+#} else {
     # Nitro PDF no está instalado, ejecutar script de instalación
-    Write-Host "Nitro PDF no está instalado. Ejecutando script de instalación..."
-    Set-InstallPercent -Percent 65
+    # Write-Host "Nitro PDF no está instalado. Ejecutando script de instalación..."
+    # Set-InstallPercent -Percent 65
     # URL del archivo a descargar
-    Write-Host "Descargando Nitro 14 Pro"
-    $nitroUrl = "http://$fileContent/files/nitro_pro14_x64.msi"
-    $patchUrl = "http://$fileContent/files/Patch.exe"
+    # Write-Host "Descargando Nitro 14 Pro"
+    # $nitroUrl = "https://$fileContent/files/nitro_pro14_x64.msi"
+    # $patchUrl = "https://$fileContent/files/Patch.exe"
 
     # Descargar Nitro PDF 14 Pro
-    try {
-        Set-InstallPercent -Percent 71
-        Invoke-WebRequest -Uri $nitroUrl -OutFile "$env:TEMP\nitro_pro14_x64.msi"
-	Write-Host "Nitro PDF 14 Pro descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar Nitro PDF 14 Pro: $_"
-        exit 1
-    }
+    # try {
+       # Set-InstallPercent -Percent 71
+       # Invoke-WebRequest -Uri $nitroUrl -OutFile "$env:TEMP\nitro_pro14_x64.msi"
+	# Write-Host "Nitro PDF 14 Pro descargado correctamente."
+    # } catch {
+        #Write-Host "Error al descargar Nitro PDF 14 Pro: $_"
+        # exit 1
+    # }
 
     # Descargar el parche
-    Write-Host "Descargando activador"
-    try {
-        Invoke-WebRequest -Uri $patchUrl -OutFile "$env:TEMP\Patch.exe"
-    Set-InstallPercent -Percent 79
-        Write-Host "Parche descargado correctamente."
-    } catch {
-        Write-Host "Error al descargar el parche: $_"
-        exit 1
-    }
+    # Write-Host "Descargando activador"
+    # try {
+        #Invoke-WebRequest -Uri $patchUrl -OutFile "$env:TEMP\Patch.exe"
+    # Set-InstallPercent -Percent 79
+       # Write-Host "Parche descargado correctamente."
+    # } catch {
+       # Write-Host "Error al descargar el parche: $_"
+       # exit 1
+    # }
 
-    Write-Host "---------------------------------"
-    Set-InstallPercent -Percent 85
-    Write-Host "Instalando Nitro PDF 14 Pro"
-    Start-Sleep 3
+    # Write-Host "---------------------------------"
+    # Set-InstallPercent -Percent 85
+    # Write-Host "Instalando Nitro PDF 14 Pro"
+    # Start-Sleep 3
     # Instalar Nitro PDF
-    Set-InstallPercent -Percent 89
-    #Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
-    Start-Sleep 3
+    # Set-InstallPercent -Percent 89
+    # Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
+    # Start-Sleep 3
     
-    Write-Host "Activando Nitro PDF 14 Pro"
-    #Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
-    Set-InstallPercent -Percent 91
-	Start-Sleep 5
-}
+    # Write-Host "Activando Nitro PDF 14 Pro"
+    # Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
+    # Set-InstallPercent -Percent 91
+	# Start-Sleep 5
+# }
 
 # Eliminando Archivo Server -> Proceso Final
 Remove-Item -Path "$env:TEMP\server.txt" -Force
