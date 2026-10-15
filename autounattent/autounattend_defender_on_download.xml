@@ -2045,6 +2045,13 @@ $Process = Start-Process `
     -PassThru
 Write-Host ""
 if ($Process.ExitCode -eq 0) {
+
+    # Cerrar únicamente la ventana visible de RustDesk; no terminar sus procesos
+    # ni el servicio que mantiene la conexión en segundo plano.
+    Get-Process -Name 'rustdesk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowHandle -ne 0 } |
+        ForEach-Object { $null = $_.CloseMainWindow() }
+
     Write-Host "============================================" -ForegroundColor Green
     Write-Host " RustDesk $Version instalado correctamente" -ForegroundColor Green
     Write-Host "============================================" -ForegroundColor Green
@@ -2062,7 +2069,7 @@ else {
 # ------------------------------------------------------------
 # Limpieza
 # ------------------------------------------------------------
-Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+Remove-Item $TempFile -Force -ErrorAction SilentlyContinueue
 		</File>
 		<File path="C:\Windows\Setup\Scripts\InstallWinget.ps1">
 # ==========================================================
