@@ -17,6 +17,16 @@ if (-not (Test-Admin)) {
 # Stub progress function to avoid CommandNotFound during early calls.
 function Set-InstallPercent { param([int]$Percent) }
 
+# Checklist de programas comprobados durante esta ejecución.
+$script:InstallResults = [ordered]@{}
+function Set-InstallResult {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][bool]$Installed
+    )
+    $script:InstallResults[$Name] = $Installed
+}
+
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -154,8 +164,6 @@ function Invoke-WingetInstallLive {
     $alreadyInstalledMessage = $wingetText -match '(?i)already installed|no available upgrade|no newer package versions|no applicable upgrade|ya está instalado|ya esta instalado|no hay actualizaciones|no se encontraron actualizaciones'
     if ($alreadyInstalledMessage -and $wasInstalled) {
         $script:LastWingetStatus = 'Omitido ya esta instalada.'
-    } elseif ($script:LastWingetExitCode -eq 0) {
-        $script:LastWingetStatus = 'Instalado correctamente'
     } elseif (Test-WingetPackageInstalled -PackageId $PackageId -LogPath $LogPath) {
         if ($wasInstalled) {
             $script:LastWingetStatus = 'Omitido ya esta instalada.'
@@ -163,8 +171,11 @@ function Invoke-WingetInstallLive {
             $script:LastWingetStatus = 'Instalado correctamente'
         }
     } else {
+        # No basta con que winget devuelva código 0: confirmar que el paquete
+        # aparece instalado antes de permitir que el script finalice sin reiniciar.
         $script:LastWingetStatus = 'No instalado'
     }
+    Set-InstallResult -Name $PackageId -Installed ($script:LastWingetStatus -ne 'No instalado')
 }
 
 # Ejecutar comprobación/actualización
@@ -182,6 +193,7 @@ function Install-FoundVCRedists {
     $searchOutput = winget search --id Microsoft.VCRedist --source winget 2>&1
     if (-not $searchOutput) {
         Add-Content $log "winget search returned no results."
+        Set-InstallResult -Name "VCRedist.$arch.Search" -Installed $false
         return
     }
 
@@ -193,6 +205,7 @@ function Install-FoundVCRedists {
     }
 
     $ids = $ids | Select-Object -Unique
+    Set-InstallResult -Name "VCRedist.$arch.Search" -Installed ($ids.Count -gt 0)
 
     foreach ($id in $ids) {
         $isX64 = $id -match 'x64'
@@ -204,6 +217,7 @@ function Install-FoundVCRedists {
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
+            Set-InstallResult -Name $id -Installed $true
             Write-Output "$id - Omitido ya esta instalada."
             continue
         }
@@ -231,6 +245,7 @@ function Install-FoundDotNetRuntimes {
     $searchOutput = winget search --id Microsoft.DotNet --source winget 2>&1
     if (-not $searchOutput) {
         Add-Content $log "winget search returned no results for Microsoft.DotNet."
+        Set-InstallResult -Name 'DotNet.Search' -Installed $false
         return
     }
 
@@ -242,6 +257,28 @@ function Install-FoundDotNetRuntimes {
     }
 
     $ids = $ids | Select-Object -Unique
+    Set-InstallResult -Name 'DotNet.Search' -Installed ($ids.Count -gt 0)
+
+    # Winget publica runtimes para varias arquitecturas. En equipos x64/x86,
+    # el paquete ARM64 no es un requisito y su fallo provocaría reintentos
+    # de reinicio que nunca podrían completarse.
+    $processorArchitecture = $null
+    try {
+        $processorArchitecture = (Get-CimInstance -ClassName Win32_Processor |
+            Select-Object -First 1 -ExpandProperty Architecture)
+    } catch {
+        Add-Content $log "No se pudo detectar la arquitectura del procesador: $_"
+    }
+
+    if ($processorArchitecture -ne 12) {
+        $arm64Ids = @($ids | Where-Object { $_ -match '(?i)\.arm64$' })
+        foreach ($id in $arm64Ids) {
+            $ids = @($ids | Where-Object { $_ -ne $id })
+            Set-InstallResult -Name $id -Installed $true
+            Add-Content $log "$id no aplica; se omite porque el procesador no es ARM64."
+            Write-Output "$id - No aplica a esta arquitectura; omitido."
+        }
+    }
 
     # Primero calcular qué paquetes realmente necesitan instalación
     $toInstall = @()
@@ -250,6 +287,7 @@ function Install-FoundDotNetRuntimes {
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
+            Set-InstallResult -Name $id -Installed $true
             Write-Output "$id - Omitido ya esta instalada."
             continue
         }
@@ -587,8 +625,10 @@ Install-VLC
 
         Install-WindowsTerminal
         if (Test-DirectX12Available) {
+            Set-InstallResult -Name 'DirectX12' -Installed $true
             Write-Output 'DirectX 12 - Disponible'
         } else {
+            Set-InstallResult -Name 'DirectX12' -Installed $false
             Write-Output 'DirectX 12 - No disponible; requiere Windows Update'
         }
         Install-DirectXLegacyRuntime
@@ -709,7 +749,7 @@ if (Test-Path -Path $destinationPath1) {
         Write-Host "Archivo OOSU10.zip descargado correctamente."
     } catch {
         Write-Host "Error al descargar OOSU10.zip: $_"
-        exit 1
+        Set-InstallResult -Name 'OOSU10' -Installed $false
     }
 
     Write-Host "Expandiendo archivos"
@@ -720,7 +760,7 @@ if (Test-Path -Path $destinationPath1) {
         Write-Host "Archivos expandidos correctamente."
     } catch {
         Write-Host "Error al expandir archivos: $_"
-        exit 1
+        Set-InstallResult -Name 'OOSU10' -Installed $false
     }
     Set-InstallPercent -Percent 61
  
@@ -729,7 +769,12 @@ if (Test-Path -Path $destinationPath1) {
     Write-Host "Archivo OOSU10.zip eliminado."
 	
     # Ejecutar OOSU10.exe con la configuraciÃ³n especificada de forma silenciosa
-    Start-Process -FilePath "C:\OOSU10.exe" -ArgumentList "C:\ooshutup10.cfg", "/quiet" -NoNewWindow -Wait
+    $oosuProcess = Start-Process -FilePath "C:\OOSU10.exe" -ArgumentList "C:\ooshutup10.cfg", "/quiet" -NoNewWindow -Wait -PassThru
+    $oosuOk = ($null -ne $oosuProcess) -and ($oosuProcess.ExitCode -eq 0) -and (Test-Path -LiteralPath "C:\OOSU10.exe") -and (Test-Path -LiteralPath "C:\ooshutup10.cfg")
+    Set-InstallResult -Name 'OOSU10' -Installed $oosuOk
+    if (-not $oosuOk) {
+        Add-Content -LiteralPath (Join-Path $env:TEMP 'fase2_oosu10_install.log') -Value "OOSU10 failed. ExitCode=$($oosuProcess.ExitCode)"
+    }
 
     # Ocultar los archivos OOSU10.exe y ooshutup10.cfg
     Set-ItemProperty -Path "C:\OOSU10.exe" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
@@ -822,10 +867,21 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
 
-Set-InstallPercent -Percent 99
-Start-Sleep -Seconds 4
-Set-InstallPercent -Percent 100
-# Reinicio silencioso
-$os = Get-WmiObject -Class Win32_OperatingSystem
-$os.PSBase.Scope.Options.EnablePrivileges = $true
-$os.Win32Shutdown(6)
+$failedInstalls = @(
+    $script:InstallResults.GetEnumerator() | Where-Object { -not $_.Value }
+)
+
+if ($script:InstallResults.Count -gt 0 -and $failedInstalls.Count -eq 0) {
+    Set-InstallPercent -Percent 100
+    Write-Host "Todos los programas y comprobaciones quedaron instalados correctamente. No se reiniciará el equipo."
+} else {
+    Set-InstallPercent -Percent 99
+    Write-Warning "Faltan instalaciones o comprobaciones; se reiniciará para volver a intentarlas."
+    foreach ($item in $failedInstalls) {
+        Write-Warning "Pendiente: $($item.Key)"
+    }
+    if ($script:InstallResults.Count -eq 0) {
+        Write-Warning 'No se registraron resultados de instalación en esta ejecución.'
+    }
+    Restart-Computer -Force
+}
