@@ -15,7 +15,7 @@ if (-not (Test-Admin)) {
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 # Stub progress function to avoid CommandNotFound during early calls.
-function Set-InstallPercent { param([int]$Percent) Write-Output "$Percent% Completado" }
+function Set-InstallPercent { param([int]$Percent) }
 
 # Ruta de la clave de inicio en el registro
 $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -34,74 +34,6 @@ if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
 } else {
     Write-Host "No se encontró la entrada TranslucentTB en el registro."
 }
-########################################### Instalando la ultima version de Winget ###########################################
-# Función para verificar si Winget está instalado
-    function Test-WingetInstalled {
-        try {
-            winget -v
-            return $true
-        } catch {
-            return $false
-        }
-    }
-Test-WingetInstalled
-
-# Asegura que winget esté presente y actualizado a la última versión publicada en GitHub
-function Ensure-WingetLatest {
-    param()
-    Set-InstallPercent -Percent 4
-    $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-    try {
-        $latestRelease = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' }
-    } catch {
-        Write-Warning "No se pudo consultar la API de GitHub para winget: $_"
-        return
-    }
-
-    $latestVersionRaw = $latestRelease.tag_name
-    $latestVersionClean = $latestVersionRaw -replace '^[^\d]*', ''
-    try {
-        $latestVer = [version]$latestVersionClean
-    } catch {
-        Write-Warning "Formato de versión remota inválido: $latestVersionRaw"
-        return
-    }
-
-    # Determinar versión local
-    try {
-        $currentVersionRaw = (winget --version) -replace '[^\d\.]', ''
-        $currentVer = [version]$currentVersionRaw
-    } catch {
-        $currentVer = [version]'0.0.0'
-    }
-
-    Write-Host "winget local: $currentVer  | latest: $latestVer"
-
-    if ($latestVer -gt $currentVer) {
-        Write-Host "Actualizando winget a $latestVer..."
-        Set-InstallPercent -Percent 5
-        $asset = $latestRelease.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1
-        if (-not $asset) {
-            Write-Warning "No se encontro msixbundle en los assets de la release."
-            return
-        }
-        $wingetUrl = $asset.browser_download_url
-        $destination = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
-        try {
-            Invoke-WebRequest -Uri $wingetUrl -OutFile $destination -UseBasicParsing -ErrorAction Stop
-            Add-AppxPackage -Path $destination -ErrorAction Stop
-            Write-Host "winget actualizado correctamente a la versión $latestVer"
-            Set-InstallPercent -Percent 6
-        } catch {
-            Write-Warning "Fallo actualizando winget: $_"
-        } finally {
-            if (Test-Path $destination) { Remove-Item $destination -Force -ErrorAction SilentlyContinue }
-        }
-    } else {
-        Write-Host "winget ya esta en la ultima version o es mas reciente: $currentVer"
-    }
-}
-
 ########################################### Aprovisionando Apps ###########################################
 Set-InstallPercent -Percent 3
 # Función para obtener arquitectura del sistema
@@ -124,7 +56,6 @@ function Set-InstallPercent {
     } catch {
         Write-Host "No se pudo escribir el archivo de progreso: $_"
     }
-    Write-Output "$Percent% Completado"
 }
 
 function Initialize-Progress {
@@ -143,7 +74,7 @@ function Initialize-Progress {
     Set-InstallPercent -Percent $script:ProgressBase
 }
 
-function Increment-Progress {
+function Update-InstallProgress {
     param()
     if (-not $script:ProgressTotal -or $script:ProgressTotal -le 0) {
         return
@@ -155,29 +86,88 @@ function Increment-Progress {
     Set-InstallPercent -Percent $percent
 }
 
+function Test-WingetPackageInstalled {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackageId,
+        [Parameter(Mandatory = $true)][string]$LogPath
+    )
+
+    $listOutput = @(& winget list --id $PackageId -e --source winget 2>&1 | ForEach-Object { [string]$_ })
+    foreach ($line in $listOutput) {
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Add-Content -LiteralPath $LogPath -Value "[winget list] $line"
+        }
+    }
+
+    foreach ($line in $listOutput) {
+        if ($line.IndexOf($PackageId, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function Invoke-WingetInstallLive {
     param(
         [Parameter(Mandatory = $true)][string]$PackageId,
         [Parameter(Mandatory = $true)][string]$LogPath
     )
 
-    Write-Output "[PRERREQUISITO] Instalando $PackageId con winget..."
+    $wasInstalled = Test-WingetPackageInstalled -PackageId $PackageId -LogPath $LogPath
+    if ($wasInstalled) {
+        Add-Content -LiteralPath $LogPath -Value "$PackageId is already installed; checking for an available update."
+    }
+
     $wingetArgs = @(
         'install', '--id', $PackageId, '-e', '--source', 'winget', '--silent',
         '--disable-interactivity', '--accept-source-agreements', '--accept-package-agreements'
     )
-    & winget @wingetArgs 2>&1 | ForEach-Object {
-        $line = [string]$_
+    # Ejecutar Winget sin consola interactiva: de este modo su spinner y la
+    # salida de instalación no se heredan en la consola de FirstLogonGUI.
+    $wingetCommand = Get-Command winget -ErrorAction Stop
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $wingetCommand.Source
+    $startInfo.Arguments = (($wingetArgs | ForEach-Object { '"' + ([string]$_).Replace('"', '\"') + '"' }) -join ' ')
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $null = $process.Start()
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $wingetOutput = @((($stdoutTask.Result -split "`r?`n") + ($stderrTask.Result -split "`r?`n")) | Where-Object { $_ -ne '' })
+    $script:LastWingetExitCode = $process.ExitCode
+    $process.Dispose()
+
+    foreach ($line in $wingetOutput) {
         if (-not [string]::IsNullOrWhiteSpace($line)) {
             Add-Content -LiteralPath $LogPath -Value $line
-            Write-Output "[$PackageId] $line"
         }
     }
-    $script:LastWingetExitCode = $LASTEXITCODE
+    # Algunos builds de Winget informan que ya está instalado con un código
+    # distinto de cero, así que se vuelve a comprobar el paquete antes de marcar fallo.
+    $wingetText = $wingetOutput -join "`n"
+    $alreadyInstalledMessage = $wingetText -match '(?i)already installed|no available upgrade|no newer package versions|no applicable upgrade|ya está instalado|ya esta instalado|no hay actualizaciones|no se encontraron actualizaciones'
+    if ($alreadyInstalledMessage -and $wasInstalled) {
+        $script:LastWingetStatus = 'Omitido ya esta instalada.'
+    } elseif ($script:LastWingetExitCode -eq 0) {
+        $script:LastWingetStatus = 'Instalado correctamente'
+    } elseif (Test-WingetPackageInstalled -PackageId $PackageId -LogPath $LogPath) {
+        if ($wasInstalled) {
+            $script:LastWingetStatus = 'Omitido ya esta instalada.'
+        } else {
+            $script:LastWingetStatus = 'Instalado correctamente'
+        }
+    } else {
+        $script:LastWingetStatus = 'No instalado'
+    }
 }
 
 # Ejecutar comprobación/actualización
-Ensure-WingetLatest
 
 # Busca paquetes VCRedist con winget e instala los que coincidan según la arquitectura
 function Install-FoundVCRedists {
@@ -211,23 +201,22 @@ function Install-FoundVCRedists {
         if ($arch -eq 'x86' -and -not $isX86) { continue }
 
         Add-Content $log "Found package id: $id - checking if installed..."
-        Write-Output "[VCRedist $arch] Revisando $id..."
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
-            Write-Output "[VCRedist $arch] $id ya está instalado; se omite."
+            Write-Output "$id - Omitido ya esta instalada."
             continue
         }
 
         Add-Content $log "Installing $id..."
         Invoke-WingetInstallLive -PackageId $id -LogPath $log
         $installExitCode = $script:LastWingetExitCode
-        if ($installExitCode -eq 0) {
+        if ($script:LastWingetStatus -ne 'No instalado') {
             Add-Content $log "$id installed successfully"
-            Write-Output "[VCRedist $arch] $id instalado correctamente."
+            Write-Output "$id - $script:LastWingetStatus"
         } else {
             Add-Content $log "$id failed with exitcode $installExitCode"
-            Write-Output "[VCRedist $arch] Error instalando $id (código $installExitCode)."
+            Write-Output "$id - No instalado"
         }
     }
 
@@ -258,11 +247,10 @@ function Install-FoundDotNetRuntimes {
     $toInstall = @()
     foreach ($id in $ids) {
         Add-Content $log "Found package id: $id - checking if installed..."
-        Write-Output "[.NET] Revisando $id..."
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
         if ($installed) {
             Add-Content $log "$id already installed. Skipping."
-            Write-Output "[.NET] $id ya está instalado; se omite."
+            Write-Output "$id - Omitido ya esta instalada."
             continue
         }
         $toInstall += $id
@@ -286,15 +274,15 @@ function Install-FoundDotNetRuntimes {
         Add-Content $log "Installing $id..."
         Invoke-WingetInstallLive -PackageId $id -LogPath $log
         $installExitCode = $script:LastWingetExitCode
-        if ($installExitCode -eq 0) {
+        if ($script:LastWingetStatus -ne 'No instalado') {
             Add-Content $log "$id installed successfully"
-            Write-Output "[.NET] $id instalado correctamente."
-            Increment-Progress
+            Write-Output "$id - $script:LastWingetStatus"
+            Update-InstallProgress
         } else {
             Add-Content $log "$id failed with exitcode $installExitCode"
-            Write-Output "[.NET] Error instalando $id (código $installExitCode)."
+            Write-Output "$id - No instalado"
             # Aun así incrementamos para reflejar que el intento se realizó
-            Increment-Progress
+            Update-InstallProgress
         }
     }
     # Al finalizar, asegurar que el progreso llegue al límite máximo del rango reservado
@@ -345,16 +333,6 @@ try {
     Write-Host "Error al detectar o cambiar el idioma: $_"
 }
 
-    # Función para verificar si Winget está instalado
-    function Test-WingetInstalled {
-        try {
-            winget -v
-            return $true
-        } catch {
-            return $false
-        }
-    }
-
 # Función para instalar todos los Microsoft Visual C++ Redistributable en x64
 function Install-AllVCRedistx64 {
         # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
@@ -376,166 +354,33 @@ function Install-VCLibsDesktop14 {
 }
 
 
-function Install-RustDesk {
-    $log = "$env:TEMP\fase2_rustdesk_install.log"
-    Add-Content $log "=== Install-RustDesk start $(Get-Date) ==="
 
-    $possiblePaths = @(
-        "$env:ProgramFiles\RustDesk\rustdesk.exe",
-        "$env:ProgramFiles(x86)\RustDesk\rustdesk.exe",
-        "$env:ProgramFiles\RustDesk\RustDesk.exe",
-        "$env:ProgramFiles(x86)\RustDesk\RustDesk.exe"
-    )
 
-    foreach ($p in $possiblePaths) {
-        if (Test-Path $p) {
-            Add-Content $log "Found existing install: $p"
-            Write-Host "RustDesk ya está instalado. Omitiendo instalación."
-            Add-Content $log "=== Install-RustDesk end $(Get-Date) ==="
-            return
-        }
-    }
-
-    Write-Host "RustDesk no está instalado. Procediendo a instalar (GitHub release preferida)..."
-    Set-InstallPercent -Percent 27
-
-    try {
-        $apiUrl = "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
-        $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'PowerShell' } -ErrorAction Stop
-    } catch {
-        Add-Content $log "Failed to fetch GitHub release: $_"
-        Write-Warning "No se pudo obtener la release de GitHub: $_"
-        return
-    }
-
-    $is64 = [Environment]::Is64BitOperatingSystem
-
-    # Preferir MSI para la arquitectura, luego EXE, con varios fallbacks
-    $asset = $null
-    if ($is64) {
-        $asset = $release.assets | Where-Object { $_.name -match '\.msi$' -and ($_.name -match 'x86_64|x64|x86-64') } | Select-Object -First 1
-    } else {
-        $asset = $release.assets | Where-Object { $_.name -match '\.msi$' -and ($_.name -match '(^|[^0-9])x86(\D|$)|i386') } | Select-Object -First 1
-    }
-    if (-not $asset) { $asset = $release.assets | Where-Object { $_.name -match '\.msi$' } | Select-Object -First 1 }
-    if (-not $asset) {
-        if ($is64) {
-            $asset = $release.assets | Where-Object { $_.name -match '\.exe$' -and ($_.name -match 'x86_64|x64|x86-64') } | Select-Object -First 1
-        } else {
-            $asset = $release.assets | Where-Object { $_.name -match '\.exe$' -and ($_.name -match '(^|[^0-9])x86(\D|$)|i386') } | Select-Object -First 1
-        }
-    }
-    if (-not $asset) { $asset = $release.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1 }
-
-    if (-not $asset) {
-        Add-Content $log "No MSI/EXE asset found in release. Aborting."
-        Write-Warning "No se encontró instalador .msi/.exe en la última release."
-        return
-    }
-
-    $downloadUrl = $asset.browser_download_url
-    $dest = Join-Path $env:TEMP $asset.name
-    Add-Content $log "Selected asset: $($asset.name) -> $downloadUrl"
-
-    try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $dest -UseBasicParsing -ErrorAction Stop
-        Add-Content $log "Downloaded to $dest"
-    } catch {
-        Add-Content $log "Download failed: $_"
-        Write-Warning "Fallo al descargar ${downloadUrl}: $_"
-        return
-    }
-
-    try {
-        if ($dest -match '\.msi$') {
-            Add-Content $log "Installing MSI silently via msiexec"
-            Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$dest`" /qn /norestart" -Wait -NoNewWindow
-        } else {
-            $silentArgsList = @('/S','/silent','/VERYSILENT','/quiet','-s','/SILENT')
-            $installed = $false
-            foreach ($arg in $silentArgsList) {
-                try {
-                    Add-Content $log "Trying EXE silent arg: $arg"
-                    $proc = Start-Process -FilePath $dest -ArgumentList $arg -Wait -PassThru -NoNewWindow -ErrorAction Stop
-                    if ($proc -and $proc.ExitCode -eq 0) { $installed = $true; break }
-                } catch {
-                    Add-Content $log "Silent attempt failed for arg ${arg}: $_"
-                }
-            }
-
-            if (-not $installed) {
-                Add-Content $log "No silent flag worked; launching interactive installer"
-                Start-Process -FilePath $dest -Wait
-            }
-        }
-    } catch {
-        Add-Content $log "Installation attempt failed: $_"
-        Write-Warning "Error durante la instalación: $_"
-    }
-
-    Start-Sleep -Seconds 3
-
-    # Verificar instalación
-    $installedNow = $false
-    foreach ($p in $possiblePaths) { if (Test-Path $p) { $installedNow = $true; Add-Content $log "Post-install found: $p"; break } }
-    if ($installedNow) {
-        Add-Content $log "RustDesk instalado correctamente."
-        Write-Host "RustDesk instalado correctamente."
-    } else {
-        Add-Content $log "RustDesk no encontrado después de la instalación."
-        Write-Warning "No se detectó RustDesk tras la instalación. Revisa el log: $log"
-    }
-
-    if (Test-Path $dest) { Remove-Item $dest -Force -ErrorAction SilentlyContinue }
-    Add-Content $log "=== Install-RustDesk end $(Get-Date) ==="
-}
-
-# Install-RustDesk consolidated above; duplicate definition removed.
 
 function Install-WindowsTerminal {
     $log = Join-Path $env:TEMP 'fase2_windows_terminal_install.log'
-    Write-Output '[Aplicaciones] Instalando Microsoft.WindowsTerminal...'
     Set-InstallPercent -Percent 28
     Invoke-WingetInstallLive -PackageId 'Microsoft.WindowsTerminal' -LogPath $log
-    if ($script:LastWingetExitCode -eq 0) {
-        Write-Output '[Aplicaciones] Microsoft.WindowsTerminal instalado correctamente.'
-    } else {
-        Write-Output "[Aplicaciones] Error instalando Microsoft.WindowsTerminal (código $script:LastWingetExitCode)."
-    }
+    Write-Output "Windows Terminal - $script:LastWingetStatus"
 }
 
 function Install-Notepadplus {
     $log = Join-Path $env:TEMP 'fase2_notepadpp_install.log'
-    Write-Output '[Aplicaciones] Instalando Notepad++...'
     Invoke-WingetInstallLive -PackageId 'Notepad++.Notepad++' -LogPath $log
-    if ($script:LastWingetExitCode -eq 0) {
-        Write-Output '[Aplicaciones] Notepad++ instalado correctamente.'
-    } else {
-        Write-Output "[Aplicaciones] Error instalando Notepad++ (código $script:LastWingetExitCode)."
-    }
+    Write-Output "Notepad++ - $script:LastWingetStatus"
 }
 
 function Install-7Zip {
     $log = Join-Path $env:TEMP 'fase2_7zip_install.log'
-    Write-Output '[Aplicaciones] Instalando 7-Zip...'
     Set-InstallPercent -Percent 29
     Invoke-WingetInstallLive -PackageId '7zip.7zip' -LogPath $log
-    if ($script:LastWingetExitCode -eq 0) {
-        Write-Output '[Aplicaciones] 7-Zip instalado correctamente.'
-    } else {
-        Write-Output "[Aplicaciones] Error instalando 7-Zip (código $script:LastWingetExitCode)."
-    }
+    Write-Output "7-Zip - $script:LastWingetStatus"
 }
 
 function Install-VLC {
     $log = Join-Path $env:TEMP 'fase2_vlc_install.log'
-    Write-Output '[Aplicaciones] Instalando VLC...'
     Invoke-WingetInstallLive -PackageId 'VideoLAN.VLC' -LogPath $log
-    if ($script:LastWingetExitCode -eq 0) {
-        Write-Output '[Aplicaciones] VLC instalado correctamente.'
-    } else {
-        Write-Output "[Aplicaciones] Error instalando VLC (código $script:LastWingetExitCode)."
-    }
+    Write-Output "VLC - $script:LastWingetStatus"
 }
 
 
@@ -545,7 +390,6 @@ function Install-VLC {
 Install-VCLibsDesktop14
 Install-FoundVCRedists -arch 'x64'
 Install-FoundDotNetRuntimes
-Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
 Install-Notepadplus
@@ -574,7 +418,6 @@ function Install-VCLibsDesktop14 {
     winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
 }
 
-# Install-RustDesk consolidated above; duplicate definition removed.
 
 function Install-WindowsTerminal {
     Write-Host "Instalando Microsoft.WindowsTerminal."
@@ -619,7 +462,6 @@ function Install-VLC {
 Install-VCLibsDesktop14
 Install-FoundVCRedists -arch 'x86'
 Install-FoundDotNetRuntimes
-Install-RustDesk
 Install-WindowsTerminal
 Install-7Zip
 Install-Notepadplus
@@ -630,18 +472,100 @@ Install-VLC
     # Comprobar si Winget está instalado
     function Install-VCLibsDesktop14 {
         $log = Join-Path $env:TEMP 'fase2_vclibs_install.log'
-        Write-Output '[VCLibs] Comprobando Microsoft.VCLibs.Desktop.14...'
         Invoke-WingetInstallLive -PackageId 'Microsoft.VCLibs.Desktop.14' -LogPath $log
-        $installExitCode = $script:LastWingetExitCode
-        if ($installExitCode -eq 0) {
-            Write-Output '[VCLibs] Microsoft.VCLibs.Desktop.14 instalado o ya estaba actualizado.'
-        } else {
-            Write-Output "[VCLibs] Winget terminó con código $installExitCode."
+        Write-Output "Microsoft.VCLibs.Desktop.14 - $script:LastWingetStatus"
+    }
+
+    function Install-TranslucentTB {
+        $log = Join-Path $env:TEMP 'fase2_translucenttb_install.log'
+        Invoke-WingetInstallLive -PackageId 'CharlesMilette.TranslucentTB' -LogPath $log
+
+        if ($script:LastWingetStatus -ne 'No instalado') {
+            try {
+                $startApp = Get-StartApps | Where-Object { $_.Name -eq 'TranslucentTB' } | Select-Object -First 1
+                $appId = if ($startApp) { $startApp.AppID } else { '28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB' }
+                Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') `
+                    -ArgumentList "shell:AppsFolder\$appId" -ErrorAction Stop
+                Add-Content -LiteralPath $log -Value "TranslucentTB launched through AppsFolder: $appId"
+            } catch {
+                Add-Content -LiteralPath $log -Value "Failed to launch TranslucentTB: $_"
+            }
+        }
+
+        Write-Output "TranslucentTB - $script:LastWingetStatus"
+    }
+
+    function Install-WindowsTerminal {
+        $log = Join-Path $env:TEMP 'fase2_windows_terminal_install.log'
+        Invoke-WingetInstallLive -PackageId 'Microsoft.WindowsTerminal' -LogPath $log
+        Write-Output "Windows Terminal - $script:LastWingetStatus"
+    }
+
+    function Install-7Zip {
+        $log = Join-Path $env:TEMP 'fase2_7zip_install.log'
+        Invoke-WingetInstallLive -PackageId '7zip.7zip' -LogPath $log
+        Write-Output "7-Zip - $script:LastWingetStatus"
+    }
+
+    function Install-Notepadplus {
+        $log = Join-Path $env:TEMP 'fase2_notepadpp_install.log'
+        Invoke-WingetInstallLive -PackageId 'Notepad++.Notepad++' -LogPath $log
+        Write-Output "Notepad++ - $script:LastWingetStatus"
+    }
+
+    function Install-VLC {
+        $log = Join-Path $env:TEMP 'fase2_vlc_install.log'
+        Invoke-WingetInstallLive -PackageId 'VideoLAN.VLC' -LogPath $log
+        Write-Output "VLC - $script:LastWingetStatus"
+    }
+
+    function Test-DirectX12Available {
+        $reportPath = Join-Path $env:TEMP 'fase2_dxdiag_report.txt'
+        try {
+            if (Test-Path -LiteralPath $reportPath) {
+                Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
+            }
+
+            $dxdiagPath = Join-Path $env:WINDIR 'System32\dxdiag.exe'
+            Start-Process -FilePath $dxdiagPath `
+                -ArgumentList "/whql:off /t `"$reportPath`"" -Wait -WindowStyle Hidden -ErrorAction Stop
+
+            if (Test-Path -LiteralPath $reportPath) {
+                $reportText = Get-Content -LiteralPath $reportPath -Raw
+                $versionMatch = [regex]::Match($reportText, '(?im)^.*(?:DirectX Version|Versi.n de DirectX).*?DirectX\s+(?<major>\d+)\b')
+                if ($versionMatch.Success) {
+                    return ([int]$versionMatch.Groups['major'].Value -ge 12)
+                }
+            }
+        } catch {
+            Add-Content -LiteralPath (Join-Path $env:TEMP 'fase2_directx_install.log') -Value "dxdiag check failed: $_"
+        } finally {
+            if (Test-Path -LiteralPath $reportPath) {
+                Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # DirectX 12 forma parte de Windows 10 y versiones posteriores.
+        try {
+            $osVersion = [version](Get-CimInstance -ClassName Win32_OperatingSystem).Version
+            return ($osVersion -ge [version]'10.0.10240')
+        } catch {
+            return $false
         }
     }
 
-    if (Test-WingetInstalled) {
-        Install-VCLibsDesktop14
+    function Install-DirectXLegacyRuntime {
+        $log = Join-Path $env:TEMP 'fase2_directx_install.log'
+        if (Test-WingetPackageInstalled -PackageId 'Microsoft.DirectX' -LogPath $log) {
+            Write-Output 'DirectX End-User Runtime - Omitido ya esta instalada.'
+            return
+        }
+
+        Invoke-WingetInstallLive -PackageId 'Microsoft.DirectX' -LogPath $log
+        Write-Output "DirectX End-User Runtime - $script:LastWingetStatus"
+    }
+
+    Install-VCLibsDesktop14
         # Obtener la arquitectura del sistema
         $architecture = Get-SystemArchitecture
         
@@ -650,6 +574,7 @@ Install-VLC
             Write-Host "Instalacion dinamica de VCRedist completada para x86 (ver log en %TEMP%\\fase2_vcredist_install.log)"
             Install-FoundDotNetRuntimes
             Write-Host "Instalacion dinamica de .NET completada (ver log en %TEMP%\\fase2_dotnet_install.log)"
+            Install-TranslucentTB
         } else {
             # En sistemas x64, instalar tanto x64 como x86 redistributables
             Install-FoundVCRedists -arch 'x64'
@@ -657,10 +582,19 @@ Install-VLC
             Write-Host "Instalacion dinamica de VCRedist completada para x64 + x86 (ver log en %TEMP%\\fase2_vcredist_install.log)"
             Install-FoundDotNetRuntimes
             Write-Host "Instalacion dinamica de .NET completada (ver log en %TEMP%\\fase2_dotnet_install.log)"
+            Install-TranslucentTB
         }
-    } else {
-        Write-Host "Winget no esta instalado en el sistema."
-    }
+
+        Install-WindowsTerminal
+        if (Test-DirectX12Available) {
+            Write-Output 'DirectX 12 - Disponible'
+        } else {
+            Write-Output 'DirectX 12 - No disponible; requiere Windows Update'
+        }
+        Install-DirectXLegacyRuntime
+        Install-7Zip
+        Install-Notepadplus
+        Install-VLC
 
 # Configurar inicio automático usando tarea programada
 #$taskName = "Launch TranslucentTB"
@@ -754,8 +688,6 @@ if (Test-ServerStatus $primaryServer) {
 
 # Leer y mostrar el contenido del archivo descargado
 if (Test-Path -Path $destinationPath1) {
-    $fileContent = Get-Content -Path $destinationPath1
-    #Write-Host $fileContent 
     start-sleep 5
 }
 #########################################################################################
