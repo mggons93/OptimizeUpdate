@@ -1305,10 +1305,26 @@ Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyCo
 Write-Host "Ajustando configuraciones de red..."
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "IRPStackSize" -Type DWord -Value 20
 
-Write-Host "Permitir el acceso a la ubicación..."
-Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}" -Name "Value" -Type String -Value "Allow"
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Type String -Value "Allow"
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Type DWord -Value "1"
+Write-Host "Habilitando los servicios de ubicación..."
+$locationPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors"
+Remove-ItemProperty -Path $locationPolicyPath -Name "DisableLocation" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path $locationPolicyPath -Name "DisableWindowsLocationProvider" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path $locationPolicyPath -Name "DisableLocationScripting" -ErrorAction SilentlyContinue
+
+$deviceAccessPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}"
+New-Item -Path $deviceAccessPath -Force | Out-Null
+Set-ItemProperty -Path $deviceAccessPath -Name "Value" -Type String -Value "Allow"
+
+$locationConsentPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+New-Item -Path $locationConsentPath -Force | Out-Null
+Set-ItemProperty -Path $locationConsentPath -Name "Value" -Type String -Value "Allow"
+
+# Permitir el acceso a la ubicación a las aplicaciones de Windows mediante directiva.
+$appPrivacyPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"
+New-Item -Path $appPrivacyPolicyPath -Force | Out-Null
+Set-ItemProperty -Path $appPrivacyPolicyPath -Name "LetAppsAccessLocation" -Type DWord -Value 1
+
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Type DWord -Value 1
 
 #############################
 Write-Output "86% Completado"
@@ -1341,15 +1357,6 @@ Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearc
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontSearchWindowsUpdate" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
-
-Write-Host "Habilitando proveedor de ubicación..."
-Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableWindowsLocationProvider" -ErrorAction SilentlyContinue
-Write-Host "Habilitando Location Scripting..."
-Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocationScripting" -ErrorAction SilentlyContinue
-
-reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /f
-reg delete "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" /f
-
 
 # Indicador de progreso
 #############################
