@@ -2928,7 +2928,7 @@ try {
     Write-Log "ERROR CRÍTICO: $_"
 }
 		</File>
-		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
+				<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
 ############################################################
 # OPTIMIZAR DISCO SSD
 # Compatible con Win10 / Win11 (hasta 26H2) / LTSC / IoT / PS5 / PS7
@@ -2941,7 +2941,8 @@ if (-not $isAdmin) {
     exit 1
 }
 
-$ErrorActionPreference = "SilentlyContinue"
+# No ocultar fallos: cada operación opcional ya debe manejar su propio error.
+# El valor predeterminado de PowerShell permite ver advertencias y errores reales.
 
 Write-Host ""
 Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
@@ -2954,8 +2955,12 @@ function Get-SystemDiskInfo {
 
     # Metodo 1: Modulo Storage nativo (Get-Partition -> Get-Disk)
     try {
-        $part = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
-        $disk = Get-Disk -Number $part.DiskNumber -ErrorAction Stop
+        $part = @(Get-Partition -DriveLetter $driveLetter -ErrorAction Stop)
+        $diskNumbers = @($part | Select-Object -ExpandProperty DiskNumber -Unique)
+        if ($diskNumbers.Count -ne 1) {
+            throw "La unidad del sistema no se pudo asociar a un único disco físico."
+        }
+        $disk = Get-Disk -Number $diskNumbers[0] -ErrorAction Stop
 
         $mediaType = "Unknown"
         try {
@@ -2995,29 +3000,20 @@ function Get-SystemDiskInfo {
         }
     } catch {}
 
-    # Metodo 3: Contingencia para controladoras NVMe/VMD (asume disco 0 del sistema)
-    try {
-        $firstDisk = Get-CimInstance Win32_DiskDrive | Where-Object { $_.Index -eq 0 }
-        if ($firstDisk) {
-            return [PSCustomObject]@{
-                Index       = $firstDisk.Index
-                Model       = $firstDisk.Model
-                BusType     = $firstDisk.InterfaceType
-                MediaType   = $firstDisk.MediaType
-                Size        = $firstDisk.Size
-                SizeGB      = [math]::Round($firstDisk.Size / 1GB, 0)
-                DriveLetter = $driveLetter
-            }
-        }
-    } catch {}
-
+    # No asumir que el disco 0 contiene Windows: en equipos con varios discos
+    # esa suposición podría aplicar cambios al dispositivo equivocado.
     return $null
 }
 
 # ==========================================
 # MOSTRAR DISCOS DEL EQUIPO
 # ==========================================
-$allDisks = @(Get-CimInstance Win32_DiskDrive)
+try {
+    $allDisks = @(Get-CimInstance Win32_DiskDrive -ErrorAction Stop)
+} catch {
+    Write-Host "No se pudo consultar la lista de discos: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
 
 foreach ($d in $allDisks) {
     Write-Host ""
@@ -3053,6 +3049,11 @@ Write-Output "93% Completado"
 # ==========================================
 # EVALUACION DE TIPO DE DISCO (SSD / NVMe)
 # ==========================================
+# Si Windows informa MediaType/BusType como Unknown y el modelo no permite
+# reconocer el SSD, cambia este valor a $true para el disco del sistema.
+# En $false, el script conserva la deteccion automatica y actua con cautela.
+$ForceSystemDiskSSD = $false
+
 $isSSD = $false
 
 # Criterio 1: Clasificacion del subsistema de almacenamiento
@@ -3062,10 +3063,16 @@ if ($sysDisk.MediaType -in @('SSD', 'SCM') -or $sysDisk.BusType -in @('NVMe', 'P
 
 # Criterio 2: Coincidencia por modelo (cubre NVMe detras de controladoras Intel RST/SCSI)
 if (-not $isSSD) {
-    $ssdPatterns = "SSD|NVME|M\.2|KBG|KIOXIA|ADATA|SU[0-9]+|KINGSTON|WD GREEN|WD BLUE|WD BLACK|CRUCIAL|SAMSUNG|SK hynix|SANDISK|MICRON"
+    $ssdPatterns = "SSD|NVME|M\.2|KBG|KIOXIA|ADATA|FANXIANG|S500\s?PRO|SU[0-9]+|KINGSTON|WD GREEN|WD BLUE|WD BLACK|CRUCIAL|SAMSUNG|SK hynix|SANDISK|MICRON"
     if ($sysDisk.Model -match $ssdPatterns) {
         $isSSD = $true
     }
+}
+
+# Sobrescritura manual para SSD no identificados por el controlador o modelo.
+if ($ForceSystemDiskSSD) {
+    $isSSD = $true
+    Write-Host "Deteccion manual: el disco del sistema se tratara como SSD." -ForegroundColor Yellow
 }
 
 # ==========================================
@@ -3111,7 +3118,7 @@ if ($isSSD) {
     Write-Host ""
     Write-Host "Evaluando tamano del disco..."
 
-    if ($sysDisk.SizeGB -le 64) {
+    if ($sysDisk.Size -le (64GB)) {
         Write-Host "Disco pequeno ($($sysDisk.SizeGB) GB) - Activando CompactOS..." -ForegroundColor Yellow
 
         $state = compact.exe /compactOS:query
@@ -3135,8 +3142,78 @@ if ($isSSD) {
     Write-Host "HDD detectado - No se aplican optimizaciones exclusivas para SSD." -ForegroundColor Yellow
 }
 
-# Limpieza silenciosa del sistema
-Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/autoclean" -WindowStyle Hidden -Wait
+# Configurar las categorías mostradas en Disk Cleanup, incluidas las que el usuario
+# dejó desmarcadas. Esto puede vaciar la Papelera, borrar paquetes de controladores
+# antiguos y quitar archivos de limpieza de Windows Update.
+$volumeCachesPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches"
+$cleanupCategories = @(
+    "BranchCache",
+    "D3D Shader Cache",
+    "DirectX Shader Cache",
+    "Delivery Optimization Files",
+    "Device Driver Packages",
+    "Downloaded Program Files",
+    "Internet Cache Files",
+    "Language Pack",
+    "Recycle Bin",
+    "Setup Log Files",
+    "System error memory dump files",
+    "System error minidump files",
+    "Temporary Files",
+    "Temporary Setup Files",
+    "Temporary Sync Files",
+    "Thumbnail Cache",
+    "Update Cleanup",
+    "Windows Error Reporting Archive Files",
+    "Windows Error Reporting ArchiveFiles",
+    "Windows Error Reporting Files",
+    "Windows Error Reporting Queue Files",
+    "Windows Error Reporting QueueReporting",
+    "Windows Error Reporting System Archive Files",
+    "Windows Error Reporting System ArchiveFiles",
+    "Windows Error Reporting System Queue Files",
+    "Windows Error Reporting System QueueReporting",
+    "Windows Defender"
+)
+
+$cleanupProfile = "StateFlags0001"
+$configuredCategories = 0
+
+foreach ($category in $cleanupCategories) {
+    $categoryPath = Join-Path $volumeCachesPath $category
+    if (Test-Path -LiteralPath $categoryPath) {
+        try {
+            New-ItemProperty -LiteralPath $categoryPath -Name $cleanupProfile `
+                -PropertyType DWord -Value 2 -Force -ErrorAction Stop | Out-Null
+            $configuredCategories++
+        } catch {
+            Write-Warning "No se pudo configurar cleanmgr para '$category': $($_.Exception.Message)"
+        }
+    }
+}
+
+Write-Host "Iniciando limpieza amplia de archivos temporales y cachés con cleanmgr..." -ForegroundColor Cyan
+try {
+    if ($configuredCategories -gt 0) {
+        Write-Host "Categorías seguras configuradas: $configuredCategories"
+        $cleanmgrArguments = "/sagerun:1"
+    } else {
+        # Respaldo si esta edición de Windows no expone las categorías del perfil.
+        Write-Warning "No se encontraron categorías para el perfil; se usará la limpieza predeterminada."
+        $cleanmgrArguments = "/verylowdisk"
+    }
+
+    $cleanmgr = Start-Process -FilePath "cleanmgr.exe" `
+        -ArgumentList $cleanmgrArguments -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
+
+    if ($cleanmgr.ExitCode -eq 0) {
+        Write-Host "Limpieza de cleanmgr finalizada." -ForegroundColor Green
+    } else {
+        Write-Warning "cleanmgr terminó con código $($cleanmgr.ExitCode)."
+    }
+} catch {
+    Write-Warning "No se pudo ejecutar cleanmgr: $($_.Exception.Message)"
+}
 
 Write-Host ""
 Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
