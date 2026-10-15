@@ -3266,7 +3266,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 		        Invoke-LocalScript -Name 'ChangePC-ID.ps1'
 		
 		        # Esperar 2 segundos y reiniciar Windows.
-		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciará en 2 segundos.'
+		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciará en 5 segundos.'
 		        Start-Sleep -Seconds 5
 		        Restart-Computer -Force
 		    }
