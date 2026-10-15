@@ -3207,16 +3207,22 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             }
         },
         @{ Name = 'Cambiando ID Equipo'
-            Script = {
-                # Equipo.log debe ser creado por ChangePC-ID.ps1 al completar su operación.
-                # Si el equipo se reinicia dentro de ese script, esta tarea se reintentará al volver.
-                if (Test-Path -LiteralPath $equipoLog) {
-                    Write-Log 'Equipo.log ya existe; se omite ChangePC-ID.ps1.'
-                    return
-                }
-                Invoke-LocalScript -Name 'ChangePC-ID.ps1'
-            }
-        },
+		    Script = {
+		        # Equipo.log debe ser creado por ChangePC-ID.ps1 al completar su operación.
+		        # Si el equipo se reinicia dentro de ese script, esta tarea se reintentará al volver.
+		        if (Test-Path -LiteralPath $equipoLog) {
+		            Write-Log 'Equipo.log ya existe; se omite ChangePC-ID.ps1.'
+		            return
+		        }
+		
+		        Invoke-LocalScript -Name 'ChangePC-ID.ps1'
+		
+		        # Esperar 2 segundos y reiniciar Windows.
+		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciará en 2 segundos.'
+		        Start-Sleep -Seconds 5
+		        Restart-Computer -Force
+		    }
+		},
         @{ Name = 'Verificando Sistema'; Script = { Invoke-LocalScript -Name 'unattend-02.ps1' } },
         @{ Name = 'Verificando Configuracion'; Script = { Invoke-LocalScript -Name 'setup-final.ps1' } },
         @{ Name = 'Comprobar Integridad'; Script = { Invoke-LocalScript -Name 'Integrity.ps1' } },
