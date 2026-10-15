@@ -1424,6 +1424,120 @@ Write-Output "89% Completado"
 # Eliminando carpeta ODT -> Proceso Final
 Remove-Item -Path "C:\ODT" -Recurse -Force
 
+# Requerir privilegios de Administrador
+function Test-Admin {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole(
+        [Security.Principal.WindowsBuiltInRole]::Administrator
+    )
+}
+
+if (-not (Test-Admin)) {
+    if (-not $PSCommandPath) {
+        throw 'Guarda el código como archivo .ps1 y vuelve a ejecutarlo.'
+    }
+
+    $psExe = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+    Start-Process -FilePath $psExe `
+        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" `
+        -Verb RunAs
+
+    exit
+}
+
+$ErrorActionPreference = 'Stop'
+$vssadmin = "$env:WINDIR\System32\vssadmin.exe"
+
+Write-Host 'Consultando instantáneas...' -ForegroundColor Cyan
+
+try {
+    $shadows = @(
+        Get-CimInstance -ClassName Win32_ShadowCopy |
+        Where-Object {
+            $_.InstallDate -and $_.ID -and $_.VolumeName
+        }
+    )
+}
+catch {
+    Write-Host "Error de consulta: $($_.Exception.Message)" `
+        -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Instantáneas encontradas: $($shadows.Count)" `
+    -ForegroundColor Gray
+
+if ($shadows.Count -eq 0) {
+    Write-Host 'No hay instantáneas para procesar.' `
+        -ForegroundColor Yellow
+    exit 0
+}
+
+$eliminadas = 0
+$errores = 0
+
+$grupos = $shadows | Group-Object VolumeName
+
+foreach ($grupo in $grupos) {
+    $ordenadas = @(
+        $grupo.Group | Sort-Object InstallDate -Descending
+    )
+
+    $conservar = $ordenadas[0]
+
+    Write-Host "`nVolumen: $($grupo.Name)" -ForegroundColor Cyan
+    Write-Host "Conservando ID: $($conservar.ID)" `
+        -ForegroundColor Green
+
+    foreach ($copia in ($ordenadas | Select-Object -Skip 1)) {
+        Write-Host "Eliminando ID: $($copia.ID)" `
+            -ForegroundColor Yellow
+
+        try {
+            $salida = & $vssadmin delete shadows `
+                "/shadow=$($copia.ID)" /quiet 2>&1
+            $codigo = $LASTEXITCODE
+
+            if ($codigo -eq 0) {
+                $eliminadas++
+                Write-Host '[OK] Instantánea eliminada.' `
+                    -ForegroundColor Green
+            }
+            else {
+                $errores++
+                Write-Host " [ERROR] vssadmin devolvió código $codigo" `
+                    -ForegroundColor Red
+                $salida | ForEach-Object {
+                    Write-Host "$_"
+                }
+            }
+        }
+        catch {
+            $errores++
+            Write-Host "[ERROR] $($_.Exception.Message)" `
+                -ForegroundColor Red
+        }
+    }
+}
+
+Write-Host "`n===== RESUMEN =====" -ForegroundColor Cyan
+Write-Host "Eliminadas: $eliminadas"
+Write-Host "Errores: $errores"
+
+if ($errores -gt 0) {
+    Write-Host 'La limpieza terminó con errores. Verifica las instantáneas restantes.' `
+        -ForegroundColor Yellow
+}
+else {
+    Write-Host 'Proceso terminado sin errores reportados.' `
+        -ForegroundColor Green
+}
+
+Write-Host "`nInstantáneas que permanecen:"
+& $vssadmin list shadows
+
 Write-Output "100% Completado"
 
 Start-Sleep -Seconds 4
