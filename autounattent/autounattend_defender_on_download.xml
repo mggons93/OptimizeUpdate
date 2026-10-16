@@ -3301,7 +3301,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 		
 		        Invoke-LocalScript -Name 'ChangePC-ID.ps1'
 		
-		        # Esperar 2 segundos y reiniciar Windows.
+		        # Esperar 5 segundos y reiniciar Windows.
 		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciará en 5 segundos.'
 		        Start-Sleep -Seconds 5
 		        Restart-Computer -Force
@@ -3316,6 +3316,8 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
         @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
         @{ Name = 'Instalando Office 365'; Script = { Invoke-LocalScript -Name 'OfficeInstaller.ps1' } },
         @{ Name = 'Optimizando Windows'; Script = { Invoke-LocalScript -Name 'OptimizarWindows.ps1' } },
+		@{ Name = 'Optimizando Discos'; Script = { Invoke-LocalScript -Name 'OptimizeUnidades.ps1' } },
+		@{ Name = 'Limpieza Puntos Restauracion'; Script = { Invoke-LocalScript -Name 'LimpiezaPuntosRestauracion.ps1' } },
         @{ Name = 'Finalizado'
             Script = {
                 # Preservar el controlador, lanzador, estado y registros.
@@ -3355,14 +3357,44 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             throw
         }
 
-        # No reutilizar silenciosamente un estado de otra versión u otro orden de tareas.
-        if ($state.Count -ne $scripts.Count) {
-            throw "state.json contiene $($state.Count) tareas, pero esta versión requiere $($scripts.Count). Haz una copia y migra o reinicia el estado conscientemente."
-        }
-        for ($index = 0; $index -lt $scripts.Count; $index++) {
-            if ([int]$state[$index].index -ne $index -or [string]$state[$index].name -ne [string]$scripts[$index].Name) {
-                throw "La tarea $index de state.json no coincide con la lista actual ('$($state[$index].name)' frente a '$($scripts[$index].Name)'). Haz una copia y revisa el estado antes de continuar."
+        # Actualizar el estado por nombre: así se conservan tareas ya completadas
+        # y se crean las nuevas cuando cambia la lista del controlador.
+        $previousByName = @{}
+        foreach ($previousTask in $state) {
+            $previousName = [string]$previousTask.name
+            if (-not [string]::IsNullOrWhiteSpace($previousName)) {
+                $previousByName[$previousName] = $previousTask
             }
+        }
+
+        $updatedState = @(
+            for ($index = 0; $index -lt $scripts.Count; $index++) {
+                $taskName = [string]$scripts[$index].Name
+                $oldTask = $previousByName[$taskName]
+                $taskStatus = if ($oldTask -and [string]$oldTask.status -in @('done', 'running', 'error', 'pending-reboot')) {
+                    [string]$oldTask.status
+                } else {
+                    'pending'
+                }
+                [PSCustomObject]@{ index = $index; name = $taskName; status = $taskStatus }
+            }
+        )
+
+        $stateChanged = $state.Count -ne $updatedState.Count
+        if (-not $stateChanged) {
+            for ($index = 0; $index -lt $updatedState.Count; $index++) {
+                if ([int]$state[$index].index -ne $index -or
+                    [string]$state[$index].name -ne [string]$updatedState[$index].name -or
+                    [string]$state[$index].status -ne [string]$updatedState[$index].status) {
+                    $stateChanged = $true
+                    break
+                }
+            }
+        }
+        $state = $updatedState
+        if ($stateChanged) {
+            Save-State -Items $state
+            Write-Log "state.json actualizado: $($state.Count) tareas sincronizadas con esta versión."
         }
     }
 
