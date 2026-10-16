@@ -3412,7 +3412,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
     if (-not (Test-Path -LiteralPath $stateFile)) {
         $state = @(
             for ($index = 0; $index -lt $scripts.Count; $index++) {
-                [PSCustomObject]@{ index = $index; name = $scripts[$index].Name; status = 'pending' }
+                [PSCustomObject]@{ index = $index; name = $scripts[$index].Name; status = 'pending'; attempts = 0 }
             }
         )
         Save-State -Items $state
@@ -3445,7 +3445,16 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
                 } else {
                     'pending'
                 }
-                [PSCustomObject]@{ index = $index; name = $taskName; status = $taskStatus }
+                $taskAttempts = 0
+                if ($oldTask -and $null -ne $oldTask.attempts) {
+                    try { $taskAttempts = [Math]::Max(0, [int]$oldTask.attempts) } catch { $taskAttempts = 0 }
+                }
+                # Los errores de versiones anteriores no guardaban intentos; permitirles
+                # entrar al nuevo flujo de dos intentos en vez de omitirlos directamente.
+                if ($oldTask -and [string]$oldTask.status -eq 'error' -and $null -eq $oldTask.attempts) {
+                    $taskStatus = 'pending'
+                }
+                [PSCustomObject]@{ index = $index; name = $taskName; status = $taskStatus; attempts = $taskAttempts }
             }
         )
 
@@ -3454,7 +3463,8 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             for ($index = 0; $index -lt $updatedState.Count; $index++) {
                 if ([int]$state[$index].index -ne $index -or
                     [string]$state[$index].name -ne [string]$updatedState[$index].name -or
-                    [string]$state[$index].status -ne [string]$updatedState[$index].status) {
+                    [string]$state[$index].status -ne [string]$updatedState[$index].status -or
+                    [int]$state[$index].attempts -ne [int]$updatedState[$index].attempts) {
                     $stateChanged = $true
                     break
                 }
@@ -3469,6 +3479,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 
     Write-Log "Controlador iniciado. Tareas configuradas: $($scripts.Count)."
 
+    $restartRequested = $false
     for ($i = 0; $i -lt $scripts.Count; $i++) {
         $status = [string]$state[$i].status
         if ($status -eq 'done') {
@@ -3476,26 +3487,55 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             continue
         }
         if ($status -eq 'error') {
-            Write-Log "La tarea '$($scripts[$i].Name)' está marcada como error. Se detiene el flujo."
-            break
+            Write-Log "La tarea '$($scripts[$i].Name)' ya agotó sus intentos; se omite y continúa el flujo."
+            continue
+        }
+        if ([int]$state[$i].attempts -ge 2) {
+            $state[$i].status = 'error'
+            Save-State -Items $state
+            Write-Log "La tarea '$($scripts[$i].Name)' no se completó dentro de sus 2 intentos; se omite y continúa el flujo."
+            continue
         }
 
-        try {
-            Write-Log "Iniciando tarea $($i + 1)/$($scripts.Count): $($scripts[$i].Name)."
+        $completed = $false
+        while (-not $completed -and [int]$state[$i].attempts -lt 2) {
+            $state[$i].attempts = [int]$state[$i].attempts + 1
             $state[$i].status = 'running'
             Save-State -Items $state
+            Write-Log "Iniciando tarea $($i + 1)/$($scripts.Count): $($scripts[$i].Name) (intento $($state[$i].attempts)/2)."
 
-            &amp; $scripts[$i].Script
+            try {
+                &amp; $scripts[$i].Script
 
-            $state[$i].status = 'done'
-            Save-State -Items $state
-            Write-Log "Tarea completada: $($scripts[$i].Name)."
-        } catch {
-            $state[$i].status = 'error'
-            try { Save-State -Items $state } catch {}
-            Write-Log "ERROR en '$($scripts[$i].Name)': $($_.Exception.Message)"
-            break
+                $state[$i].status = 'done'
+                Save-State -Items $state
+                Write-Log "Tarea completada: $($scripts[$i].Name)."
+                $completed = $true
+            } catch {
+                $errorMessage = $_.Exception.Message
+                if ([int]$state[$i].attempts -lt 2) {
+                    $state[$i].status = 'pending-reboot'
+                    Save-State -Items $state
+                    Write-Log "ERROR en '$($scripts[$i].Name)' (intento $($state[$i].attempts)/2): $errorMessage. Se reiniciará Windows antes del último intento."
+                    try {
+                        Restart-Computer -Force -ErrorAction Stop
+                        $restartRequested = $true
+                    } catch {
+                        $state[$i].status = 'error'
+                        try { Save-State -Items $state } catch {}
+                        Write-Log "No se pudo reiniciar Windows para reintentar '$($scripts[$i].Name)': $($_.Exception.Message). Se omite la fase."
+                    }
+                } else {
+                    $state[$i].status = 'error'
+                    try { Save-State -Items $state } catch {}
+                    Write-Log "ERROR definitivo en '$($scripts[$i].Name)' tras 2 intentos: $errorMessage. Se omite y continúa el flujo."
+                }
+            }
+
+            if ($restartRequested) { break }
         }
+
+        if ($restartRequested) { break }
     }
 
     $notDone = @($state | Where-Object { $_.status -ne 'done' })
