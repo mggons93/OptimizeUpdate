@@ -1617,6 +1617,7 @@ try {
 Add-Content -Path $logFile -Value $logEntry
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
+&amp; {
 # Directorio base de destino
 $scriptDir = "C:\Windows\Setup\Scripts"
 if (-not (Test-Path $scriptDir)) {
@@ -1638,6 +1639,11 @@ $downloads = @(
     @{
         Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase2.ps1"
         FileName = "Installapps.ps1"
+        Execute  = $false
+    },
+	@{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/LimpiezaPuntosRestauracion.ps1"
+        FileName = "LimpiezaPuntosRestauracion.ps1"
         Execute  = $false
     }
 )
@@ -1700,8 +1706,10 @@ foreach ($item in $downloads) {
         Write-Host "Error durante el procesamiento de ${fileName}:$_" -ForegroundColor Red
     }
 }
+} >> "C:\Windows\Setup\Scripts\unattend-02.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Launcher.ps1">
+&amp; {
 # -------------------------
 # launcher.ps1 (final corregido con delay compatible)
 # -------------------------
@@ -1961,8 +1969,10 @@ while ($true) {
     }
     Start-Sleep -Seconds 15
 }
+} >> "C:\Windows\Setup\Scripts\Launcher.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Rustdesk_Download.ps1">
+&amp; {
 # ============================================================
 # RustDesk - Descargar e instalar la última versión x86_64
 # ============================================================
@@ -2069,9 +2079,11 @@ else {
 # ------------------------------------------------------------
 # Limpieza
 # ------------------------------------------------------------
-Remove-Item $TempFile -Force -ErrorAction SilentlyContinueue
+Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+} >> "C:\Windows\Setup\Scripts\Rustdesk_Download.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\InstallWinget.ps1">
+&amp; {
 # ==========================================================
 # STORE + WINGET INSTALLER TODO EN UNO
 # Orden:
@@ -2318,8 +2330,10 @@ Install-Winget
 Write-Host "Limpiando archivos temporales..."
 Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Limpieza completada"
+} >> "C:\Windows\Setup\Scripts\InstallWinget.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
+&amp; {
 # Script: detectar volumen donde está Windows y aplicar regla CompactOS
 try {
     # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
@@ -2393,8 +2407,10 @@ catch {
     Write-Host "Error: $($_.Exception.Message)"
     exit 1
 }
+} >> "C:\Windows\Setup\Scripts\CompactOS.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Integrity.ps1">
+&amp; {
 ###############################################################################################
 # 1. PROCESO DE ELEVACIÓN (Se ejecuta de inmediato al abrir el script)
 ###############################################################################################
@@ -2782,8 +2798,10 @@ function Ejecucion-8-Windows {
 # INICIO DEL SCRIPT
 ###############################################################################################
 Start-Execution
+} >> "C:\Windows\Setup\Scripts\Integrity.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\PSUpdates.ps1">
+&amp; {
 ##=============================================================================
 ## PROCESO DE ELEVACIÓN Y CONFIGURACIÓN INICIAL
 ##=============================================================================
@@ -2927,8 +2945,10 @@ try {
 } catch {
     Write-Log "ERROR CRÍTICO: $_"
 }
+} >> "C:\Windows\Setup\Scripts\PSUpdates.log" 2>&amp;1
 		</File>
-				<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
+		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
+&amp; {
 ############################################################
 # OPTIMIZAR DISCO SSD
 # Compatible con Win10 / Win11 (hasta 26H2) / LTSC / IoT / PS5 / PS7
@@ -3217,6 +3237,7 @@ try {
 
 Write-Host ""
 Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
+} >> "C:\Windows\Setup\Scripts\OptimizeUnidades.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
 &amp; {
