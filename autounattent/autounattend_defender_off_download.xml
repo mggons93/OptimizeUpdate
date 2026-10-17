@@ -3436,7 +3436,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
         @{ Name = 'Comprobar Integridad'; Script = { Invoke-LocalScript -Name 'Integrity.ps1' } },
         @{ Name = 'Cambiando Cursor'; Script = { Invoke-LocalScript -Name 'CursorVista.ps1' } },
         @{ Name = 'Instalando Actualizaciones'; Script = { Invoke-LocalScript -Name 'PSUpdates.ps1' } },
-        @{ Name = 'Instalando Aplicaciones'; Script = { Invoke-LocalScript -Name 'InstalarApps.ps1' } },
+        @{ Name = 'Instalando Aplicaciones'; Script = { Invoke-LocalScript -Name 'Installapps.ps1' } },
         @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
         @{ Name = 'Instalando Office 365'; Script = { Invoke-LocalScript -Name 'OfficeInstaller.ps1' } },
         @{ Name = 'Optimizando Windows'; Script = { Invoke-LocalScript -Name 'OptimizarWindows.ps1' } },
