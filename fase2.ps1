@@ -123,9 +123,13 @@ function Invoke-WingetInstallLive {
         [Parameter(Mandatory = $true)][string]$LogPath
     )
 
+    Write-Output "[WINGET] Verificando paquete: $PackageId..."
     $wasInstalled = Test-WingetPackageInstalled -PackageId $PackageId -LogPath $LogPath
     if ($wasInstalled) {
         Add-Content -LiteralPath $LogPath -Value "$PackageId is already installed; checking for an available update."
+        Write-Output "[WINGET] Comprobando actualizaciones para $PackageId..."
+    } else {
+        Write-Output "[WINGET] Instalando $PackageId..."
     }
 
     $wingetArgs = @(
