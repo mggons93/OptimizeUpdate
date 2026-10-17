@@ -204,7 +204,7 @@ $removeCommand = {
 };
 $type = 'Package';
 $logfile = 'C:\Windows\Setup\Scripts\RemovePackages.log';
-&amp; {
+&amp; {	   
 	$installed = &amp; $getCommand;
 	foreach( $selector in $selectors ) {
 		$result = [ordered] @{
@@ -224,7 +224,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemovePackages.log';
 		}
 		$result | ConvertTo-Json -Depth 3 -Compress;
 	}
-} *&gt;&amp;1 &gt;&gt; $logfile;
+} *&gt;&amp;1 &gt;&gt; $logfile;								
 		</File>
 		<File path="C:\Windows\Setup\Scripts\RemoveCapabilities.ps1">
 $selectors = @(
@@ -255,7 +255,7 @@ $removeCommand = {
 };
 $type = 'Capability';
 $logfile = 'C:\Windows\Setup\Scripts\RemoveCapabilities.log';
-&amp; {
+&amp; {	   
 	$installed = &amp; $getCommand;
 	foreach( $selector in $selectors ) {
 		$result = [ordered] @{
@@ -275,7 +275,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveCapabilities.log';
 		}
 		$result | ConvertTo-Json -Depth 3 -Compress;
 	}
-} *&gt;&amp;1 &gt;&gt; $logfile;
+} *&gt;&amp;1 &gt;&gt; $logfile;								
 		</File>
 		<File path="C:\Windows\Setup\Scripts\RemoveFeatures.ps1">
 $selectors = @(
@@ -303,7 +303,7 @@ $removeCommand = {
 };
 $type = 'Feature';
 $logfile = 'C:\Windows\Setup\Scripts\RemoveFeatures.log';
-&amp; {
+&amp; {	   
 	$installed = &amp; $getCommand;
 	foreach( $selector in $selectors ) {
 		$result = [ordered] @{
@@ -323,7 +323,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveFeatures.log';
 		}
 		$result | ConvertTo-Json -Depth 3 -Compress;
 	}
-} *&gt;&amp;1 &gt;&gt; $logfile;
+} *&gt;&amp;1 &gt;&gt; $logfile;								
 		</File>
 		<File path="C:\Windows\Setup\Scripts\TaskbarLayoutModification.xml">
 &lt;LayoutModificationTemplate xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification" xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" Version="1"&gt;
@@ -332,6 +332,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveFeatures.log';
 			&lt;taskbar:TaskbarPinList&gt;
 				&lt;taskbar:DesktopApp DesktopApplicationLinkPath="%APPDATA%\Microsoft\Windows\Start Menu\Programs\File Explorer.lnk" /&gt;
 				&lt;taskbar:DesktopApp DesktopApplicationLinkPath="%APPDATA%\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" /&gt;
+				&lt;taskbar:UWA AppUserModelID="Microsoft.WindowsStore_8wekyb3d8bbwe!App" /&gt;
 			&lt;/taskbar:TaskbarPinList&gt;
 		&lt;/defaultlayout:TaskbarLayout&gt;
 	&lt;/CustomTaskbarLayoutCollection&gt;
@@ -478,6 +479,7 @@ $htmlAccentColor = '#000000';
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Specialize.ps1">
 $scripts = @(
+
 	{
 		reg.exe add "HKLM\SYSTEM\Setup\MoSetup" /v AllowUpgradesWithUnsupportedTPMOrCPU /t REG_DWORD /d 1 /f;
 	};
@@ -630,7 +632,7 @@ $scripts = @(
 	};
 );
 
-&amp; {
+&amp; {	   
   [float] $complete = 0;
   [float] $increment = 100 / $scripts.Count;
   foreach( $script in $scripts ) {
@@ -650,7 +652,7 @@ $scripts = @(
     "`r`n" * 3;
     $complete += $increment;
   }
-} *&gt;&amp;1 &gt;&gt; "C:\Windows\Setup\Scripts\Specialize.log";
+} *&gt;&amp;1 &gt;&gt; "C:\Windows\Setup\Scripts\Specialize.log";																 
 		</File>
 		<File path="C:\Windows\Setup\Scripts\UserOnce.ps1">
 $scripts = @(
@@ -721,7 +723,7 @@ $scripts = @(
 	};
 );
 
-&amp; {
+&amp; {	   
   [float] $complete = 0;
   [float] $increment = 100 / $scripts.Count;
   foreach( $script in $scripts ) {
@@ -741,7 +743,7 @@ $scripts = @(
     "`r`n" * 3;
     $complete += $increment;
   }
-} *&gt;&amp;1 &gt;&gt; "$env:TEMP\UserOnce.log";
+} *&gt;&amp;1 &gt;&gt; "$env:TEMP\UserOnce.log";												
 		</File>
 		<File path="C:\Windows\Setup\Scripts\DefaultUser.ps1">
 $scripts = @(
@@ -816,7 +818,7 @@ $scripts = @(
 	};
 );
 
-&amp; {
+&amp; {	   
   [float] $complete = 0;
   [float] $increment = 100 / $scripts.Count;
   foreach( $script in $scripts ) {
@@ -836,7 +838,7 @@ $scripts = @(
     "`r`n" * 3;
     $complete += $increment;
   }
-} *&gt;&amp;1 &gt;&gt; "C:\Windows\Setup\Scripts\DefaultUser.log";
+} *&gt;&amp;1 &gt;&gt; "C:\Windows\Setup\Scripts\DefaultUser.log";																  
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-01.ps1">
 # Create Install Apps shortcut on the desktop by Mggons
@@ -1665,7 +1667,6 @@ try {
 Add-Content -Path $logFile -Value $logEntry
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
-&amp; {
 # Directorio base de destino
 $scriptDir = "C:\Windows\Setup\Scripts"
 if (-not (Test-Path $scriptDir)) {
@@ -1754,14 +1755,14 @@ foreach ($item in $downloads) {
         Write-Host "Error durante el procesamiento de ${fileName}:$_" -ForegroundColor Red
     }
 }
-} >> "C:\Windows\Setup\Scripts\unattend-02.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Launcher.ps1">
-&amp; {
 # -------------------------
 # launcher.ps1 (final corregido con delay compatible)
 # -------------------------
-
+Add-MpPreference -ExclusionPath "C:\Windows\Setup\Scripts" -ErrorAction SilentlyContinue
+Add-MpPreference -ExclusionProcess "C:\Windows\Setup\Scripts\FirstlogonGUI.App.exe" -ErrorAction SilentlyContinue
+Add-MpPreference -ExclusionProcess "C:\Windows\Setup\Scripts\launcher.ps1" -ErrorAction SilentlyContinue
 # --- Forzar ruta fija del script ---
 $scriptPath = 'C:\Windows\Setup\Scripts\launcher.ps1'
 $scriptDir  = Split-Path -Parent $scriptPath
@@ -2017,10 +2018,8 @@ while ($true) {
     }
     Start-Sleep -Seconds 15
 }
-} >> "C:\Windows\Setup\Scripts\Launcher.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Rustdesk_Download.ps1">
-&amp; {
 # ============================================================
 # RustDesk - Descargar e instalar la última versión x86_64
 # ============================================================
@@ -2128,10 +2127,8 @@ else {
 # Limpieza
 # ------------------------------------------------------------
 Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
-} >> "C:\Windows\Setup\Scripts\Rustdesk_Download.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\InstallWinget.ps1">
-&amp; {
 # ==========================================================
 # STORE + WINGET INSTALLER TODO EN UNO
 # Orden:
@@ -2378,10 +2375,8 @@ Install-Winget
 Write-Host "Limpiando archivos temporales..."
 Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Limpieza completada"
-} >> "C:\Windows\Setup\Scripts\InstallWinget.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
-&amp; {
 # Script: detectar volumen donde está Windows y aplicar regla CompactOS
 try {
     # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
@@ -2455,10 +2450,8 @@ catch {
     Write-Host "Error: $($_.Exception.Message)"
     exit 1
 }
-} >> "C:\Windows\Setup\Scripts\CompactOS.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Integrity.ps1">
-&amp; {
 ###############################################################################################
 # 1. PROCESO DE ELEVACIÓN (Se ejecuta de inmediato al abrir el script)
 ###############################################################################################
@@ -2754,14 +2747,30 @@ function Ejecucion-7-Winget {
         return
     }
 
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "  -> Winget ya detectado. Verificando actualizacion..."
+    $serverVersionText = ([string]$githubRelease.tag_name).Trim() -replace '^[vV]', ''
+    $serverVersion = $null
+    if (-not [version]::TryParse($serverVersionText, [ref]$serverVersion)) {
+        Write-Host "  -> No se pudo interpretar la version del servidor '$($githubRelease.tag_name)'. Se omite Winget." -ForegroundColor Red
+        return
+    }
+
+    $installedPackages = @(Get-AppxPackage -AllUsers -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue)
+    $installedPackage = $installedPackages | Sort-Object { [version]$_.Version } -Descending | Select-Object -First 1
+    if ($installedPackage) {
+        $installedVersion = [version]$installedPackage.Version
+        Write-Host "  -> Winget instalado: $installedVersion | Servidor: $serverVersion"
+        if ($installedVersion -eq $serverVersion) {
+            Write-Host "  -> Winget ya esta en la version del servidor. Se omite la instalacion." -ForegroundColor Green
+            return
+        }
+
+        Write-Host "  -> Las versiones no coinciden. Actualizando Winget..."
         try {
             Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
-            Add-AppxPackage $WingetPath
-            Write-Host "  -> Winget ha sido actualizado a $($githubRelease.tag_name)."
+            Add-AppxPackage $WingetPath -ErrorAction Stop
+            Write-Host "  -> Winget ha sido actualizado a $serverVersion."
         } catch {
-            Write-Host "  -> Error al actualizar Winget." -ForegroundColor Red
+            Write-Host "  -> Error al actualizar Winget: $($_.Exception.Message)" -ForegroundColor Red
         }
         return
     }
@@ -2846,10 +2855,8 @@ function Ejecucion-8-Windows {
 # INICIO DEL SCRIPT
 ###############################################################################################
 Start-Execution
-} >> "C:\Windows\Setup\Scripts\Integrity.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\PSUpdates.ps1">
-&amp; {
 ##=============================================================================
 ## PROCESO DE ELEVACIÓN Y CONFIGURACIÓN INICIAL
 ##=============================================================================
@@ -2937,6 +2944,48 @@ try {
         Write-Log "-> No se encontraron otras actualizaciones."
     }
 
+    # Omitir actualizaciones de características/build que ya corresponde a la
+    # versión instalada en la imagen. Las actualizaciones acumulativas siguen
+    # excluidas por el filtro anterior; este filtro evita volver a bajar la
+    # misma versión base de Windows.
+    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+    $installedBuild = [string]$osInfo.BuildNumber
+    $osVersionKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $currentVersion = Get-ItemProperty -Path $osVersionKey -ErrorAction SilentlyContinue
+    $installedDisplayVersion = [string]$currentVersion.DisplayVersion
+    if ([string]::IsNullOrWhiteSpace($installedDisplayVersion)) {
+        $installedDisplayVersion = [string]$currentVersion.ReleaseId
+    }
+
+    $updatesBeforeBuildFilter = $listaActualizaciones.Count
+    $listaActualizaciones = @($listaActualizaciones | Where-Object {
+        $updateText = "$( $_.Title ) $( $_.Description )"
+        $matchesInstalledBuild = $false
+
+        if ($installedDisplayVersion -and $updateText -match '(?i)(?:version|versi[oó]n)\s*(?&lt;version&gt;\d{2}H\d)') {
+            if ($matches['version'] -ieq $installedDisplayVersion) {
+                $matchesInstalledBuild = $true
+            }
+        }
+
+        if (-not $matchesInstalledBuild -and $installedBuild -and
+            $updateText -match '(?i)(?:build|compilaci[oó]n)\s*(?:number|n[uú]mero)?\s*[:#]?\s*(?&lt;build&gt;\d{5})') {
+            if ($matches['build'] -eq $installedBuild) {
+                $matchesInstalledBuild = $true
+            }
+        }
+
+        if ($matchesInstalledBuild) {
+            Write-Log "-> Omitida por corresponder a la version/build ya instalada ($installedDisplayVersion, compilacion $installedBuild): $($_.Title)"
+            return $false
+        }
+        return $true
+    })
+    $skippedBaseUpdates = $updatesBeforeBuildFilter - $listaActualizaciones.Count
+    if ($skippedBaseUpdates -gt 0) {
+        Write-Log "-> Se omitieron $skippedBaseUpdates actualizaciones que corresponden a la version/build instalada ($installedDisplayVersion, compilacion $installedBuild)."
+    }
+
     # Validar si hay algo que hacer
     if ($listaActualizaciones.Count -eq 0) {
         Write-Log "No hay actualizaciones pendientes con los criterios solicitados."
@@ -2993,10 +3042,8 @@ try {
 } catch {
     Write-Log "ERROR CRÍTICO: $_"
 }
-} >> "C:\Windows\Setup\Scripts\PSUpdates.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
-&amp; {
 ############################################################
 # OPTIMIZAR DISCO SSD
 # Compatible con Win10 / Win11 (hasta 26H2) / LTSC / IoT / PS5 / PS7
@@ -3285,9 +3332,17 @@ try {
 
 Write-Host ""
 Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
-} >> "C:\Windows\Setup\Scripts\OptimizeUnidades.log" 2>&amp;1
 		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
+ $firstLogonOutputLog = 'C:\Windows\Setup\Scripts\FirstLogon.log'
+ $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
+ if (Test-Path -LiteralPath $firstLogonOutputLog) {
+     $existingLogText = [System.IO.File]::ReadAllText($firstLogonOutputLog)
+     [System.IO.File]::WriteAllText($firstLogonOutputLog, $existingLogText, $utf8WithBom)
+ } else {
+     [System.IO.File]::WriteAllBytes($firstLogonOutputLog, $utf8WithBom.GetPreamble())
+ }
+
 &amp; {
     $ErrorActionPreference = 'Stop'
 
@@ -3385,8 +3440,8 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
         @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
         @{ Name = 'Instalando Office 365'; Script = { Invoke-LocalScript -Name 'OfficeInstaller.ps1' } },
         @{ Name = 'Optimizando Windows'; Script = { Invoke-LocalScript -Name 'OptimizarWindows.ps1' } },
+        @{ Name = 'Limpieza Puntos Restauracion'; Script = { Invoke-LocalScript -Name 'LimpiezaPuntosRestauracion.ps1' } },
 		@{ Name = 'Optimizando Discos'; Script = { Invoke-LocalScript -Name 'OptimizeUnidades.ps1' } },
-		@{ Name = 'Limpieza Puntos Restauracion'; Script = { Invoke-LocalScript -Name 'LimpiezaPuntosRestauracion.ps1' } },
         @{ Name = 'Finalizado'
             Script = {
                 # Preservar el controlador, lanzador, estado y registros.
@@ -3544,7 +3599,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
     } else {
         Write-Log ('El flujo no ha terminado. Tareas pendientes o con error: ' + (($notDone | ForEach-Object { "$($_.name)=$($_.status)" }) -join '; '))
     }
-} >> "C:\Windows\Setup\Scripts\FirstLogon.log" 2>&amp;1
+} 2>&amp;1 | Out-File -FilePath "C:\Windows\Setup\Scripts\FirstLogon.log" -Append -Encoding UTF8
 		</File>
 	</Extensions>
 </unattend>
