@@ -1431,7 +1431,6 @@ Write-Output "89% Completado"
 # Eliminando carpeta ODT -> Proceso Final
 Remove-Item -Path "C:\ODT" -Recurse -Force
 
-# Requerir privilegios de Administrador
 function Test-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -1459,93 +1458,85 @@ $vssadmin = "$env:WINDIR\System32\vssadmin.exe"
 
 Write-Host 'Consultando instantáneas...' -ForegroundColor Cyan
 
+$shadows = @()
+$consultaCorrecta = $true
 try {
     $shadows = @(
-        Get-CimInstance -ClassName Win32_ShadowCopy |
+        Get-CimInstance -ClassName Win32_ShadowCopy -ErrorAction Stop |
         Where-Object {
             $_.InstallDate -and $_.ID -and $_.VolumeName
         }
     )
 }
 catch {
-    Write-Host "Error de consulta: $($_.Exception.Message)" `
-        -ForegroundColor Red
-    exit 1
+    $consultaCorrecta = $false
+    Write-Host "Error de consulta: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host 'Se omite la limpieza de instantáneas y el script continuará.' -ForegroundColor Yellow
 }
 
-Write-Host "Instantáneas encontradas: $($shadows.Count)" `
-    -ForegroundColor Gray
+if ($consultaCorrecta) {
+    Write-Host "Instantáneas encontradas: $($shadows.Count)" -ForegroundColor Gray
 
-if ($shadows.Count -eq 0) {
-    Write-Host 'No hay instantáneas para procesar.' `
-        -ForegroundColor Yellow
-    exit 0
-}
+    if ($shadows.Count -eq 0) {
+        Write-Host 'No hay instantáneas para procesar. Se continuará con el script.' -ForegroundColor Yellow
+    }
+    else {
+        $eliminadas = 0
+        $errores = 0
+        $grupos = $shadows | Group-Object VolumeName
 
-$eliminadas = 0
-$errores = 0
+        foreach ($grupo in $grupos) {
+            $ordenadas = @($grupo.Group | Sort-Object InstallDate -Descending)
+            $conservar = $ordenadas[0]
 
-$grupos = $shadows | Group-Object VolumeName
+            Write-Host "`nVolumen: $($grupo.Name)" -ForegroundColor Cyan
+            Write-Host "Conservando ID: $($conservar.ID)" -ForegroundColor Green
 
-foreach ($grupo in $grupos) {
-    $ordenadas = @(
-        $grupo.Group | Sort-Object InstallDate -Descending
-    )
+            foreach ($copia in ($ordenadas | Select-Object -Skip 1)) {
+                Write-Host "Eliminando ID: $($copia.ID)" -ForegroundColor Yellow
+                try {
+                    $salida = & $vssadmin delete shadows "/shadow=$($copia.ID)" /quiet 2>&1
+                    $codigo = $LASTEXITCODE
 
-    $conservar = $ordenadas[0]
-
-    Write-Host "`nVolumen: $($grupo.Name)" -ForegroundColor Cyan
-    Write-Host "Conservando ID: $($conservar.ID)" `
-        -ForegroundColor Green
-
-    foreach ($copia in ($ordenadas | Select-Object -Skip 1)) {
-        Write-Host "Eliminando ID: $($copia.ID)" `
-            -ForegroundColor Yellow
-
-        try {
-            $salida = & $vssadmin delete shadows `
-                "/shadow=$($copia.ID)" /quiet 2>&1
-            $codigo = $LASTEXITCODE
-
-            if ($codigo -eq 0) {
-                $eliminadas++
-                Write-Host '[OK] Instantánea eliminada.' `
-                    -ForegroundColor Green
-            }
-            else {
-                $errores++
-                Write-Host " [ERROR] vssadmin devolvió código $codigo" `
-                    -ForegroundColor Red
-                $salida | ForEach-Object {
-                    Write-Host "$_"
+                    if ($codigo -eq 0) {
+                        $eliminadas++
+                        Write-Host '[OK] Instantánea eliminada.' -ForegroundColor Green
+                    }
+                    else {
+                        $errores++
+                        Write-Host "[ERROR] vssadmin devolvió código $codigo" -ForegroundColor Red
+                        $salida | ForEach-Object { Write-Host "$_" }
+                    }
+                }
+                catch {
+                    $errores++
+                    Write-Host "[ERROR] $($_.Exception.Message)" -ForegroundColor Red
                 }
             }
         }
+
+        Write-Host "`n===== RESUMEN =====" -ForegroundColor Cyan
+        Write-Host "Eliminadas: $eliminadas"
+        Write-Host "Errores: $errores"
+
+        if ($errores -gt 0) {
+            Write-Host 'La limpieza terminó con errores. Se continuará con el script.' -ForegroundColor Yellow
+        }
+        else {
+            Write-Host 'Proceso terminado sin errores reportados.' -ForegroundColor Green
+        }
+
+        Write-Host "`nInstantáneas que permanecen:"
+        try {
+            & $vssadmin list shadows 2>&1 | ForEach-Object { Write-Host "$_" }
+        }
         catch {
-            $errores++
-            Write-Host "[ERROR] $($_.Exception.Message)" `
-                -ForegroundColor Red
+            Write-Host "No se pudo consultar la lista final: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 }
-
-Write-Host "`n===== RESUMEN =====" -ForegroundColor Cyan
-Write-Host "Eliminadas: $eliminadas"
-Write-Host "Errores: $errores"
-
-if ($errores -gt 0) {
-    Write-Host 'La limpieza terminó con errores. Verifica las instantáneas restantes.' `
-        -ForegroundColor Yellow
-}
-else {
-    Write-Host 'Proceso terminado sin errores reportados.' `
-        -ForegroundColor Green
-}
-
-Write-Host "`nInstantáneas que permanecen:"
-& $vssadmin list shadows
-
 Write-Output "100% Completado"
+
 
 Start-Sleep -Seconds 4
 
