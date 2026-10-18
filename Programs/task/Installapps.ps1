@@ -1,4 +1,25 @@
-﻿# Verificar si el script se está ejecutando como administrador
+# DESCRIPCIÓN
+# Automatiza la preparación de aplicaciones y componentes en Windows:
+# actualiza Winget, instala las aplicaciones configuradas y comprueba componentes
+# como Visual C++, .NET y DirectX. Registra los resultados y, si hay elementos
+# pendientes, reinicia el equipo para permitir que se vuelvan a intentar.
+#
+# INSTRUCCIONES PARA AGREGAR APLICACIONES DE WINGET
+# 1. Edita la lista $wingetApps en la sección "LISTA DE APLICACIONES WINGET".
+# 2. Agrega una línea por aplicación usando el nombre exacto que aparece en Winget.
+#    No hace falta conocer ni escribir el ID: Installapps lo busca automáticamente.
+# 3. Copia y adapta este ejemplo:
+#    # Descripción breve de lo que hace la aplicación.
+#    [pscustomobject]@{ Name = 'Nombre exacto mostrado por Winget'; LogFile = 'fase2_miapp_install.log' }
+# 4. Guarda y ejecuta Installapps.ps1 como administrador. La lista se procesa
+#    automáticamente mediante Install-WingetAppList durante la instalación.
+#    Solo se instala si hay una coincidencia exacta y única; si no, se omite
+#    y se registra el motivo en el archivo indicado dentro de %TEMP%.
+#
+# Para consultar el nombre, puedes ejecutar:
+#    winget search --name "nombre de la aplicación" --exact --source winget
+
+# Verificar si el script se está ejecutando como administrador
 function Test-Admin {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
@@ -13,9 +34,6 @@ if (-not (Test-Admin)) {
 }
 
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-
-# Stub progress function to avoid CommandNotFound during early calls.
-function Set-InstallPercent { param([int]$Percent) }
 
 # Checklist de programas comprobados durante esta ejecución.
 $script:InstallResults = [ordered]@{}
@@ -34,68 +52,7 @@ $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $keys = Get-ItemProperty -Path $regPath
 $keys | Format-List
 
-# Nombre de la entrada que quieres eliminar
-$translucentTBName = "TranslucentTB"
-
-# Verificar si el nombre exacto está en las propiedades
-if ($keys.PSObject.Properties.Name -contains $translucentTBName) {
-    Remove-ItemProperty -Path $regPath -Name $translucentTBName
-    Write-Host "La entrada TranslucentTB ha sido eliminada del inicio."
-} else {
-    Write-Host "No se encontró la entrada TranslucentTB en el registro."
-}
 ########################################### Aprovisionando Apps ###########################################
-Set-InstallPercent -Percent 3
-# Función para obtener arquitectura del sistema
-function Get-SystemArchitecture {
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem
-    return $os.OSArchitecture
-}
-
-# Progreso de instalación (archivo leído por otras aplicaciones)
-$ProgressFile = "$env:TEMP\fase2_install_progress.txt"
-
-function Set-InstallPercent {
-    param(
-        [int]$Percent
-    )
-    if ($Percent -lt 0) { $Percent = 0 }
-    if ($Percent -gt 100) { $Percent = 100 }
-    try {
-        $Percent.ToString() | Out-File -FilePath $ProgressFile -Encoding ASCII -Force
-    } catch {
-        Write-Host "No se pudo escribir el archivo de progreso: $_"
-    }
-}
-
-function Initialize-Progress {
-    param(
-        [int]$TotalItems,
-        [int]$BasePercent = 0,
-        [int]$MaxPercent = 100
-    )
-    $script:ProgressTotal = [int]$TotalItems
-    $script:ProgressCount = 0
-    $script:ProgressBase = [int]$BasePercent
-    $script:ProgressMax = [int]$MaxPercent
-    if ($script:ProgressBase -lt 0) { $script:ProgressBase = 0 }
-    if ($script:ProgressMax -gt 100) { $script:ProgressMax = 100 }
-    if ($script:ProgressMax -lt $script:ProgressBase) { $script:ProgressMax = $script:ProgressBase }
-    Set-InstallPercent -Percent $script:ProgressBase
-}
-
-function Update-InstallProgress {
-    param()
-    if (-not $script:ProgressTotal -or $script:ProgressTotal -le 0) {
-        return
-    }
-    $script:ProgressCount += 1
-    $ratio = ($script:ProgressCount / $script:ProgressTotal)
-    $range = ($script:ProgressMax - $script:ProgressBase)
-    $percent = [math]::Round(($script:ProgressBase + ($ratio * $range)))
-    Set-InstallPercent -Percent $percent
-}
-
 function Test-WingetPackageInstalled {
     param(
         [Parameter(Mandatory = $true)][string]$PackageId,
@@ -182,22 +139,244 @@ function Invoke-WingetInstallLive {
     Set-InstallResult -Name $PackageId -Installed ($script:LastWingetStatus -ne 'No instalado')
 }
 
-# Ejecutar comprobación/actualización
-
-# Busca paquetes VCRedist con winget e instala los que coincidan según la arquitectura
-function Install-FoundVCRedists {
+function Resolve-WingetPackageIdFromSearchOutput {
     param(
-        [Parameter(Mandatory=$true)][ValidateSet('x86','x64')] [string]$arch
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$SearchOutput
     )
 
+    $header = $SearchOutput | Where-Object { $_ -match '^\s*Name\s+Id\s+Version\b' } | Select-Object -First 1
+    if (-not $header) {
+        return [pscustomobject]@{
+            PackageId = $null
+            Error     = 'Winget no devolvió una tabla de resultados reconocible.'
+        }
+    }
+
+    $idColumn = $header.IndexOf('Id')
+    $versionColumn = $header.IndexOf('Version', $idColumn)
+    $matchingIds = @()
+    foreach ($line in $SearchOutput) {
+        if ($line.Length -le $idColumn -or $line.Length -lt $versionColumn) {
+            continue
+        }
+
+        $resultName = $line.Substring(0, $idColumn).Trim()
+        $packageId = $line.Substring($idColumn, $versionColumn - $idColumn).Trim()
+        if (
+            [string]::Equals($resultName, $Name, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $packageId -match '^[A-Za-z0-9][A-Za-z0-9._-]*$' -and
+            $packageId -notin $matchingIds
+        ) {
+            $matchingIds += $packageId
+        }
+    }
+
+    if ($matchingIds.Count -eq 1) {
+        return [pscustomobject]@{
+            PackageId = $matchingIds[0]
+            Error     = $null
+        }
+    }
+
+    $reason = if ($matchingIds.Count -gt 1) {
+        "Búsqueda ambigua para '$Name'; IDs encontrados: $($matchingIds -join ', ')."
+    } else {
+        "No se encontró una coincidencia exacta para '$Name'."
+    }
+    [pscustomobject]@{
+        PackageId = $null
+        Error     = $reason
+    }
+}
+
+function Find-WingetPackageIdByName {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$LogPath
+    )
+
+    $wingetCommand = Get-Command winget -ErrorAction Stop
+    $searchArgs = @(
+        'search', '--name', $Name, '--exact', '--source', 'winget',
+        '--accept-source-agreements', '--disable-interactivity'
+    )
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $wingetCommand.Source
+    $startInfo.Arguments = (($searchArgs | ForEach-Object { '"' + ([string]$_).Replace('"', '\"') + '"' }) -join ' ')
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $null = $process.Start()
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $searchOutput = @(($stdoutTask.Result -split "`r?`n") + ($stderrTask.Result -split "`r?`n") | Where-Object { $_ -ne '' })
+    $exitCode = $process.ExitCode
+    $process.Dispose()
+
+    Add-Content -LiteralPath $LogPath -Value "=== WinGet exact-name search: '$Name' (exit code $exitCode) ==="
+    foreach ($line in $searchOutput) {
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Add-Content -LiteralPath $LogPath -Value "[winget search] $line"
+        }
+    }
+
+    if ($exitCode -ne 0) {
+        return [pscustomobject]@{
+            PackageId = $null
+            Error     = "Winget search terminó con código $exitCode."
+        }
+    }
+
+    Resolve-WingetPackageIdFromSearchOutput -Name $Name -SearchOutput $searchOutput
+}
+
+function Install-WingetAppList {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Apps
+    )
+
+    foreach ($app in $Apps) {
+        if ([string]::IsNullOrWhiteSpace([string]$app.Name)) {
+            throw 'Cada aplicación de la lista debe incluir el nombre exacto que Winget muestra.'
+        }
+
+        $displayName = [string]$app.Name
+        $safePackageName = [regex]::Replace($displayName, '[^A-Za-z0-9._-]', '_')
+        $logFile = if ($app.PSObject.Properties['LogFile'] -and -not [string]::IsNullOrWhiteSpace([string]$app.LogFile)) {
+            [string]$app.LogFile
+        } else {
+            "fase2_app_$safePackageName.log"
+        }
+        $logPath = Join-Path $env:TEMP $logFile
+
+        try {
+            Write-Output "Buscando en Winget: $displayName..."
+            $searchResult = Find-WingetPackageIdByName -Name $displayName -LogPath $logPath
+            if (-not $searchResult.PackageId) {
+                Add-Content -LiteralPath $logPath -Value "Omitido: $($searchResult.Error)"
+                Set-InstallResult -Name "WingetSearch:$displayName" -Installed $false
+                Write-Output "$($searchResult.Error) Se omite la instalación. Log: $logPath"
+                continue
+            }
+
+            $packageId = $searchResult.PackageId
+            Add-Content -LiteralPath $logPath -Value "Nombre '$displayName' resuelto al ID '$packageId'."
+            Write-Output "Instalando o actualizando $displayName (ID: $packageId)..."
+            Invoke-WingetInstallLive -PackageId $packageId -LogPath $logPath
+            Write-Output "$displayName - $script:LastWingetStatus"
+        } catch {
+            Add-Content -LiteralPath $logPath -Value "ERROR: $($_ | Format-List * -Force | Out-String)"
+            Set-InstallResult -Name "WingetSearch:$displayName" -Installed $false
+            Write-Output "Error instalando $displayName. Revisa el log: $logPath"
+        }
+    }
+}
+
+# Comprueba si Winget está disponible y actualiza el paquete desde GitHub si hace falta.
+function Test-WingetInstalled {
+    $wingetCommand = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $wingetCommand) {
+        return $false
+    }
+
+    try {
+        $null = & $wingetCommand.Source --version 2>$null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
+function Update-WingetLatest {
+    $log = Join-Path $env:TEMP 'fase2_winget_update.log'
+    $destination = Join-Path $env:TEMP 'Microsoft.DesktopAppInstaller.msixbundle'
+
+    try {
+        Add-Content -LiteralPath $log -Value "=== Winget update start $(Get-Date) ==="
+        $latestRelease = Invoke-RestMethod `
+            -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' `
+            -Headers @{ 'User-Agent' = 'PowerShell' } `
+            -ErrorAction Stop
+
+        $latestVersionText = [regex]::Match(
+            [string]$latestRelease.tag_name,
+            '\d+(?:\.\d+){1,3}'
+        ).Value
+        if (-not $latestVersionText) {
+            throw "Formato de versión remota inválido: $($latestRelease.tag_name)"
+        }
+        $latestVersion = [version]$latestVersionText
+
+        $currentVersion = [version]'0.0.0'
+        if (Test-WingetInstalled) {
+            $versionOutput = (& winget --version 2>$null | Out-String).Trim()
+            $currentVersionText = [regex]::Match($versionOutput, '\d+(?:\.\d+){1,3}').Value
+            if ($currentVersionText) {
+                $currentVersion = [version]$currentVersionText
+            }
+        }
+
+        Add-Content -LiteralPath $log -Value "Installed version: $currentVersion; latest version: $latestVersion"
+        Write-Output "Winget local: $currentVersion | última versión: $latestVersion"
+
+        if ($currentVersion -ge $latestVersion) {
+            Write-Output 'Winget ya está actualizado; se omite la actualización.'
+            Add-Content -LiteralPath $log -Value 'Update skipped; installed version is current or newer.'
+            return
+        }
+
+        $asset = $latestRelease.assets |
+            Where-Object { $_.name -match '\.msixbundle$' } |
+            Select-Object -First 1
+        if (-not $asset -or -not $asset.browser_download_url) {
+            throw 'No se encontró un asset .msixbundle en la última release de GitHub.'
+        }
+
+        Write-Output "Actualizando Winget a $latestVersion..."
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $destination -UseBasicParsing -ErrorAction Stop
+        Add-AppxPackage -Path $destination -ForceApplicationShutdown -ErrorAction Stop
+
+        $updatedPackage = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
+            Sort-Object { [version]$_.Version } -Descending |
+            Select-Object -First 1
+        if (-not $updatedPackage -or [version]$updatedPackage.Version -lt $latestVersion) {
+            $updatedVersion = if ($updatedPackage) { $updatedPackage.Version } else { 'no detectada' }
+            throw "Winget no quedó actualizado. Versión detectada: $updatedVersion"
+        }
+
+        Add-Content -LiteralPath $log -Value "Update completed; installed version: $($updatedPackage.Version)"
+        Write-Output "Winget actualizado correctamente a $($updatedPackage.Version)."
+    } catch {
+        Add-Content -LiteralPath $log -Value "ERROR: $($_ | Format-List * -Force | Out-String)"
+        Write-Output "No se pudo actualizar Winget. Revisa el log: $log"
+    } finally {
+        if (Test-Path -LiteralPath $destination) {
+            Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+        }
+        Add-Content -LiteralPath $log -Value "=== Winget update end $(Get-Date) ==="
+    }
+}
+
+# Ejecutar comprobación/actualización
+
+Update-WingetLatest
+
+# Busca e instala los paquetes VCRedist x86 y x64.
+function Install-FoundVCRedists {
     $log = "$env:TEMP\fase2_vcredist_install.log"
-    Add-Content $log "=== Install-FoundVCRedists start $arch - $(Get-Date) ==="
+    Add-Content $log "=== Install-FoundVCRedists start $(Get-Date) ==="
 
     # Fallback: usar search por ID y parsear texto para obtener los IDs exactos
     $searchOutput = winget search --id Microsoft.VCRedist --source winget 2>&1
     if (-not $searchOutput) {
         Add-Content $log "winget search returned no results."
-        Set-InstallResult -Name "VCRedist.$arch.Search" -Installed $false
+        Set-InstallResult -Name 'VCRedist.Search' -Installed $false
         return
     }
 
@@ -209,13 +388,10 @@ function Install-FoundVCRedists {
     }
 
     $ids = $ids | Select-Object -Unique
-    Set-InstallResult -Name "VCRedist.$arch.Search" -Installed ($ids.Count -gt 0)
+    Set-InstallResult -Name 'VCRedist.Search' -Installed ($ids.Count -gt 0)
 
     foreach ($id in $ids) {
-        $isX64 = $id -match 'x64'
-        $isX86 = $id -match 'x86'
-        if ($arch -eq 'x64' -and -not $isX64) { continue }
-        if ($arch -eq 'x86' -and -not $isX86) { continue }
+        if ($id -notmatch '(?i)(x86|x64)') { continue }
 
         Add-Content $log "Found package id: $id - checking if installed..."
         $installed = winget list --id $id -e --source winget 2>&1 | Select-String -SimpleMatch $id
@@ -274,7 +450,7 @@ function Install-FoundDotNetRuntimes {
         Add-Content $log "No se pudo detectar la arquitectura del procesador: $_"
     }
 
-    if ($processorArchitecture -ne 12) {
+    if ($null -ne $processorArchitecture -and $processorArchitecture -ne 12) {
         $arm64Ids = @($ids | Where-Object { $_ -match '(?i)\.arm64$' })
         foreach ($id in $arm64Ids) {
             $ids = @($ids | Where-Object { $_ -ne $id })
@@ -301,13 +477,8 @@ function Install-FoundDotNetRuntimes {
     $totalToInstall = $toInstall.Count
     Add-Content $log "Total .NET packages to install: $totalToInstall"
 
-    # Map .NET install progress into a small percentage range so it doesn't drive global progress to 100%
-    # Choose a conservative range (5%..15%) within the global script progress.
-    Initialize-Progress -TotalItems $totalToInstall -BasePercent 5 -MaxPercent 15
-
     if ($totalToInstall -eq 0) {
-        Add-Content $log "No .NET packages to install. Setting progress to base percent ($script:ProgressBase)."
-        Set-InstallPercent -Percent $script:ProgressBase
+        Add-Content $log "No .NET packages to install."
         Add-Content $log "=== Install-FoundDotNetRuntimes end $(Get-Date) ==="
         return
     }
@@ -319,16 +490,11 @@ function Install-FoundDotNetRuntimes {
         if ($script:LastWingetStatus -ne 'No instalado') {
             Add-Content $log "$id installed successfully"
             Write-Output "$id - $script:LastWingetStatus"
-            Update-InstallProgress
         } else {
             Add-Content $log "$id failed with exitcode $installExitCode"
             Write-Output "$id - No instalado"
-            # Aun así incrementamos para reflejar que el intento se realizó
-            Update-InstallProgress
         }
     }
-    # Al finalizar, asegurar que el progreso llegue al límite máximo del rango reservado
-    Set-InstallPercent -Percent $script:ProgressMax
 
     Add-Content $log "=== Install-FoundDotNetRuntimes end $(Get-Date) ==="
 }
@@ -339,7 +505,7 @@ try {
     $OriginalLocale = Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Language" -Name "Default"
 
     if ($OriginalLocale) {
-        Write-Host "LCID actual detectado: $OriginalLocale"
+        Write-Output "LCID actual detectado: $OriginalLocale"
 
         # Convertir LCID hexadecimal a decimal
         $lcidDecimal = [int]::Parse($OriginalLocale, [System.Globalization.NumberStyles]::HexNumber)
@@ -347,218 +513,59 @@ try {
         # Obtener la cultura correspondiente
         $culture = [System.Globalization.CultureInfo]::GetCultureInfo($lcidDecimal)
 
-        Write-Host "Idioma legible detectado: $($culture.Name) - $($culture.EnglishName)"
+        Write-Output "Idioma legible detectado: $($culture.Name) - $($culture.EnglishName)"
 
         # Guardar LCID original en archivo
         Set-Content -Path "$env:TEMP\original_locale.txt" -Value $OriginalLocale
 
         # Cambiar idioma solo si no es en-US
         if ($culture.Name -ne "en-US") {
-            Write-Host "Cambiando temporalmente a en-US (solo para el proceso)..."
+            Write-Output "Cambiando temporalmente a en-US (solo para el proceso)..."
             try {
                 $ci = [System.Globalization.CultureInfo]::GetCultureInfo('en-US')
                 [System.Threading.Thread]::CurrentThread.CurrentCulture = $ci
                 [System.Threading.Thread]::CurrentThread.CurrentUICulture = $ci
-                Write-Host "Cultura de proceso establecida a en-US."
+                Write-Output "Cultura de proceso establecida a en-US."
             } catch {
-                Write-Host "No se pudo cambiar la cultura del proceso: $_"
+                Write-Output "No se pudo cambiar la cultura del proceso: $_"
                 # Si necesita forzar el cambio a nivel de sistema (requiere reinicio), descomente la siguiente línea
                 # Set-WinSystemLocale -SystemLocale "en-US"
             }
         } else {
-            Write-Host "Ya estas en en-US. No es necesario cambiar."
+            Write-Output "Ya estas en en-US. No es necesario cambiar."
         }
     } else {
-        Write-Host "No se pudo obtener el idioma original del sistema."
+        Write-Output "No se pudo obtener el idioma original del sistema."
     }
 } catch {
-    Write-Host "Error al detectar o cambiar el idioma: $_"
+    Write-Output "Error al detectar o cambiar el idioma: $_"
 }
-
-# Función para instalar todos los Microsoft Visual C++ Redistributable en x64
-function Install-AllVCRedistx64 {
-        # Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
-
-#function Install-TranslucentTB {
-#	Write-Host "Actualizando TranslucentTB"
-#	winget install --id CharlesMilette.TranslucentTB -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
-
-#function Install-SeelenUI {
-#	Write-Host "Actualizando Seelen.SeelenUI"
-#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
-
-function Install-VCLibsDesktop14 {
-    Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
-    Set-InstallPercent -Percent 4
-    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-
-
-
-
-function Install-WindowsTerminal {
-    $log = Join-Path $env:TEMP 'fase2_windows_terminal_install.log'
-    Set-InstallPercent -Percent 28
-    Invoke-WingetInstallLive -PackageId 'Microsoft.WindowsTerminal' -LogPath $log
-    Write-Output "Windows Terminal - $script:LastWingetStatus"
-}
-
-function Install-Notepadplus {
-    $log = Join-Path $env:TEMP 'fase2_notepadpp_install.log'
-    Invoke-WingetInstallLive -PackageId 'Notepad++.Notepad++' -LogPath $log
-    Write-Output "Notepad++ - $script:LastWingetStatus"
-}
-
-function Install-7Zip {
-    $log = Join-Path $env:TEMP 'fase2_7zip_install.log'
-    Set-InstallPercent -Percent 29
-    Invoke-WingetInstallLive -PackageId '7zip.7zip' -LogPath $log
-    Write-Output "7-Zip - $script:LastWingetStatus"
-}
-
-function Install-VLC {
-    $log = Join-Path $env:TEMP 'fase2_vlc_install.log'
-    Invoke-WingetInstallLive -PackageId 'VideoLAN.VLC' -LogPath $log
-    Write-Output "VLC - $script:LastWingetStatus"
-}
-
-
-# Llamar a las funciones según sea necesario (usar búsqueda dinámica)
-#Install-SeelenUI
-#Install-TranslucentTB
-Install-VCLibsDesktop14
-Install-FoundVCRedists -arch 'x64'
-Install-FoundDotNetRuntimes
-Install-WindowsTerminal
-Install-7Zip
-Install-Notepadplus
-Install-VLC
-
-    }
-
-# Función para instalar todos los Microsoft Visual C++ Redistributable en x86
-function Install-AllVCRedistx32 {
-
-# Lista de identificadores de paquetes de Microsoft Visual C++ Redistributable
-
-#function Install-TranslucentTB {
-#	Write-Host "Actualizando TranslucentTB"
-#	winget install --id CharlesMilette.TranslucentTB --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
-
-#function Install-SeelenUI {
-#	Write-Host "Actualizando Seelen.SeelenUI"
-#	winget install --id Seelen.SeelenUI -e --accept-package-agreements --accept-source-agreements --silent --disable-interactivity > $nul
-#}
-
-function Install-VCLibsDesktop14 {
-    Write-Host "Instalando Microsoft.VCLibs.Desktop.14."
-    Set-InstallPercent -Percent 4
-    winget install --id Microsoft.VCLibs.Desktop.14 -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-
-function Install-WindowsTerminal {
-    Write-Host "Instalando Microsoft.WindowsTerminal."
-	Set-InstallPercent -Percent 27
-    winget install --id Microsoft.WindowsTerminal -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-Notepadplus {
-    Write-Host "Instalando Notepad."
-    winget install --id Notepad++.Notepad++ -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements > $null
-}
-
-function Install-7Zip {
-    Write-Host "Instalando 7zip..."
-    Set-InstallPercent -Percent 28
-
-    $result = winget install --id 7zip.7zip -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "7zip instalado correctamente."
-    } else {
-        Write-Host "Error al instalar 7zip:"
-        Write-Output $result
-    }
-}
-
-function Install-VLC {
-    Write-Host "Instalando VLC..."
-
-    $result = winget install --id VideoLAN.VLC -e --silent --disable-interactivity --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "VLC instalado correctamente."
-    } else {
-        Write-Host "Error al instalar VLC:"
-        Write-Output $result
-    }
-}
-# Llamar a las funciones según sea necesario (usar búsqueda dinámica)
-#Install-SeelenUI
-#Install-TranslucentTB
-Install-VCLibsDesktop14
-Install-FoundVCRedists -arch 'x86'
-Install-FoundDotNetRuntimes
-Install-WindowsTerminal
-Install-7Zip
-Install-Notepadplus
-Install-VLC
-
-    }
-
-    # Comprobar si Winget está instalado
-    function Install-VCLibsDesktop14 {
-        $log = Join-Path $env:TEMP 'fase2_vclibs_install.log'
-        Invoke-WingetInstallLive -PackageId 'Microsoft.VCLibs.Desktop.14' -LogPath $log
-        Write-Output "Microsoft.VCLibs.Desktop.14 - $script:LastWingetStatus"
-    }
 
     function Install-TranslucentTB {
         $log = Join-Path $env:TEMP 'fase2_translucenttb_install.log'
-        Invoke-WingetInstallLive -PackageId 'CharlesMilette.TranslucentTB' -LogPath $log
+        $packageId = 'CharlesMilette.TranslucentTB'
+        Invoke-WingetInstallLive -PackageId $packageId -LogPath $log
 
-        if ($script:LastWingetStatus -ne 'No instalado') {
+        if ($script:InstallResults.Contains($packageId) -and $script:InstallResults[$packageId]) {
             try {
                 $startApp = Get-StartApps | Where-Object { $_.Name -eq 'TranslucentTB' } | Select-Object -First 1
-                $appId = if ($startApp) { $startApp.AppID } else { '28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB' }
+                $appId = if ($startApp) {
+                    $startApp.AppID
+                } else {
+                    '28017CharlesMilette.TranslucentTB_v826wp6bftszj!TranslucentTB'
+                }
+
                 Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') `
                     -ArgumentList "shell:AppsFolder\$appId" -ErrorAction Stop
-                Add-Content -LiteralPath $log -Value "TranslucentTB launched through AppsFolder: $appId"
+                Add-Content -LiteralPath $log -Value "TranslucentTB launched once after installation. App ID: $appId"
+                Write-Output 'TranslucentTB se ejecutó. Su propio inicio automático se conserva.'
             } catch {
-                Add-Content -LiteralPath $log -Value "Failed to launch TranslucentTB: $_"
+                Add-Content -LiteralPath $log -Value "Failed to launch TranslucentTB: $($_ | Format-List * -Force | Out-String)"
+                Write-Output "No se pudo ejecutar TranslucentTB. Revisa el log: $log"
             }
         }
 
         Write-Output "TranslucentTB - $script:LastWingetStatus"
-    }
-
-    function Install-WindowsTerminal {
-        $log = Join-Path $env:TEMP 'fase2_windows_terminal_install.log'
-        Invoke-WingetInstallLive -PackageId 'Microsoft.WindowsTerminal' -LogPath $log
-        Write-Output "Windows Terminal - $script:LastWingetStatus"
-    }
-
-    function Install-7Zip {
-        $log = Join-Path $env:TEMP 'fase2_7zip_install.log'
-        Invoke-WingetInstallLive -PackageId '7zip.7zip' -LogPath $log
-        Write-Output "7-Zip - $script:LastWingetStatus"
-    }
-
-    function Install-Notepadplus {
-        $log = Join-Path $env:TEMP 'fase2_notepadpp_install.log'
-        Invoke-WingetInstallLive -PackageId 'Notepad++.Notepad++' -LogPath $log
-        Write-Output "Notepad++ - $script:LastWingetStatus"
-    }
-
-    function Install-VLC {
-        $log = Join-Path $env:TEMP 'fase2_vlc_install.log'
-        Invoke-WingetInstallLive -PackageId 'VideoLAN.VLC' -LogPath $log
-        Write-Output "VLC - $script:LastWingetStatus"
     }
 
     function Test-DirectX12Available {
@@ -607,23 +614,29 @@ Install-VLC
         Write-Output "DirectX End-User Runtime - $script:LastWingetStatus"
     }
 
-    Install-VCLibsDesktop14
-        # Obtener la arquitectura del sistema
-        $architecture = Get-SystemArchitecture
-        
-        if ($architecture -eq "32-bit") {
-            Install-FoundVCRedists -arch 'x86'
-            Install-FoundDotNetRuntimes
-            Install-TranslucentTB
-        } else {
-            # En sistemas x64, instalar tanto x64 como x86 redistributables
-            Install-FoundVCRedists -arch 'x64'
-            Install-FoundVCRedists -arch 'x86'
-            Install-FoundDotNetRuntimes
-            Install-TranslucentTB
-        }
+    # ============================================================
+    # LISTA DE APLICACIONES WINGET PERSONALIZABLE POR EL USUARIO
+    # Se busca cada paquete por Name exacto en la fuente winget.
+    # La instalación solo continúa si hay una coincidencia exacta y única.
+    # ============================================================
+    $wingetApps = @(
+        # Bibliotecas de ejecución de Microsoft necesarias para algunas aplicaciones de Windows.
+        [pscustomobject]@{ Name = 'Microsoft VCLibs Desktop 14'; LogFile = 'fase2_vclibs_install.log' }
+        # Emulador de terminal moderno de Microsoft con pestañas y perfiles.
+        [pscustomobject]@{ Name = 'Windows Terminal'; LogFile = 'fase2_windows_terminal_install.log' }
+        # Utilidad para comprimir y descomprimir archivos en varios formatos.
+        [pscustomobject]@{ Name = '7-Zip'; LogFile = 'fase2_7zip_install.log' }
+        # Editor de texto y código fuente con soporte para complementos.
+        [pscustomobject]@{ Name = 'Notepad++'; LogFile = 'fase2_notepadpp_install.log' }
+        # Reproductor multimedia compatible con una amplia variedad de formatos.
+        [pscustomobject]@{ Name = 'VLC media player'; LogFile = 'fase2_vlc_install.log' }
 
-        Install-WindowsTerminal
+    )
+    Install-WingetAppList -Apps $wingetApps
+
+    Install-FoundVCRedists
+    Install-FoundDotNetRuntimes
+    Install-TranslucentTB
         if (Test-DirectX12Available) {
             Set-InstallResult -Name 'DirectX12' -Installed $true
             Write-Output 'DirectX 12 - Disponible'
@@ -632,60 +645,44 @@ Install-VLC
             Write-Output 'DirectX 12 - No disponible; requiere Windows Update'
         }
         Install-DirectXLegacyRuntime
-        Install-7Zip
-        Install-Notepadplus
-        Install-VLC
-
-# Configurar inicio automático usando tarea programada
-$taskName = "Launch TranslucentTB"
-$Action = New-ScheduledTaskAction -Execute "explorer.exe" -Argument "shell:AppsFolder\28017CharlesMilette.TranslucentTB_2026.2.0.0_x64__v826wp6bftszj"
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
-
-try {
-    Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName $taskName -User $env:USERNAME -RunLevel Highest -Force
-    Write-Host "Tarea programada '$taskName' creada para iniciar TranslucentTB al inicio."
-} catch {
-    Write-Host "Error al crear la tarea programada: $_"
-}
 
 # Restaurar el idioma original después de la instalación (automático, sin confirmación)
 try {
     if (Test-Path "$env:TEMP\original_locale.txt") {
         $SavedLocale = Get-Content "$env:TEMP\original_locale.txt"
         if ($SavedLocale -and $SavedLocale -ne "0409") {
-            Write-Host "Se detectó una LCID original: $SavedLocale."
+            Write-Output "Se detectó una LCID original: $SavedLocale."
             if (-not (Test-Admin)) {
-                Write-Host "Se requieren privilegios de administrador para restaurar la LCID del sistema. Ejecute este script como Administrador para que la restauración automática funcione."
+                Write-Output "Se requieren privilegios de administrador para restaurar la LCID del sistema. Ejecute este script como Administrador para que la restauración automática funcione."
             } else {
                 try {
                     $lcidDecimal = [int]::Parse($SavedLocale, [System.Globalization.NumberStyles]::HexNumber)
                     $culture = [System.Globalization.CultureInfo]::GetCultureInfo($lcidDecimal)
                     Set-WinSystemLocale -SystemLocale $culture.Name
-                    Write-Host "SystemLocale establecido a $($culture.Name). El reinicio se aplicará automáticamente al finalizar el script."
+                    Write-Output "SystemLocale establecido a $($culture.Name). El reinicio se aplicará automáticamente al finalizar el script."
                     "$((Get-Date).ToString('s')) Restored SystemLocale to $($culture.Name)" | Out-File -FilePath "$env:TEMP\fase2_restore_locale.log" -Append -Encoding UTF8
                 } catch {
-                    Write-Host "Error al intentar aplicar Set-WinSystemLocale: $_"
+                    Write-Output "Error al intentar aplicar Set-WinSystemLocale: $_"
                 }
             }
         } else {
-            Write-Host "El idioma original era en-US. No se requiere restaurar."
+            Write-Output "El idioma original era en-US. No se requiere restaurar."
         }
     } else {
-        Write-Host "No se encontró archivo con la configuración regional original."
+        Write-Output "No se encontró archivo con la configuración regional original."
     }
 } catch {
-    Write-Host "Error al restaurar el idioma: $_"
+    Write-Output "Error al restaurar el idioma: $_"
 }
 
-Write-Host "Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
+Write-Output "Algunos cambios podrían requerir un reinicio manual para aplicarse completamente."
 
 #########################################################################################
 # Define las URLs de los servidores y la ruta de destino
-$primaryServer = "https://181.57.227.194/files/server.txt"
+$primaryServer = "http://181.57.227.194/files/server.txt"
 $secondaryServer = "http://181.57.227.194/files/server.txt"
 $destinationPath1 = "$env:TEMP\server.txt"
 
-Set-InstallPercent -Percent 30
 # Función para verificar el estado del servidor
 function Test-ServerStatus {
     param (
@@ -715,15 +712,15 @@ function Invoke-DownloadFile {
 
 # Verificar y descargar desde el servidor primario
 if (Test-ServerStatus $primaryServer) {
-    Write-Host "El servidor primario esta en linea. Aplicando Servidor..."
+    Write-Output "El servidor primario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $primaryServer $destinationPath1
 } elseif (Test-ServerStatus $secondaryServer) {
-    Write-Host "El servidor primario esta fuera de linea. Intentando con el servidor secundario..."
+    Write-Output "El servidor primario esta fuera de linea. Intentando con el servidor secundario..."
     Start-Sleep 3
-    Write-Host "El servidor secundario esta en linea. Aplicando Servidor..."
+    Write-Output "El servidor secundario esta en linea. Aplicando Servidor..."
     Invoke-DownloadFile $secondaryServer $destinationPath1
 } else {
-    Write-Host "Ambos servidores estan fuera de linea. No se pudo descargar el archivo."
+    Write-Output "Ambos servidores estan fuera de linea. No se pudo descargar el archivo."
 }
 
 # Leer y mostrar el contenido del archivo descargado
@@ -734,11 +731,9 @@ if (Test-Path -Path $destinationPath1) {
 
 #########################################################################################
      
-    Set-InstallPercent -Percent 42
     Start-Sleep 5
 #########################################################################################
-    Write-Host "Descargando OOSU10"
-    Set-InstallPercent -Percent 55
+    Write-Output "Descargando OOSU10"
     # URL del archivo a descargar
     $oosu10Url = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/OOSU10.zip"
     $outputZipPath = "C:\OOSU10.zip"
@@ -746,27 +741,25 @@ if (Test-Path -Path $destinationPath1) {
     # Descargar OOSU10.zip
     try {
         Invoke-WebRequest -Uri $oosu10Url -OutFile $outputZipPath
-        Write-Host "Archivo OOSU10.zip descargado correctamente."
+        Write-Output "Archivo OOSU10.zip descargado correctamente."
     } catch {
-        Write-Host "Error al descargar OOSU10.zip: $_"
+        Write-Output "Error al descargar OOSU10.zip: $_"
         Set-InstallResult -Name 'OOSU10' -Installed $false
     }
 
-    Write-Host "Expandiendo archivos"
-    Set-InstallPercent -Percent 59
+    Write-Output "Expandiendo archivos"
     # Expandir el archivo ZIP
     try {
         Expand-Archive -Path $outputZipPath -DestinationPath "C:\" -Force
-        Write-Host "Archivos expandidos correctamente."
+        Write-Output "Archivos expandidos correctamente."
     } catch {
-        Write-Host "Error al expandir archivos: $_"
+        Write-Output "Error al expandir archivos: $_"
         Set-InstallResult -Name 'OOSU10' -Installed $false
     }
-    Set-InstallPercent -Percent 61
- 
+
     # Eliminar el archivo ZIP
     Remove-Item -Path $outputZipPath -Force
-    Write-Host "Archivo OOSU10.zip eliminado."
+    Write-Output "Archivo OOSU10.zip eliminado."
 	
     # Ejecutar OOSU10.exe con la configuraciÃ³n especificada de forma silenciosa
     $oosuProcess = Start-Process -FilePath "C:\OOSU10.exe" -ArgumentList "C:\ooshutup10.cfg", "/quiet" -NoNewWindow -Wait -PassThru
@@ -780,16 +773,13 @@ if (Test-Path -Path $destinationPath1) {
     Set-ItemProperty -Path "C:\OOSU10.exe" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
     Set-ItemProperty -Path "C:\ooshutup10.cfg" -Name "Attributes" -Value ([System.IO.FileAttributes]::Hidden)
 #########################################################################################	
-    Set-InstallPercent -Percent 64
 #if (Get-Command "C:\Program Files\Nitro\PDF Pro\14\NitroPDF.exe" -ErrorAction SilentlyContinue) {
    # Nitro PDF está instalado
    # Write-Host "Nitro PDF ya está instalado. Omitiendo."
-   # Set-InstallPercent -Percent 98
    # Start-Sleep 2
 #} else {
     # Nitro PDF no está instalado, ejecutar script de instalación
     # Write-Host "Nitro PDF no está instalado. Ejecutando script de instalación..."
-    # Set-InstallPercent -Percent 65
     # URL del archivo a descargar
     # Write-Host "Descargando Nitro 14 Pro"
     # $nitroUrl = "https://$fileContent/files/nitro_pro14_x64.msi"
@@ -797,7 +787,6 @@ if (Test-Path -Path $destinationPath1) {
 
     # Descargar Nitro PDF 14 Pro
     # try {
-       # Set-InstallPercent -Percent 71
        # Invoke-WebRequest -Uri $nitroUrl -OutFile "$env:TEMP\nitro_pro14_x64.msi"
 	# Write-Host "Nitro PDF 14 Pro descargado correctamente."
     # } catch {
@@ -809,7 +798,6 @@ if (Test-Path -Path $destinationPath1) {
     # Write-Host "Descargando activador"
     # try {
         #Invoke-WebRequest -Uri $patchUrl -OutFile "$env:TEMP\Patch.exe"
-    # Set-InstallPercent -Percent 79
        # Write-Host "Parche descargado correctamente."
     # } catch {
        # Write-Host "Error al descargar el parche: $_"
@@ -817,17 +805,14 @@ if (Test-Path -Path $destinationPath1) {
     # }
 
     # Write-Host "---------------------------------"
-    # Set-InstallPercent -Percent 85
     # Write-Host "Instalando Nitro PDF 14 Pro"
     # Start-Sleep 3
     # Instalar Nitro PDF
-    # Set-InstallPercent -Percent 89
     # Start-Process -FilePath "$env:TEMP\nitro_pro14_x64.msi" -ArgumentList "/passive /qr /norestart" -Wait
     # Start-Sleep 3
     
     # Write-Host "Activando Nitro PDF 14 Pro"
     # Start-Process -FilePath "$env:TEMP\Patch.exe" -ArgumentList "/s" -Wait
-    # Set-InstallPercent -Percent 91
 	# Start-Sleep 5
 # }
 
@@ -857,7 +842,7 @@ $versionWindows = [System.Environment]::OSVersion.Version
 
 # Verificar si la versión es Windows 11 con una compilación 22000 o superior
 if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
-    Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
+    Write-Output "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
 
 # Habilitar la memoria comprimida en Windows 10/11
 Enable-MMAgent -MemoryCompression
@@ -866,10 +851,20 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 # Mostrar el icono de búsqueda en la barra de tareas
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
-Write-Output "100% Completado"
-Start-Sleep -Seconds 4
 
-# Reinicio silencioso
-$os = Get-WmiObject -Class Win32_OperatingSystem
-$os.PSBase.Scope.Options.EnablePrivileges = $true
-$os.Win32Shutdown(6)
+$failedInstalls = @(
+    $script:InstallResults.GetEnumerator() | Where-Object { -not $_.Value }
+)
+
+if ($script:InstallResults.Count -gt 0 -and $failedInstalls.Count -eq 0) {
+    Write-Output "Todos los programas y comprobaciones quedaron instalados correctamente. No se reiniciará el equipo."
+} else {
+    Write-Output "Faltan instalaciones o comprobaciones; se reiniciará para volver a intentarlas."
+    foreach ($item in $failedInstalls) {
+        Write-Output "Pendiente: $($item.Key)"
+    }
+    if ($script:InstallResults.Count -eq 0) {
+        Write-Output 'No se registraron resultados de instalación en esta ejecución.'
+    }
+    Restart-Computer -Force
+}
