@@ -867,21 +867,9 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
 
-$failedInstalls = @(
-    $script:InstallResults.GetEnumerator() | Where-Object { -not $_.Value }
-)
+Start-Sleep -Seconds 4
 
-if ($script:InstallResults.Count -gt 0 -and $failedInstalls.Count -eq 0) {
-    Set-InstallPercent -Percent 100
-    Write-Host "Todos los programas y comprobaciones quedaron instalados correctamente. No se reiniciará el equipo."
-} else {
-    Set-InstallPercent -Percent 99
-    Write-Warning "Faltan instalaciones o comprobaciones; se reiniciará para volver a intentarlas."
-    foreach ($item in $failedInstalls) {
-        Write-Warning "Pendiente: $($item.Key)"
-    }
-    if ($script:InstallResults.Count -eq 0) {
-        Write-Warning 'No se registraron resultados de instalación en esta ejecución.'
-    }
-    Restart-Computer -Force
-}
+# Reinicio silencioso
+$os = Get-WmiObject -Class Win32_OperatingSystem
+$os.PSBase.Scope.Options.EnablePrivileges = $true
+$os.Win32Shutdown(6)
