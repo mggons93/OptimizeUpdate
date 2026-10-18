@@ -866,7 +866,7 @@ Write-Output "Memoria comprimida habilitada. Reinicia el sistema para aplicar lo
 # Mostrar el icono de búsqueda en la barra de tareas
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 3
 }
-
+Write-Output "100% Completado"
 Start-Sleep -Seconds 4
 
 # Reinicio silencioso
