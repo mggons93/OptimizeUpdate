@@ -20,7 +20,6 @@ $ErrorActionPreference = "SilentlyContinue"
 Dism /Online /Set-ReservedStorageState /State:Disabled
 
 ############################
-Write-Output "1% Completado"
 ############################
 
 ######################  Desactivar Widgets ######################
@@ -56,7 +55,6 @@ Try {
 }
 
 ############################
-Write-Output "2% Completado" 
 ############################
 	
 # Continuar con el resto del script
@@ -92,7 +90,6 @@ Disable-ReservedStorage
 ######################  Deshabilitar Almacena Reservado ######################
 
 ############################
-Write-Output "5% Completado"
 ############################
 #Add-Type -AssemblyName System.Windows.Forms
 #[System.Windows.Forms.SendKeys]::SendWait("^{ESC}")
@@ -198,23 +195,19 @@ if (Test-ServerStatus $primaryServer) {
     Write-Host "Archivo OEM eliminado."
 
 ############################
-Write-Output "7% Completado"
 ############################
 
 ############################
-Write-Output "9% Completado"
 ############################
 if (Get-Command "C:\Program Files\Easy Context Menu\EcMenu.exe" -ErrorAction SilentlyContinue) {
     # Easy Context Menu esta instalado
     Write-Host "Easy Context Menu ya esta instalado. Omitiendo."
-    Write-Output "10% Completado"
     Write-Host "---------------------------------"
     Start-Sleep 2
 }
 else {
     Write-Host "---------------------------------"
     Write-Host "Descargando en segundo plano Archivos de instalación ECM"
-    Write-Output "11% Completado"
     Start-Sleep 2
 
     # URLs de descarga
@@ -246,7 +239,6 @@ else {
     }
 
     Start-Sleep 2
-    Write-Output "12% Completado"
 
     # Descargar ECM.reg
     try {
@@ -288,7 +280,6 @@ else {
 }
 start-sleep 5
 #############################
-Write-Output "13% Completado"
 #############################
 
 ###################### Configuracion de Windows 10 Menu inicio ######################
@@ -369,6 +360,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     }
     $oemValues = @{
         Manufacturer = "Mggons Support Center"
+        Model = "Windows 10 - Update 2025 - S&A"
         SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
         SupportURL = "https://wa.me/+573150560580"
     }
@@ -405,7 +397,6 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
 ###################### Configuracion de Windows 10 Menu inicio ######################
 
 #############################
-Write-Output "18% Completado"
 #############################
 
 ###################### Configuraciones Adicionales ######################
@@ -438,7 +429,6 @@ Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Syst
 ###################### Configuraciones Adicionales ######################
 
 #############################
-Write-Output "21% Completado"
 #############################
 
 # ==========================================================
@@ -664,7 +654,6 @@ if (-not (Test-Path -Path $RutaCarpeta)) {
 }
 
 #############################
-Write-Output "35% Completado"
 #############################
 start-sleep 5
 $registryPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System\CredSSP\Parameters"
@@ -685,7 +674,6 @@ if (-not (Get-ItemProperty -Path $registryPath -Name $valueName -ErrorAction Sil
 }
 
 #############################
-Write-Output "38% Completado"
 #############################
 
 Write-Host "Establezca el factor de calidad de los fondos de escritorio JPEG al maximo"
@@ -747,7 +735,6 @@ try {
 }
 
 #############################
-Write-Output "42% Completado"
 #############################
 
 ###################### Configuracion de Windows 11 Menu inicio ###################### 
@@ -886,7 +873,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 	# Nuevos valores
 	$oemValues = @{
 	    Manufacturer = "Mggons Support Center"
-	    Model = "Windows 11 - Update 2025 - S`&A"
 	    SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
 	    SupportURL = "https://wa.me/573150560580"
 	    SupportPhone = " "
@@ -916,7 +902,6 @@ if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
 ###################### Configuracion de Windows 11 Menu inicio ######################
 
 #############################
-Write-Output "50% Completado"
 #############################
 
 ############## Eliminar el autoinicio de microsoft Edge ####################
@@ -1017,7 +1002,7 @@ foreach ($Nav in $Navegadores) {
 ############## Verificar si el proceso de Microsoft Edge está en ejecución y detenerlo ####################
 $processName = "msedge"
 Start-Process "msedge.exe"
-Start-Sleep 30
+Start-Sleep 15
 if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
     Write-Output "Deteniendo el proceso $processName..."
 
@@ -1028,7 +1013,6 @@ if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
 }
 
 #############################
-Write-Output "64% Completado"
 #############################
 
 ########################################### 11.MODULO DE OPTIMIZACION DE INTERNET ###########################################
@@ -1083,7 +1067,6 @@ Disable-ScheduledTask -TaskName "Microsoft\Windows\DiskDiagnostic\Microsoft-Wind
 Write-Host "Telemetría deshabilitada"
 
 #############################
-Write-Output "70% Completado"
 #############################
 
 # Inhabilitando Wi-Fi Sense
@@ -1182,7 +1165,6 @@ Write-Host "Configuraciones aplicadas con éxito."
 
 # Indicador de progreso
 #############################
-Write-Output "76% Completado"    
 #############################
 # Deteniendo y deshabilitando el servicio de seguimiento de diagnósticos
 Write-Host "Deteniendo y deshabilitando el servicio de seguimiento de diagnósticos..."
@@ -1190,7 +1172,6 @@ Stop-Service "DiagTrack" -WarningAction SilentlyContinue
 Set-Service "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
 # Indicador de progreso
 #############################
-Write-Output "77% Completado"
 #############################
 # Deteniendo y deshabilitando el servicio WAP Push
 Write-Host "Deteniendo y deshabilitando WAP Push Service..."
@@ -1198,14 +1179,12 @@ Stop-Service "dmwappushservice" -WarningAction SilentlyContinue
 Set-Service "dmwappushservice" -StartupType Disabled -ErrorAction SilentlyContinue
 # Indicador de progreso
 #############################
-Write-Output "78% Completado"
 #############################
 # Inhabilitando el sensor de almacenamiento
 Write-Host "Inhabilitando el sensor de almacenamiento..."
 Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Recurse -ErrorAction SilentlyContinue
 # Indicador de progreso
 #############################
-Write-Output "80% Completado"
 #############################
 # Deteniendo y deshabilitando el servicio SysMain (Superfetch)
 Write-Host "Deteniendo y deshabilitando Superfetch service..."
@@ -1213,7 +1192,6 @@ Stop-Service "SysMain" -WarningAction SilentlyContinue
 Set-Service "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
 # Indicador de progreso
 #############################
-Write-Output "81% Completado" 
 #############################
 # Desactivando la hibernación
 Write-Host "Desactivando Hibernación..."
@@ -1242,7 +1220,6 @@ Write-Host "Icono de personas ocultas..."
 # Deshabilitar informe de errores
 # Indicador de progreso
 #############################
-Write-Output "82% Completado"
 #############################
 Write-Host "Deshabilitando informe de errores..."
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -Type DWord -Value 1
@@ -1262,7 +1239,6 @@ Write-Host "Inhabilitando el sensor de almacenamiento..."
 Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Recurse -ErrorAction SilentlyContinue
 # Indicador de progreso
 #############################
-Write-Output "83% Completado"
 #############################
 # Desactivar hibernación
 Write-Host "Desactivando Hibernación..."
@@ -1282,7 +1258,6 @@ Write-Host "Activando segundos en el reloj del sistema..."
 New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSecondsInSystemClock" -PropertyType DWord -Value 1 -Force
 # Indicador de progreso
 #############################
-Write-Output "84% Completado"
 #############################
 # Cambiar la vista predeterminada del Explorador a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
@@ -1318,7 +1293,6 @@ Set-ItemProperty -Path $appPrivacyPolicyPath -Name "LetAppsAccessLocation" -Type
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Type DWord -Value 1
 
 #############################
-Write-Output "86% Completado"
 #############################
 # Asegúrate de ejecutar el script con privilegios administrativos
 
@@ -1339,7 +1313,6 @@ Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyCo
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "IRPStackSize" -Type DWord -Value 20
 # Indicador de progreso
 #############################
-Write-Output "87% Completado"
 #############################
 
 Write-Host "Habilitando la oferta de controladores a través de Windows Update..."
@@ -1351,7 +1324,6 @@ Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpda
 
 # Indicador de progreso
 #############################
-Write-Output "88% Completado"
 #############################
 # Iconos grandes del panel de control
 Write-Host "Configurando iconos grandes del panel de control..."
@@ -1393,7 +1365,6 @@ Get-ChildItem -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAc
 }
 # Indicador de progreso
 #############################
-Write-Output "89% Completado"
 #############################
 
 # Detener el servicio Windows Installer
@@ -1608,7 +1579,6 @@ if ($consultaCorrecta) {
         }
     }
 }
-Write-Output "100% Completado"
 
 
 Start-Sleep -Seconds 6
