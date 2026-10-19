@@ -12,12 +12,95 @@ if (-not (Test-Admin)) {
     return
 }
 
+# Detectar y validar Windows antes de aplicar cualquier cambio.
+$os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+$cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction Stop
+$versionWindows = [System.Version]$os.Version
+$buildNumber = [int]$os.BuildNumber
+$edition = [string]$cv.EditionID
+$productName = [string]$cv.ProductName
+$esWindowsCliente = [int]$os.ProductType -eq 1
+$esWindows11 = $esWindowsCliente -and $versionWindows.Major -eq 10 -and $buildNumber -ge 22000
+$esWindows10 = $esWindowsCliente -and $versionWindows.Major -eq 10 -and $buildNumber -lt 22000
+$esLTSC = $edition -match '^(EnterpriseS|EnterpriseSN|IoTEnterpriseS)$'
+$esN = $edition -match 'N$'
+
+$windows10NormalCompatible = $esWindows10 -and -not $esLTSC -and $buildNumber -ge 19041
+$windows10LTSCCompatible = $esWindows10 -and $esLTSC -and $buildNumber -ge 14393
+$windows11Compatible = $esWindows11
+$sistemaCompatible = $windows10NormalCompatible -or $windows10LTSCCompatible -or $windows11Compatible
+
+$aplicarAjustesWindows10 = $esWindows10 -and $buildNumber -ge 19041 -and $buildNumber -le 19045
+$aplicarAjustesWindows11 = $windows11Compatible
+$windowsName = if ($esWindows11) { 'Windows 11' } elseif ($esWindows10) { 'Windows 10' } else { 'no compatible' }
+$windowsProfile = if ($windows11Compatible) {
+    'Windows 11'
+} elseif ($windows10LTSCCompatible) {
+    'Windows 10 LTSC'
+} elseif ($windows10NormalCompatible) {
+    'Windows 10'
+} else {
+    'no compatible'
+}
+
+Write-Host "Sistema detectado: $windowsName, build $buildNumber."
+Write-Host "Producto: $productName | Edición: $edition | Perfil: $windowsProfile"
+if ($esN) { Write-Host "Variante: N" }
+if ($esLTSC) { Write-Host "Canal: LTSC" }
+
+if (-not $sistemaCompatible) {
+    Write-Host "Este sistema no está en los perfiles compatibles. No se aplicaron cambios." -ForegroundColor Red
+    return
+}
+
+Write-Host "Sistema compatible. Se aplicarán los ajustes comunes y solo los específicos del perfil detectado." -ForegroundColor Green
+
+function Write-OptimizationBanner {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Details
+    )
+
+    $contentWidth = [Math]::Max(72, ($Title, $Details | Measure-Object -Property Length -Maximum).Maximum)
+    $border = '+' + ('=' * ($contentWidth + 2)) + '+'
+    $separator = '+' + ('-' * ($contentWidth + 2)) + '+'
+    $titlePadding = [Math]::Max(0, [int](($contentWidth - $Title.Length) / 2))
+    $detailsPadding = [Math]::Max(0, [int](($contentWidth - $Details.Length) / 2))
+
+    Write-Host ""
+    Write-Host $border -ForegroundColor Cyan
+    Write-Host ('| ' + ''.PadRight($contentWidth) + ' |') -ForegroundColor Cyan
+    Write-Host ('| ' + $Title.PadLeft($titlePadding + $Title.Length).PadRight($contentWidth) + ' |') -ForegroundColor Cyan
+    Write-Host ('| ' + ''.PadRight($contentWidth) + ' |') -ForegroundColor Cyan
+    Write-Host $separator -ForegroundColor Cyan
+    Write-Host ('| ' + $Details.PadLeft($detailsPadding + $Details.Length).PadRight($contentWidth) + ' |') -ForegroundColor Cyan
+    Write-Host ('| ' + ''.PadRight($contentWidth) + ' |') -ForegroundColor Cyan
+    Write-Host $border -ForegroundColor Cyan
+    Write-Host ""
+}
+
+$bannerDetails = "Edicion: $edition | Build: $buildNumber"
+Write-OptimizationBanner -Title "OPTIMIZANDO $windowsProfile" -Details $bannerDetails
+
+function Invoke-ReservedStorageDism {
+    $output = & dism.exe /Online /Set-ReservedStorageState /State:Disabled 2>&1
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        Write-Warning "DISM no pudo deshabilitar el almacenamiento reservado (código $exitCode)."
+        $output | ForEach-Object { Write-Warning "$_" }
+    }
+}
+
 $rutaRegistro = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager"
 
 # Silenciar errores en PowerShell
 $ErrorActionPreference = "SilentlyContinue"
 
-Dism /Online /Set-ReservedStorageState /State:Disabled
+Invoke-ReservedStorageDism
 
 ############################
 ############################
@@ -26,29 +109,23 @@ Dism /Online /Set-ReservedStorageState /State:Disabled
 # Crear clave de política y desactivar Widgets
 Try {
     New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Force | Out-Null
-    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name "AllowNewsAndInterests" -Value 0 -PropertyType DWord -Force
-    Write-Output "Widgets desactivados por política."
+    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name "AllowNewsAndInterests" -Value 0 -PropertyType DWord -Force | Out-Null
 } Catch {
     Write-Warning "Error al aplicar política: $_"
 }
 
 Try {
     # Desactivar archivos recomendados en Inicio
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackDocs" -Value 0 -PropertyType DWord -Force
-    Write-Output "Recomendaciones del menú Inicio desactivadas."
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackDocs" -Value 0 -PropertyType DWord -Force | Out-Null
 
     # Desactivar archivos recientes en el explorador
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "ShowRecent" -Value 0 -PropertyType DWord -Force
-    Write-Output "Archivos recientes en el Explorador desactivados."
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "ShowRecent" -Value 0 -PropertyType DWord -Force | Out-Null
 
     # Desactivar elementos recientes en Jump Lists (listas de acceso rápido)
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -PropertyType DWord -Force
-    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_JumpListItems" -Value 0 -PropertyType DWord -Force
-    Write-Output "Listas de accesos directos (Jump Lists) desactivadas."
-
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_JumpListItems" -Value 0 -PropertyType DWord -Force | Out-Null
     # Opcional: limpiar historial existente
     Remove-Item "$env:APPDATA\Microsoft\Windows\Recent" -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Output "Historial reciente eliminado."
 
 } Catch {
     Write-Warning "Error al aplicar configuraciones: $_"
@@ -71,16 +148,14 @@ try {
 function Disable-ReservedStorage {
     # Deshabilitar mediante registro
     try {
-        Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0 -ErrorAction Stop
-        Write-Host "Almacenamiento reservado deshabilitado exitosamente en el registro."
+        Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0 -ErrorAction Stop | Out-Null
     } catch {
         Write-Host "Error al deshabilitar el almacenamiento reservado en el registro: $($_.Exception.Message)"
     }
 
     # Comando DISM para deshabilitar el almacenamiento reservado
     try {
-        Start-Process -FilePath dism -ArgumentList "/Online /Set-ReservedStorageState /State:Disabled" -Wait -NoNewWindow
-        Write-Host "Estado del almacenamiento reservado establecido a deshabilitado mediante DISM."
+        Invoke-ReservedStorageDism
     } catch {
         Write-Host "Error al establecer el estado del almacenamiento reservado mediante DISM: $($_.Exception.Message)"
     }
@@ -282,16 +357,10 @@ start-sleep 5
 #############################
 #############################
 
-###################### Configuracion de Windows 10 Menu inicio ######################
-# Verificar la versión del sistema operativo
-$os = Get-CimInstance Win32_OperatingSystem
-$versionWindows = [System.Version]$os.Version
-$buildNumber = [int]$os.BuildNumber
+###################### Ajustes exclusivos de Windows 10 ######################
+if ($aplicarAjustesWindows10) {
 
-# Verificar si la versión es Windows 10 entre la compilación 19041 y 19045
-if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -le 19045) {
-
-    Write-Host "Sistema operativo Windows 10 detectado. Ejecutando el script..."
+    Write-Host "Windows 10 detectado. Aplicando sus ajustes específicos..."
     # Función para crear clave y establecer propiedad
     function Set-RegistryValue {
         param (
@@ -342,7 +411,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0
     Write-Host "El almacenamiento reservado en Windows 10 se ha desactivado correctamente."
     # Desactivar "Agregadas recientemente" en el menú Inicio
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 | Out-Null
     Write-Host "Sección 'Agregadas recientemente' desactivada."
     # Reiniciar Explorer
     Stop-Process -name explorer
@@ -385,7 +454,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
 	
     Write-Host "Script ejecutado exitosamente en Windows 10."
 } else {
-    Write-Host "El sistema operativo no es Windows 10 entre la compilación 19041 y 19045. El script se ha omitido."
+    Write-Host "Se omiten los ajustes exclusivos de Windows 10 (solo compatibles con builds 19041-19045)."
 }
 
 # Descargar manualmente los paquetes requeridos
@@ -415,8 +484,10 @@ function Set-RegistryValue {
 }
 
 # Deshabilitar el Análisis de Datos de AI en Copilot+ PC
-Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Windows\WindowsAI" "DisableAIDataAnalysis" "DWord" 1
-Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Windows\WindowsAI" "TurnOffSavingSnapshots" "DWord" 1
+if ($aplicarAjustesWindows11) {
+    Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Windows\WindowsAI" "DisableAIDataAnalysis" "DWord" 1
+    Set-RegistryValue "HKCU:\Software\Policies\Microsoft\Windows\WindowsAI" "TurnOffSavingSnapshots" "DWord" 1
+}
 
 # Desactivar la Reducción de Calidad JPEG del Fondo de Escritorio
 Set-RegistryValue "HKCU:\Control Panel\Desktop" "JPEGImportQuality" "DWord" 100
@@ -433,85 +504,7 @@ Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Syst
 
 # ==========================================================
 # CONFIGURACIÓN DE IMAGEN DE BLOQUEO Y FONDO INICIAL
-# Compatible con:
-# - Windows 10 21H2 / 22H2
-# - Windows 10 LTSC 2021
-# - Windows 10 IoT LTSC
-# - Windows 11 22H2 / 23H2 / 24H2 / 25H2
-# - Windows 11 IoT LTSC
 # ==========================================================
-# ================================
-# DETECCIÓN GLOBAL DE WINDOWS
-# ================================
-
-$os = Get-CimInstance Win32_OperatingSystem
-$versionWindows = [System.Version]$os.Version
-$buildNumber = [int]$os.BuildNumber
-
-$cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-$edition = $cv.EditionID
-$productName = $cv.ProductName
-
-# ================================
-# FLAGS DE VERSIÓN
-# ================================
-
-$esWindows11 = ($versionWindows.Major -eq 10 -and $buildNumber -ge 22000)
-$esWindows10 = ($versionWindows.Major -eq 10 -and $buildNumber -lt 22000)
-
-# ================================
-# FLAGS DE EDICIÓN (CORREGIDOS)
-# ================================
-
-# LTSC reales (incluye 2016 / 2019 / 2021 / IoT)
-$esLTSC = (
-    $edition -match "^EnterpriseS$" -or
-    $edition -match "^EnterpriseSN$" -or
-    $edition -match "^IoTEnterpriseS$"
-)
-
-# Variantes N (ProN, EnterpriseN, EnterpriseSN, ProWSN, etc.)
-$esN = ($edition -match "N$")
-
-# ================================
-# INFO EN CONSOLA
-# ================================
-
-Write-Host "Sistema detectado:"
-Write-Host "Producto : $productName"
-Write-Host "Edición  : $edition"
-Write-Host "Build    : $buildNumber"
-
-if ($esLTSC) { Write-Host "Tipo     : LTSC / IoT LTSC" }
-if ($esN)    { Write-Host "Variante : N" }
-
-# ================================
-# VALIDACIÓN UNIVERSAL (BLINDADA)
-# ================================
-
-# Windows 10 normal (Pro, Pro N, Pro WS, Enterprise, Education, etc.)
-$win10NormalOK = (
-    $esWindows10 -and
-    -not $esLTSC -and
-    $buildNumber -ge 19041
-)
-
-# Windows 10 LTSC / IoT LTSC
-$win10LTSCOK = (
-    $esWindows10 -and
-    $esLTSC -and
-    $buildNumber -ge 14393   # LTSC 2016
-)
-
-# Windows 11 (todas las ediciones, incluidas LTSC / IoT / N)
-$win11OK = $esWindows11
-
-if (-not ($win10NormalOK -or $win10LTSCOK -or $win11OK)) {
-    Write-Host "Sistema no compatible." -ForegroundColor Red
-    return
-}
-
-Write-Host "Sistema compatible" -ForegroundColor Green
 
 # ================================
 # RUTA BASE DEL FONDO
@@ -683,34 +676,40 @@ Write-Host "Borrar archivos temporales cuando las apps no se usen"
 	{
 	New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy -Name 04 -PropertyType DWord -Value 1 -Force
 	}
-# Crear la ruta de registro si no existe
-$registryPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
-if (-not (Test-Path $registryPath)) {
-    New-Item -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows" -Name "Windows Feeds" -Force | Out-Null
+Write-Host "Deshabilitando Noticias e intereses..."
+try {
+    $userFeedsPolicyPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
+    $machineFeedsPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
+    $userFeedsPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds"
+    $startUpPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    $feedAppName = "WindowsFeedsApp"
+
+    New-Item -Path $userFeedsPolicyPath -Force -ErrorAction Stop | Out-Null
+    New-Item -Path $machineFeedsPolicyPath -Force -ErrorAction Stop | Out-Null
+    New-Item -Path $userFeedsPath -Force -ErrorAction Stop | Out-Null
+
+    New-ItemProperty -Path $userFeedsPolicyPath -Name "EnableFeeds" -PropertyType DWord -Value 0 -Force -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path $machineFeedsPolicyPath -Name "EnableFeeds" -PropertyType DWord -Value 0 -Force -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path $userFeedsPath -Name "ShellFeedsTaskbarViewMode" -PropertyType DWord -Value 0 -Force -ErrorAction Stop | Out-Null
+
+    $startupFeed = Get-ItemProperty -Path $startUpPath -Name $feedAppName -ErrorAction SilentlyContinue
+    if ($null -ne $startupFeed) {
+        Remove-ItemProperty -Path $startUpPath -Name $feedAppName -Force -ErrorAction Stop
+    }
+
+    $userPolicyValue = (Get-ItemProperty -Path $userFeedsPolicyPath -Name "EnableFeeds" -ErrorAction Stop).EnableFeeds
+    $machinePolicyValue = (Get-ItemProperty -Path $machineFeedsPolicyPath -Name "EnableFeeds" -ErrorAction Stop).EnableFeeds
+    $taskbarValue = (Get-ItemProperty -Path $userFeedsPath -Name "ShellFeedsTaskbarViewMode" -ErrorAction Stop).ShellFeedsTaskbarViewMode
+
+    if ($userPolicyValue -eq 0 -and $machinePolicyValue -eq 0 -and $taskbarValue -eq 0) {
+        Write-Host "Noticias e intereses deshabilitados y verificados en las políticas de usuario/sistema y la barra de tareas."
+    } else {
+        throw "La verificación devolvió EnableFeeds usuario=$userPolicyValue, sistema=$machinePolicyValue, barra=$taskbarValue."
+    }
 }
-# Establecer la propiedad EnableFeeds a 0 para deshabilitar Noticias e intereses
-Set-ItemProperty -Path $registryPath -Name "EnableFeeds" -Type DWord -Value 0
-# Crear la ruta para impedir la ejecución no autorizada
-$startUpPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-$feedAppName = "WindowsFeedsApp"
-# Eliminar cualquier entrada existente para evitar que se inicie
-if (Test-Path "$startUpPath\$feedAppName") {
-    Remove-Item -Path "$startUpPath\$feedAppName" -Force
+catch {
+    Write-Host "No se pudieron aplicar o verificar todos los cambios de Noticias e intereses: $($_.Exception.Message)" -ForegroundColor Yellow
 }
-# Confirmar que los cambios se han realizado
-$setting = Get-ItemProperty -Path $registryPath -Name "EnableFeeds"
-if ($setting.EnableFeeds -eq 0) {
-    Write-Host "Noticias e intereses han sido desactivados correctamente y se ha eliminado cualquier inicio no autorizado."
-} else {
-    Write-Host "Hubo un error al desactivar Noticias e intereses."
-}
-Write-Host "Removiendo noticias e interes de la barra de tareas" 
-Set-ItemProperty -Path  "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 0
-	if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"))
-		{
-New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force
-		}
-New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name EnableFeeds -PropertyType DWord -Value 0 -Force
 Write-Host "Iconos en el area de notificacion"
 New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name EnableAutoTray -PropertyType DWord -Value 1 -Force
 Write-Host "Meet now"
@@ -738,12 +737,8 @@ try {
 #############################
 
 ###################### Configuracion de Windows 11 Menu inicio ###################### 
-# Obtener la versión del sistema operativo
-$versionWindows = [System.Environment]::OSVersion.Version
-
-# Verificar si la versión es Windows 11 con una compilación 22000 o superior
-if ($versionWindows -ge [System.Version]::new("10.0.22000")) {
-    Write-Host "Sistema operativo Windows 11 con una compilación 22000 o superior detectado. Ejecutando el script..."
+if ($aplicarAjustesWindows11) {
+    Write-Host "Windows 11 detectado. Aplicando sus ajustes específicos..."
 
     # Función para crear propiedad en el registro
     function Set-RegistryValue {
@@ -1416,13 +1411,46 @@ if (-not (Test-Admin)) {
 }
 
 $ErrorActionPreference = 'Stop'
-$vssadmin = "$env:WINDIR\System32\vssadmin.exe"
+
+function Resolve-VssAdminPath {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
+        $candidates.Add((Join-Path $env:WINDIR 'Sysnative\vssadmin.exe'))
+    }
+
+    $candidates.Add((Join-Path $env:WINDIR 'System32\vssadmin.exe'))
+    $candidates.Add((Join-Path $env:WINDIR 'SysWOW64\vssadmin.exe'))
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+
+    $command = Get-Command -Name 'vssadmin.exe' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($command) {
+        return $command.Source
+    }
+
+    return $null
+}
+
+$vssadmin = Resolve-VssAdminPath
 
 function Get-ShadowCopiesFromVssAdmin {
+    if ([string]::IsNullOrWhiteSpace($vssadmin)) {
+        throw 'No se encontró vssadmin.exe en System32, Sysnative, SysWOW64 ni en PATH.'
+    }
+
     $output = @(& $vssadmin list shadows 2>&1)
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         $details = ($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+        if ($details -match '(?i)no items meet the query criteria|ning[uú]n elemento cumple los criterios de la consulta|no hay elementos que coincidan con los criterios') {
+            return @()
+        }
         throw "vssadmin list shadows terminó con código $exitCode. $details"
     }
 
@@ -1490,6 +1518,12 @@ function Get-ShadowCopiesFromVssAdmin {
     return @($records)
 }
 
+if (-not $vssadmin) {
+    Write-Host 'No se encontró vssadmin.exe; se usará CIM si está disponible. La limpieza se omitirá de forma segura si CIM tampoco funciona.' -ForegroundColor Yellow
+} else {
+    Write-Host "vssadmin detectado en: $vssadmin" -ForegroundColor Gray
+}
+
 Write-Host 'Consultando instantáneas...' -ForegroundColor Cyan
 
 $shadows = @()
@@ -1516,6 +1550,11 @@ catch {
         Write-Host "Error de consulta vssadmin: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host 'Se omite la limpieza de instantáneas y el script continuará.' -ForegroundColor Yellow
     }
+}
+
+if ($consultaCorrecta -and $shadows.Count -gt 0 -and -not $vssadmin) {
+    $consultaCorrecta = $false
+    Write-Host 'CIM encontró instantáneas, pero no se eliminarán porque no se encontró vssadmin.exe para ejecutar y verificar la limpieza.' -ForegroundColor Yellow
 }
 
 if ($consultaCorrecta) {
