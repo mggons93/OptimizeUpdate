@@ -13,8 +13,9 @@
 #    [pscustomobject]@{ Name = 'Nombre exacto mostrado por Winget'; LogFile = 'fase2_miapp_install.log' }
 # 4. Guarda y ejecuta Installapps.ps1 como administrador. La lista se procesa
 #    automáticamente mediante Install-WingetAppList durante la instalación.
-#    Solo se instala si hay una coincidencia exacta y única; si no, se omite
-#    y se registra el motivo en el archivo indicado dentro de %TEMP%.
+#    Solo se instala si hay una coincidencia exacta y única; se aceptan las
+#    cabeceras de Winget en inglés o español. Si no, se registra el motivo
+#    en el archivo indicado dentro de %TEMP%.
 #
 # Para consultar el nombre, puedes ejecutar:
 #    winget search --name "nombre de la aplicación" --exact --source winget
@@ -145,29 +146,23 @@ function Resolve-WingetPackageIdFromSearchOutput {
         [Parameter(Mandatory = $true)][string[]]$SearchOutput
     )
 
-    $header = $SearchOutput | Where-Object { $_ -match '^\s*Name\s+Id\s+Version\b' } | Select-Object -First 1
-    if (-not $header) {
-        return [pscustomobject]@{
-            PackageId = $null
-            Error     = 'Winget no devolvió una tabla de resultados reconocible.'
-        }
-    }
-
-    $idColumn = $header.IndexOf('Id')
-    $versionColumn = $header.IndexOf('Version', $idColumn)
     $matchingIds = @()
+    $rowPattern = '^\s*' + [regex]::Escape($Name) +
+        '\s+(?<PackageId>[A-Za-z0-9][A-Za-z0-9._+-]*)\s+(?<Version>\S+)(?:\s+.*)?\s*$'
+
     foreach ($line in $SearchOutput) {
-        if ($line.Length -le $idColumn -or $line.Length -lt $versionColumn) {
+        $rowMatch = [regex]::Match(
+            $line,
+            $rowPattern,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+        )
+        if ($rowMatch.Success) {
+            $packageId = $rowMatch.Groups['PackageId'].Value
+        } else {
             continue
         }
 
-        $resultName = $line.Substring(0, $idColumn).Trim()
-        $packageId = $line.Substring($idColumn, $versionColumn - $idColumn).Trim()
-        if (
-            [string]::Equals($resultName, $Name, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $packageId -match '^[A-Za-z0-9][A-Za-z0-9._-]*$' -and
-            $packageId -notin $matchingIds
-        ) {
+        if ($packageId -notin $matchingIds) {
             $matchingIds += $packageId
         }
     }
@@ -227,9 +222,10 @@ function Find-WingetPackageIdByName {
     }
 
     if ($exitCode -ne 0) {
+        $exitCodeHex = '0x{0:X8}' -f ([long]$exitCode -band 0xFFFFFFFFL)
         return [pscustomobject]@{
             PackageId = $null
-            Error     = "Winget search terminó con código $exitCode."
+            Error     = "Winget search terminó con código $exitCode ($exitCodeHex)."
         }
     }
 
@@ -620,10 +616,10 @@ try {
     # La instalación solo continúa si hay una coincidencia exacta y única.
     # ============================================================
     $wingetApps = @(
-        # Bibliotecas de ejecución de Microsoft necesarias para algunas aplicaciones de Windows.
-        [pscustomobject]@{ Name = 'Microsoft VCLibs Desktop 14'; LogFile = 'fase2_vclibs_install.log' }
         # Emulador de terminal moderno de Microsoft con pestañas y perfiles.
         [pscustomobject]@{ Name = 'Windows Terminal'; LogFile = 'fase2_windows_terminal_install.log' }
+        # Navegador web Brave.
+        [pscustomobject]@{ Name = 'Brave'; LogFile = 'fase2_brave_install.log' }
         # Utilidad para comprimir y descomprimir archivos en varios formatos.
         [pscustomobject]@{ Name = '7-Zip'; LogFile = 'fase2_7zip_install.log' }
         # Editor de texto y código fuente con soporte para complementos.
@@ -856,15 +852,15 @@ $failedInstalls = @(
     $script:InstallResults.GetEnumerator() | Where-Object { -not $_.Value }
 )
 
-if ($script:InstallResults.Count -gt 0 -and $failedInstalls.Count -eq 0) {
-    Write-Output "Todos los programas y comprobaciones quedaron instalados correctamente. No se reiniciará el equipo."
-} else {
-    Write-Output "Faltan instalaciones o comprobaciones; se reiniciará para volver a intentarlas."
-    foreach ($item in $failedInstalls) {
-        Write-Output "Pendiente: $($item.Key)"
-    }
-    if ($script:InstallResults.Count -eq 0) {
-        Write-Output 'No se registraron resultados de instalación en esta ejecución.'
-    }
-    Restart-Computer -Force
-}
+#if ($script:InstallResults.Count -gt 0 -and $failedInstalls.Count -eq 0) {
+#    Write-Output "Todos los programas y comprobaciones quedaron instalados correctamente. No se reiniciará el equipo."
+#} else {
+#    Write-Output "Faltan instalaciones o comprobaciones; se reiniciará para volver a intentarlas."
+#    foreach ($item in $failedInstalls) {
+#        Write-Output "Pendiente: $($item.Key)"
+#    }
+#    if ($script:InstallResults.Count -eq 0) {
+#        Write-Output 'No se registraron resultados de instalación en esta ejecución.'
+#    }
+#    Restart-Computer -Force
+#}
