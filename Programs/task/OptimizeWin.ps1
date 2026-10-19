@@ -12,11 +12,11 @@ if (-not (Test-Admin)) {
     return
 }
 
+$rutaRegistro = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager"
+
 # Silenciar errores en PowerShell
 $ErrorActionPreference = "SilentlyContinue"
 
-# Ruta del Registro
-$rutaRegistro = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager"
 Dism /Online /Set-ReservedStorageState /State:Disabled
 
 ############################
@@ -73,7 +73,7 @@ try {
 function Disable-ReservedStorage {
     # Deshabilitar mediante registro
     try {
-        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager" -Name "ShippedWithReserves" -Value 0 -ErrorAction Stop
+        Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0 -ErrorAction Stop
         Write-Host "Almacenamiento reservado deshabilitado exitosamente en el registro."
     } catch {
         Write-Host "Error al deshabilitar el almacenamiento reservado en el registro: $($_.Exception.Message)"
@@ -146,14 +146,6 @@ if (Test-ServerStatus $primaryServer) {
 }
 ######################  Verificado Servers de Script ######################
 
-###################### Leyendo Archivo descargado ######################
-# Leer y mostrar el contenido del archivo descargado
-if (Test-Path -Path $destinationPath1) {
-    $fileContent = Get-Content -Path $destinationPath1
-    #Write-Host $fileContent 
-    start-sleep 5
-}
-###################### Leyendo Archivo descargado ######################
    Write-Host "---------------------------------"
     Write-Host "Descargando en segundo plano Archivos de instalación OEM"
 	
@@ -356,7 +348,7 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     # Configuración de Delivery Optimization
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Type DWord -Value 1
     # Establece el valor del almacenamiento reservado
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager" -Name "ShippedWithReserves" -Value 0
+    Set-ItemProperty -Path $rutaRegistro -Name "ShippedWithReserves" -Value 0
     Write-Host "El almacenamiento reservado en Windows 10 se ha desactivado correctamente."
     # Desactivar "Agregadas recientemente" en el menú Inicio
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0
@@ -1295,7 +1287,7 @@ Write-Output "84% Completado"
 #############################
 # Cambiar la vista predeterminada del Explorador a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
-$currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo"
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Type DWord -Value 1
 
 # Ocultar el ícono de Objetos 3D de Esta PC
 Write-Host "Ocultando el ícono de Objetos 3D de Esta PC..."
@@ -1339,7 +1331,7 @@ New-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\
 
 # Verificar y cambiar la vista predeterminada del Explorador de Windows a "Esta PC"
 Write-Host "Cambiando la vista predeterminada del Explorador a 'Esta PC'..."
-$currentValue = Get-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Type DWord -Value 1
 
 Write-Host "Ocultando el ícono de Objetos 3D de Esta PC..."
 Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}" -Recurse -ErrorAction SilentlyContinue
@@ -1456,6 +1448,78 @@ if (-not (Test-Admin)) {
 $ErrorActionPreference = 'Stop'
 $vssadmin = "$env:WINDIR\System32\vssadmin.exe"
 
+function Get-ShadowCopiesFromVssAdmin {
+    $output = @(& $vssadmin list shadows 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        $details = ($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+        throw "vssadmin list shadows terminó con código $exitCode. $details"
+    }
+
+    $records = [System.Collections.Generic.List[object]]::new()
+    $current = $null
+    foreach ($item in $output) {
+        $line = [string]$item
+        if ($line -match '(?i)(?:Shadow Copy ID|Id\.?\s+de copia de sombra)\s*:\s*(\{[0-9a-f-]{36}\})') {
+            if ($null -ne $current) {
+                $records.Add($current)
+            }
+            $current = [pscustomobject]@{
+                ID = $matches[1]
+                VolumeName = $null
+                InstallDate = $null
+            }
+            continue
+        }
+
+        if ($null -eq $current) {
+            continue
+        }
+
+        if ($line -match '(?i)(?:Original Volume|Volumen original)\s*:\s*(.+)$') {
+            $current.VolumeName = $matches[1].Trim()
+        }
+        elseif ($line -match '(?i)(?:Creation Time|Hora de creaci[oó]n)\s*:\s*(.+)$') {
+            $dateText = $matches[1].Trim()
+            $parsedDate = [datetime]::MinValue
+            $parsed = [datetime]::TryParse(
+                $dateText,
+                [Globalization.CultureInfo]::CurrentCulture,
+                [Globalization.DateTimeStyles]::AssumeLocal,
+                [ref]$parsedDate
+            )
+            if (-not $parsed) {
+                $parsed = [datetime]::TryParse(
+                    $dateText,
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeLocal,
+                    [ref]$parsedDate
+                )
+            }
+            if ($parsed) {
+                $current.InstallDate = $parsedDate
+            }
+        }
+    }
+
+    if ($null -ne $current) {
+        $records.Add($current)
+    }
+
+    if ($records.Count -eq 0 -and ($output -join "`n") -match '\{[0-9a-f-]{36}\}') {
+        throw 'vssadmin devolvió instantáneas, pero no se pudo interpretar su formato.'
+    }
+
+    $incomplete = @($records | Where-Object {
+        [string]::IsNullOrWhiteSpace($_.VolumeName) -or $null -eq $_.InstallDate
+    })
+    if ($incomplete.Count -gt 0) {
+        throw 'vssadmin no proporcionó el volumen o la fecha de todas las instantáneas; no es seguro limpiar.'
+    }
+
+    return @($records)
+}
+
 Write-Host 'Consultando instantáneas...' -ForegroundColor Cyan
 
 $shadows = @()
@@ -1469,9 +1533,19 @@ try {
     )
 }
 catch {
-    $consultaCorrecta = $false
-    Write-Host "Error de consulta: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host 'Se omite la limpieza de instantáneas y el script continuará.' -ForegroundColor Yellow
+    $cimError = $_.Exception.Message
+    Write-Host "Get-CimInstance no pudo consultar Win32_ShadowCopy: $cimError" -ForegroundColor Yellow
+    Write-Host 'Intentando consultar las instantáneas mediante vssadmin...' -ForegroundColor Cyan
+    try {
+        $shadows = @(Get-ShadowCopiesFromVssAdmin)
+        Write-Host 'Consulta alternativa mediante vssadmin completada.' -ForegroundColor Green
+    }
+    catch {
+        $consultaCorrecta = $false
+        Write-Host "Error de consulta CIM: $cimError" -ForegroundColor Red
+        Write-Host "Error de consulta vssadmin: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host 'Se omite la limpieza de instantáneas y el script continuará.' -ForegroundColor Yellow
+    }
 }
 
 if ($consultaCorrecta) {
@@ -1538,7 +1612,7 @@ if ($consultaCorrecta) {
 Write-Output "100% Completado"
 
 
-Start-Sleep -Seconds 4
+Start-Sleep -Seconds 6
 
 # Reinicio silencioso
 $os = Get-WmiObject -Class Win32_OperatingSystem
