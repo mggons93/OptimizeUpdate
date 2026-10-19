@@ -369,7 +369,6 @@ if ($versionWindows.Major -eq 10 -and $buildNumber -ge 19041 -and $buildNumber -
     }
     $oemValues = @{
         Manufacturer = "Mggons Support Center"
-        Model = "Windows 10 - Update 2025 - S&A"
         SupportHours = "Lunes a Viernes 8AM - 12PM - 2PM -6PM"
         SupportURL = "https://wa.me/+573150560580"
     }
