@@ -60,12 +60,12 @@ Write-Output "2% Completado"
 ############################
 	
 # Continuar con el resto del script
-# Establecer la poli­tica de ejecucion en Bypass
+# Establecer la política de ejecución en Bypass
 try {
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
-    Write-Host "Poli­tica de ejecucion establecida en Bypass para el proceso actual."
+    Write-Host "Política de ejecución establecida en Bypass para el proceso actual."
 } catch {
-    Write-Host "Error al establecer la poli­tica de ejecucion: $($_.Exception.Message)"
+    Write-Host "Error al establecer la política de ejecución: $($_.Exception.Message)"
 }
 
 ######################  Deshabilitar Almacena Reservado ######################
@@ -676,9 +676,9 @@ if (-not (Test-Path -Path $registryPath)) {
     # Si no existe la clave en el Registro, la creamos
     New-Item -Path $registryPath -Force | Out-Null
 }
-# Verificar si el valor ya estÃ¡ configurado en el Registro
+# Verificar si el valor ya está configurado en el Registro
 if (-not (Get-ItemProperty -Path $registryPath -Name $valueName -ErrorAction SilentlyContinue)) {
-    # Si el valor no estÃ¡ configurado, lo creamos
+    # Si el valor no está configurado, lo creamos
     Set-ItemProperty -Path $registryPath -Name $valueName -Value $valueData -Type DWORD
     Write-Host "Se ha creado la entrada AllowEncryptionOracle en el Registro."
 } else {
