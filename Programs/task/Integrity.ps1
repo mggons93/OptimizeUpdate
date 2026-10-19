@@ -1,4 +1,4 @@
-﻿###############################################################################################
+###############################################################################################
 # 1. PROCESO DE ELEVACI?N (Se ejecuta de inmediato al abrir el script)
 ###############################################################################################
 function Test-Admin {
@@ -277,14 +277,18 @@ function Install-Winget {
     }
     New-Item -Path $BasePath -ItemType Directory -Force -ErrorAction Stop | Out-Null
 
-    $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $VCLibsUrl  = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/dependences/Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx"
+    $VCLibsDesktopUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/dependences/Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx"
     $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
-    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260921001/windowsappruntimeinstall-x64.exe"
+    $RuntimeUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/dependences/Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
     $MinimumRuntimeVersion = [version]"8000.616.304.0"
+    $MinimumVCLibsVersion = [version]"14.0.33519.0"
+    $MinimumVCLibsDesktopVersion = [version]"14.0.33728.0"
     
     $VCLibsPath = "$BasePath\VCLibs.appx"
+    $VCLibsDesktopPath = "$BasePath\VCLibs.UWPDesktop.appx"
     $XamlPath   = "$BasePath\UI.Xaml.appx"
-    $RuntimeExe = "$BasePath\Runtime.exe"
+    $RuntimePath = "$BasePath\WindowsAppRuntime.appx"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
     Write-Host "  -> Consultando la ultima version de Winget en GitHub..."
@@ -357,17 +361,51 @@ function Install-Winget {
     }
 
     try {
-        # VCLibs
-        if (-not (Get-AppxPackage -AllUsers -Name "Microsoft.VCLibs.140.00.UWPDesktop" -ErrorAction SilentlyContinue)) {
-            Write-Host "     - Descargando e instalando VCLibs..."
-            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
-            if (-not (Test-Path -LiteralPath $VCLibsPath) -or (Get-Item -LiteralPath $VCLibsPath).Length -eq 0) {
-                throw "La descarga de VCLibs esta vacia o no existe."
+        # Instalar primero los dos frameworks VCLibs requeridos.
+        $vclibsPackages = @(
+            @{
+                Name = "Microsoft.VCLibs.140.00"
+                Url = $VCLibsUrl
+                Path = $VCLibsPath
+                MinimumVersion = $MinimumVCLibsVersion
+            },
+            @{
+                Name = "Microsoft.VCLibs.140.00.UWPDesktop"
+                Url = $VCLibsDesktopUrl
+                Path = $VCLibsDesktopPath
+                MinimumVersion = $MinimumVCLibsDesktopVersion
             }
-            Add-AppxPackage -Path $VCLibsPath -ErrorAction Stop
+        )
+
+        foreach ($vclibs in $vclibsPackages) {
+            $installedVCLibs = Get-AppxPackage -AllUsers -Name $vclibs.Name -ErrorAction SilentlyContinue |
+                Where-Object { $_.Architecture -in @("X64", "Neutral") } |
+                Sort-Object { [version]$_.Version } -Descending |
+                Select-Object -First 1
+            $installedVCLibsVersion = if ($installedVCLibs) { [version]$installedVCLibs.Version } else { [version]"0.0.0" }
+
+            if ($installedVCLibsVersion -lt $vclibs.MinimumVersion) {
+                Write-Host "     - Instalando $($vclibs.Name) $($vclibs.MinimumVersion)..."
+                Invoke-WebRequest $vclibs.Url -OutFile $vclibs.Path -UseBasicParsing -ErrorAction Stop
+                if (-not (Test-Path -LiteralPath $vclibs.Path) -or (Get-Item -LiteralPath $vclibs.Path).Length -eq 0) {
+                    throw "La descarga de $($vclibs.Name) esta vacia o no existe."
+                }
+                Add-AppxPackage -Path $vclibs.Path -ErrorAction Stop
+
+                $installedVCLibs = Get-AppxPackage -AllUsers -Name $vclibs.Name -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Architecture -in @("X64", "Neutral") } |
+                    Sort-Object { [version]$_.Version } -Descending |
+                    Select-Object -First 1
+                $installedVCLibsVersion = if ($installedVCLibs) { [version]$installedVCLibs.Version } else { [version]"0.0.0" }
+                if ($installedVCLibsVersion -lt $vclibs.MinimumVersion) {
+                    throw "$($vclibs.Name) >= $($vclibs.MinimumVersion) no aparece instalado; detectado: $installedVCLibsVersion."
+                }
+            } else {
+                Write-Host "     - $($vclibs.Name) disponible: $installedVCLibsVersion."
+            }
         }
 
-        # UI.Xaml
+        # UI.Xaml también es un prerequisito de algunas versiones de Winget.
         if (-not (Get-AppxPackage -AllUsers -Name "Microsoft.UI.Xaml.2.7" -ErrorAction SilentlyContinue)) {
             Write-Host "     - Descargando e instalando UI.Xaml..."
             Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
@@ -377,7 +415,7 @@ function Install-Winget {
             Add-AppxPackage -Path $XamlPath -ErrorAction Stop
         }
         
-        # Windows App Runtime 1.8 requerido por las versiones recientes de Winget
+        # Instalar después Windows App Runtime 1.8 requerido por Winget.
         $runtimePackage = Get-AppxPackage -AllUsers -Name "Microsoft.WindowsAppRuntime.1.8" -ErrorAction SilentlyContinue |
             Where-Object { $_.Architecture -in @("X64", "Neutral") } |
             Sort-Object { [version]$_.Version } -Descending |
@@ -388,14 +426,11 @@ function Install-Winget {
             try {
                 Write-Host "     - Windows App Runtime 1.8 requerido >= $MinimumRuntimeVersion; instalado: $runtimeVersion."
                 Write-Host "     - Descargando e instalando Windows App Runtime 1.8..."
-                Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
-                if (-not (Test-Path -LiteralPath $RuntimeExe) -or (Get-Item -LiteralPath $RuntimeExe).Length -eq 0) {
+                Invoke-WebRequest $RuntimeUrl -OutFile $RuntimePath -UseBasicParsing -ErrorAction Stop
+                if (-not (Test-Path -LiteralPath $RuntimePath) -or (Get-Item -LiteralPath $RuntimePath).Length -eq 0) {
                     throw "La descarga de Windows App Runtime esta vacia o no existe."
                 }
-                $runtimeProcess = Start-Process -FilePath $RuntimeExe -ArgumentList "/quiet" -Wait -PassThru -ErrorAction Stop
-                if ($runtimeProcess.ExitCode -notin @(0, 3010)) {
-                    throw "Windows App Runtime termino con codigo $($runtimeProcess.ExitCode)."
-                }
+                Add-AppxPackage -Path $RuntimePath -ErrorAction Stop
                 $runtimePackage = Get-AppxPackage -AllUsers -Name "Microsoft.WindowsAppRuntime.1.8" -ErrorAction SilentlyContinue |
                     Where-Object { $_.Architecture -in @("X64", "Neutral") } |
                     Sort-Object { [version]$_.Version } -Descending |
@@ -478,22 +513,30 @@ function Enable-WindowsActivation {
 }
 
 function Invoke-WindowsActivation {
+    $restartAfterActivation = $false
+
     # Verificar si Windows esta activado
     if (Get-WindowsActivationStatus) {
         Write-Host "  -> Windows ya esta activado."
-        Start-Sleep 2
+        $restartAfterActivation = $true
     } else {
         Write-Host "  -> Windows no esta activado. Intentando activar..."
-        Start-Sleep 2
+        Start-Sleep -Seconds 5
         Enable-WindowsActivation
         
         # Verificar nuevamente despues de intentar activar
         if (Get-WindowsActivationStatus) {
             Write-Host "  -> Windows ha sido activado exitosamente." -ForegroundColor Green
-            Start-Sleep 2
+            $restartAfterActivation = $true
         } else {
             Write-Host "  -> La activacion de Windows ha fallado. Verifica la conexion a internet." -ForegroundColor Red
         }
+    }
+
+    if ($restartAfterActivation) {
+        Write-Host "  -> Reiniciando Windows en 5 segundos..."
+        Start-Sleep -Seconds 5
+        Restart-Computer -Force
     }
 }
 ###############################################################################################
