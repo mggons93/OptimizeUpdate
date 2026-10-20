@@ -790,7 +790,7 @@ $scripts = @(
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v "UnattendedSetup" /t REG_SZ /d "powershell.exe -WindowStyle Normal -NoProfile -Command \""Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\UserOnce.ps1' -Raw | Invoke-Expression;\""" /f;
 	};
 	{
-		# Desactivar opciones de Personalización > Inicio en el perfil por defecto
+		# Desactivar opciones de Personalizaci&#243;n > Inicio en el perfil por defecto
 		$advKey = "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 		reg.exe add $advKey /v "Start_TrackDocs" /t REG_DWORD /d 0 /f
 		reg.exe add $advKey /v "Start_TrackProgs" /t REG_DWORD /d 0 /f
@@ -846,7 +846,7 @@ $desktopPath = "C:\Users\Default\Desktop"
 # Specify the target PowerShell command
 $command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'irm https://raw.githubusercontent.com/mggons93/InstallPrograms/refs/heads/main/wininstall.ps1 | iex'"
 # Specify the path for the shortcut
-$shortcutPath = Join-Path $desktopPath 'Install-Apps.lnk'
+$shortcutPath = Join-Path $desktopPath 'Winget Apps Installer.lnk'
 # Create a shell object
 $shell = New-Object -ComObject WScript.Shell
       
@@ -952,720 +952,6 @@ if ($null -ne $finalName) {
     Write-Host "No se pudo determinar el tipo de equipo. El nombre no fue cambiado."
 }
 		</File>
-		<File path="C:\Windows\Setup\Scripts\CursorVista.ps1">
-# Habilitar TLS 1.2 para descargas seguras
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# Ruta de descarga y extracción
-$zipUrl = "https://github.com/mggons93/OptimizeUpdate/raw/refs/heads/main/Programs/VistaCursors.zip"  # ← Reemplaza con tu URL real
-$zipPath = "$env:TEMP\VistaCursors.zip"
-$extractPath = "C:\Windows\Cursors"
-
-# Descargar el ZIP
-Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
-
-# Crear carpeta si no existe
-if (-Not (Test-Path -Path $extractPath)) {
-    New-Item -ItemType Directory -Path $extractPath | Out-Null
-}
-
-# Extraer el ZIP
-Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-
-# Eliminar el ZIP
-Remove-Item -Path $zipPath -Force
-
-# Diccionario de cursores por rol
-$cursorMap = @{
-    "Arrow"        = "$extractPath\vista_arrow.cur"
-    "Hand"         = "$extractPath\vista_hand.cur"
-    "Wait"         = "$extractPath\vista_wait.ani"
-    "AppStarting"  = "$extractPath\vista_appstarting.ani"
-}
-
-# Aplicar los cursores al registro
-foreach ($role in $cursorMap.Keys) {
-    if (Test-Path $cursorMap[$role]) {
-        Set-ItemProperty -Path "HKCU:\Control Panel\Cursors" -Name $role -Value $cursorMap[$role]
-    } else {
-        Write-Warning "Cursor no encontrado: $cursorMap[$role]"
-    }
-}
-
-# Forzar actualización visual
-RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters
-Write-Host "Cursores estilo Vista aplicados correctamente"
-		</File>
-		<File path="C:\Windows\Setup\Scripts\Clean_Reset_Base.ps1">
-# Verificar si el script se está ejecutando como administrador
-function Test-Admin {
-    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-if (-not (Test-Admin)) {
-    # Si no es administrador, reiniciar como administrador
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    return
-}
-
-# Explicacion para el usuario
-Write-Host " Este script realiza mantenimiento y reparacion del sistema utilizando DISM y SFC. " -ForegroundColor Cyan
-Write-Host ""
-Write-Host " Que hace este mantenimiento? "
-Write-Host "- Analiza el almacen de componentes de Windows."
-Write-Host "- Repara el almacen de componentes si encuentra corrupcion."
-Write-Host "- Verifica y repara archivos del sistema con SFC."
-Write-Host "- Elimina archivos antiguos de componentes para liberar espacio."
-Write-Host "- Reduce el tamano de la carpeta WinSxS."
-Write-Host "- Mejora la estabilidad de Windows Update."
-Write-Host "- Mejora el rendimiento general del sistema."
-Write-Host ""
-
-Write-Host "`nEjecutando mantenimiento del sistema automaticamente... Por favor espere." -ForegroundColor Yellow
-
-# Se elimina la escritura directa a state.json; firstlogon.ps1 gestiona el estado UI
-
-$lastPct = -1
-$scriptDir = "C:\Windows\Setup\Scripts"
-$stateFile = Join-Path $scriptDir 'state.json'
-
-function Update-StateEntry {
-    param(
-        [string[]]$matchNames,
-        [string]$newStatus
-    )
-
-    try {
-
-        if (-not (Test-Path $stateFile)) {
-            return
-        }
-
-        $json = Get-Content -Path $stateFile -Raw -ErrorAction Stop | ConvertFrom-Json
-
-        $changed = $false
-
-        for ($i = 0; $i -lt $json.Count; $i++) {
-
-            $name = ($json[$i].name -as [string]) -or ''
-
-            foreach ($m in $matchNames) {
-
-                if ($name -and ($name -ieq $m -or $name -like "*$m*")) {
-
-                    $json[$i].status = $newStatus
-
-                    if ($newStatus -eq 'error') {
-                        $json[$i].progress = 0
-                    }
-
-                    $changed = $true
-                }
-
-            }
-
-        }
-
-        if ($changed) {
-            $json | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8
-        }
-
-    }
-    catch {
-
-        Write-Host "[WARN] No se pudo actualizar state.json: $($_.Exception.Message)"
-
-    }
-}
-
-###########################################################################
-# Funcion reutilizable para ejecutar DISM o SFC
-###########################################################################
-
-function Invoke-SystemCommand {
-
-    param(
-        [string]$Title,
-        [string]$Executable,
-        [string[]]$Arguments
-    )
-
-    Write-Host ""
-    Write-Host "===================================================" -ForegroundColor Cyan
-    Write-Host $Title -ForegroundColor Yellow
-    Write-Host "===================================================" -ForegroundColor Cyan
-
-    $script:lastExit = 0
-    $script:lastPct = -1
-
-    try {
-
-        &amp; $Executable @Arguments 2>&amp;1 | ForEach-Object {
-
-            $line = $_
-
-            if ($line -match "([0-9]{1,3}(?:\.[0-9]+)?)%") {
-
-                $pct = [double]$matches[1]
-
-                if ($pct -ne $script:lastPct) {
-
-                    Write-Host $line
-
-                    $script:lastPct = $pct
-
-                }
-
-            }
-            else {
-
-                Write-Host $line
-
-            }
-
-        }
-
-        $script:lastExit = $LASTEXITCODE
-
-    }
-    catch {
-
-        Write-Host "Error al ejecutar $Executable : $_" -ForegroundColor Red
-
-        $script:lastExit = 1
-
-    }
-
-    switch ($script:lastExit) {
-
-        0 {
-
-            Write-Host "Operacion completada correctamente." -ForegroundColor Green
-
-        }
-
-        3010 {
-
-            Write-Host "Operacion completada. Es necesario reiniciar el equipo." -ForegroundColor Yellow
-
-        }
-
-        default {
-
-            Write-Host "El comando devolvio el codigo $($script:lastExit)." -ForegroundColor Red
-
-        }
-
-    }
-
-    return $script:lastExit
-
-}
-
-###########################################################################
-# 1. ScanHealth
-###########################################################################
-
-$result = Invoke-SystemCommand `
-    -Title "Paso 1 de 4 - Analizando el almacen de componentes..." `
-    -Executable "dism.exe" `
-    -Arguments @("/Online","/Cleanup-Image","/ScanHealth")
-
-$exit = $result.ExitCode
-$output = ($result.Output -join "`n")
-
-if (($exit -ne 0) -and ($exit -ne 3010)) {
-
-    Update-StateEntry `
-        -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') `
-        -newStatus 'error'
-
-    exit $exit
-}
-
-###########################################################################
-# ¿Es necesario ejecutar RestoreHealth?
-###########################################################################
-
-$NeedRestore = $false
-
-if (
-    $output -match "The component store is repairable" -or
-    $output -match "El almac.n de componentes se puede reparar"
-) {
-    $NeedRestore = $true
-}
-
-if (
-    $output -match "No component store corruption detected" -or
-    $output -match "No se detect. corrupci.n"
-) {
-    $NeedRestore = $false
-}
-
-###########################################################################
-# 2. RestoreHealth (solo si hace falta)
-###########################################################################
-
-if ($NeedRestore) {
-
-    Write-Host ""
-    Write-Host "Se detecto corrupcion. Ejecutando RestoreHealth..." -ForegroundColor Yellow
-
-    $result = Invoke-SystemCommand `
-        -Title "Paso 2 de 4 - Reparando el almacen de componentes..." `
-        -Executable "dism.exe" `
-        -Arguments @("/Online","/Cleanup-Image","/RestoreHealth")
-
-    $exit = $result.ExitCode
-
-    if (($exit -ne 0) -and ($exit -ne 3010)) {
-
-        Update-StateEntry `
-            -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') `
-            -newStatus 'error'
-
-        exit $exit
-    }
-
-}
-else {
-
-    Write-Host ""
-    Write-Host "No se detecto corrupcion. Se omite RestoreHealth." -ForegroundColor Green
-
-}
-
-###########################################################################
-# 3. SFC
-###########################################################################
-
-$result = Invoke-SystemCommand `
-    -Title "Paso 3 de 4 - Comprobando archivos del sistema..." `
-    -Executable "sfc.exe" `
-    -Arguments @("/Scannow")
-
-$sfc = ($result.Output -join "`n")
-
-if ($sfc -match "did not find any integrity violations" -or
-    $sfc -match "no encontro ninguna infraccion de integridad") {
-
-    Write-Host "No se encontraron errores en archivos del sistema." -ForegroundColor Green
-
-}
-elseif ($sfc -match "successfully repaired" -or
-        $sfc -match "reparo correctamente") {
-
-    Write-Host "Se repararon archivos del sistema." -ForegroundColor Yellow
-
-}
-elseif ($sfc -match "unable to fix" -or
-        $sfc -match "no pudo reparar") {
-
-    Write-Host "Quedaron archivos sin reparar." -ForegroundColor Red
-
-}
-
-###########################################################################
-# 4. StartComponentCleanup + ResetBase
-###########################################################################
-
-$result = Invoke-SystemCommand `
-    -Title "Paso 4 de 4 - Limpiando el almacen de componentes..." `
-    -Executable "dism.exe" `
-    -Arguments @(
-        "/Online",
-        "/Cleanup-Image",
-        "/StartComponentCleanup",
-        "/ResetBase"
-    )
-
-###########################################################################
-# Resultado final
-###########################################################################
-
-switch ($exit) {
-
-    0 {
-
-        Write-Host ""
-        Write-Host "==============================================" -ForegroundColor Green
-        Write-Host "Mantenimiento completado correctamente." -ForegroundColor Green
-        Write-Host "==============================================" -ForegroundColor Green
-
-        Update-StateEntry `
-            -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') `
-            -newStatus 'done'
-
-    }
-
-    3010 {
-
-        Write-Host ""
-        Write-Host "==============================================" -ForegroundColor Yellow
-        Write-Host "Mantenimiento completado correctamente." -ForegroundColor Green
-        Write-Host "Es necesario reiniciar el equipo." -ForegroundColor Yellow
-        Write-Host "==============================================" -ForegroundColor Yellow
-
-        Update-StateEntry `
-            -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') `
-            -newStatus 'done'
-
-    }
-
-    default {
-
-        Write-Host ""
-        Write-Host "==============================================" -ForegroundColor Red
-        Write-Host "El comando DISM devolvio un codigo de error: $exit" -ForegroundColor Red
-        Write-Host "==============================================" -ForegroundColor Red
-
-        Update-StateEntry `
-            -matchNames @('Clean Reset Base','Reset Component Store','ResetBase') `
-            -newStatus 'error'
-
-    }
-
-}
-		</File>
-		<File path="C:\Windows\Setup\Scripts\Create_Restore_Point.ps1">
-function Test-Admin {
-    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-# Auto-elevaci?n
-if (-not (Test-Admin)) {
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    return
-}
-
-# Deshabilitar WSAIFabricSvc
-Set-Service -Name "WSAIFabricSvc" -StartupType Disabled
-Stop-Service -Name "WSAIFabricSvc"
-
-# Deshabilitar TapiSrv
-Set-Service -Name "TapiSrv" -StartupType Disabled
-Stop-Service -Name "TapiSrv"
-
-# Deshabilitar SCardSvr
-Set-Service -Name "SCardSvr" -StartupType Disabled
-Stop-Service -Name "SCardSvr"
-
-# Deshabilitar smphost
-Set-Service -Name "smphost" -StartupType Disabled
-Stop-Service -Name "smphost"
-
-# Deshabilitar PhoneSvc
-Set-Service -Name "PhoneSvc" -StartupType Disabled
-Stop-Service -Name "PhoneSvc"
-
-# Verificar si Checkpoint-Computer est? disponible
-if (-not (Get-Command Checkpoint-Computer -ErrorAction SilentlyContinue)) {
-    Write-Host "Checkpoint-Computer no est? disponible en este sistema." -ForegroundColor Red
-    return
-}
-
-# Iniciar y habilitar servicios necesarios
-Set-Service -Name "VSS" -StartupType Manual -ErrorAction SilentlyContinue
-Start-Service -Name "VSS" -ErrorAction SilentlyContinue
-
-Enable-ComputerRestore -Drive "C:\"
-
-# ============================================
-#   FORZAR RUTA FIJA PARA EL LOG
-# ============================================
-$scriptDirectory = "C:\Windows\Setup\Scripts"
-
-# Crear carpeta si no existe
-								
-if (-not (Test-Path $scriptDirectory)) {
-    New-Item -Path $scriptDirectory -ItemType Directory -Force | Out-Null
-}
-
-$logFile = Join-Path $scriptDirectory "Restauracion.log"
-
-# Crear encabezado si el archivo no existe
-if (-not (Test-Path $logFile)) {
-    Add-Content -Path $logFile -Value "===== Registro de creaci?n de punto de restauraci?n ====="
-}
-
-# ============================================
-
-Write-Host "Iniciando creaci?n autom?tica de un punto de restauraci?n del sistema..." -ForegroundColor Cyan
-
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$logEntry = "[$timestamp] Iniciando creaci?n de punto de restauraci?n..."
-
-# Detectar letra de la unidad donde está instalado Windows de forma robusta
-function Get-WindowsDriveLetter {
-    # Devuelve el drive letter donde está instalado Windows (p. ej. 'C'), o $null.
-    # Estrategia:
-    # 1. Revisar env:SystemRoot / env:WinDir
-    # 2. Leer registro HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRoot
-    # 3. Consultar WMI/CIM Win32_OperatingSystem.SystemDirectory
-    # 4. Buscar en PSDrive la carpeta Windows\System32
-
-    # 1) Env vars
-    try {
-        if ($env:SystemRoot) {
-            $sr = $env:SystemRoot
-            if (Test-Path $sr) { return ([IO.Path]::GetPathRoot((Get-Item $sr).FullName)).TrimEnd(':') }
-            # some cases env may be like C:\Windows\System32 - normalize
-            if ($sr -match '^[A-Za-z]:') { return $sr.Substring(0,1) }
-        }
-        if ($env:WinDir) {
-            $wd = $env:WinDir
-            if (Test-Path $wd) { return ([IO.Path]::GetPathRoot((Get-Item $wd).FullName)).TrimEnd(':') }
-            if ($wd -match '^[A-Za-z]:') { return $wd.Substring(0,1) }
-        }
-    } catch { }
-
-    # 2) Registry
-    try {
-
-        $reg = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'SystemRoot' -ErrorAction SilentlyContinue
-        if ($reg -and $reg.SystemRoot) {
-            $sr = $reg.SystemRoot
-            # Expand any environment variables
-            $expanded = ([Environment]::ExpandEnvironmentVariables($sr))
-            if (Test-Path $expanded) { return ([IO.Path]::GetPathRoot((Get-Item $expanded).FullName)).TrimEnd(':') }
-            if ($expanded -match '^[A-Za-z]:') { return $expanded.Substring(0,1) }
-        }
-    } catch { }
-
-    # 3) WMI / CIM
-    try {
-        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
-        if ($os -and $os.SystemDirectory) {
-            $sd = $os.SystemDirectory
-            if (Test-Path $sd) { return ([IO.Path]::GetPathRoot((Get-Item $sd).FullName)).TrimEnd(':') }
-            if ($sd -match '^[A-Za-z]:') { return $sd.Substring(0,1) }
-        }
-    } catch { }
-
-    # 4) Buscar unidad que contenga Windows\System32
-    try {
-        $drive = Get-PSDrive -PSProvider FileSystem | Where-Object {
-            try { Test-Path (Join-Path $_.Root 'Windows\System32') } catch { $false }
-        } | Select-Object -First 1
-        if ($drive) { return $drive.Name }
-    } catch { }
-
-    return $null
-}
-
-$mediaType = "No identificado"
-try {
-    $driveLetter = Get-WindowsDriveLetter
-    # Normalizar a una sola letra (C en vez de C:\)
-    if ($driveLetter -match '^[A-Za-z]:') { $driveLetter = $driveLetter.Substring(0,1) }
-    if ($driveLetter -match '^[A-Za-z]$') { $driveLetter = $driveLetter.ToUpper() }
-    Write-Host "driveLetter = $driveLetter"
-    $logEntry += " | driveLetter: $driveLetter"
-        # Intentar mapear la unidad lógica a disco físico vía asociaciones WMI/CIM
-        try {
-            $ld = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID = '$($driveLetter):'" -ErrorAction SilentlyContinue
-            if ($ld) {
-                $parts = Get-CimAssociatedInstance -InputObject $ld -Association Win32_LogicalDiskToPartition -ErrorAction SilentlyContinue
-                if ($parts) {
-                    foreach ($p in $parts) {
-                        $drives = Get-CimAssociatedInstance -InputObject $p -Association Win32_DiskDriveToDiskPartition -ErrorAction SilentlyContinue
-                        if ($drives) {
-                            $driveObj = $drives | Select-Object -First 1
-                            if ($driveObj.Index -ne $null) {
-                                $diskNumber = $driveObj.Index
-                                Write-Host "WMI mapping result: DiskDrive Index = $diskNumber, Model=$($driveObj.Model)"
-                                $logEntry += " | WmiMappedDiskIndex: $diskNumber Model: $($driveObj.Model)"
-                                break
-                            }
-                        }
-                    }
-                }
-            }
-        } catch {
-            # ignore mapping errors
-        }
-        if ($driveLetter) {
-            # Prefer Get-Disk (provides MediaType). If not available or returns Unspecified, try fallback methods.
-            try {
-                Write-Host "Obteniendo particion y numero de disco para $driveLetter..."
-                $partition = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
-                $diskNumber = $partition.DiskNumber
-                Write-Host "partition.DiskNumber = $diskNumber"
-                $logEntry += " | DiskNumber: $diskNumber"
-
-                $gd = Get-Disk -Number $diskNumber -ErrorAction Stop
-                if ($gd -and $gd.MediaType) {
-                    $mt = $gd.MediaType.ToString()
-                    Write-Host "Get-Disk MediaType raw: '$mt'"
-                    $logEntry += " | GetDiskMediaTypeRaw: $mt"
-                    if ($mt -match '(?i)SSD|NVME') { $mediaType = 'SSD' } 
-                    elseif ($mt -match '(?i)HDD|FIXED|HARD|ROTATIONAL') { $mediaType = 'HDD' } 
-                    else { $mediaType = $mt }
-                }
-            } catch {
-                # ignore and try fallback
-            }
-            if ($mediaType -eq "No identificado" -or [string]::IsNullOrEmpty($mediaType)) {
-                try {
-                    # Fallback: try Get-PhysicalDisk and match by FriendlyName or UniqueId if possible
-                    $phys = Get-PhysicalDisk -ErrorAction SilentlyContinue
-                    if ($phys) {
-                        # Attempt coarse match: if only one physical disk, take its MediaType and normalize
-                        if ($phys.Count -eq 1) { 
-                            $pmt = $phys[0].MediaType
-                            if ($pmt -match '(?i)SSD|NVME') { $mediaType = 'SSD' } 
-                            elseif ($pmt -match '(?i)HDD|FIXED|HARD|ROTATIONAL') { $mediaType = 'HDD' } 
-                            else { $mediaType = $pmt }
-                        }
-                    }
-                } catch {
-                    # final fallback ignored
-                }
-            }
-
-        # Si aún no se identifica, intentar heurística adicional usando Win32_DiskDrive (RotationRate/InterfaceType)
-        if ($mediaType -eq "No identificado" -and $driveLetter) {
-            try {
-                if ($diskNumber -ne $null) {
-                    $wdd = Get-CimInstance -ClassName Win32_DiskDrive -Filter "Index = $diskNumber" -ErrorAction SilentlyContinue
-                    if ($wdd) {
-                            Write-Host "Win32_DiskDrive found: Index=$($wdd.Index) Model='$($wdd.Model)' InterfaceType='$($wdd.InterfaceType)' RotationRate='$($wdd.RotationRate)'"
-                            $logEntry += " | Win32DiskDrive: Index=$($wdd.Index) Model=$($wdd.Model) Interface=$($wdd.InterfaceType) RotationRate=$($wdd.RotationRate)"
-                        # Primero, intentar por modelo (muchas controladoras reportan InterfaceType/RotationRate inconsistentes)
-                        $modelStr = ($wdd.Model | Out-String).Trim().ToUpper()
-                        if ($modelStr -match '(SSD|NVME|M2|M\.2|ADATA|SAMSUNG|CRUCIAL|KINGSTON|INTEL|SKHYNIX|PHISON|970|980|SU630|SU8|PM9|SN)') {
-                            $mediaType = "SSD"
-                        } elseif ($modelStr -match '(WD|WDC|TOSHIBA|ST|SEAGATE|HITACHI|HGST|WD10|WD40|WD60|WD80|WD50)') {
-                            $mediaType = "HDD"
-                        } else {
-                            # RotationRate: 0 => SSD (no rotación), >0 => HDD
-                            if ($wdd.RotationRate -ne $null) {
-                                if ([int]$wdd.RotationRate -eq 0) { $mediaType = "SSD" } else { $mediaType = "HDD" }
-                            } else {
-                                # Use InterfaceType as hint (NVMe likely SSD, SATA/IDE likely HDD)
-                                $it = ($wdd.InterfaceType | Out-String).Trim()
-                                if ($it -match '(?i)NVME|SSD') { $mediaType = "SSD" }
-                                elseif ($it -match '(?i)IDE|SATA|ATAPI|SCSI') { $mediaType = "HDD" }
-                            }
-                        }
-                        if ($mediaType -ne "No identificado") { $logEntry += " | HeuristicaDiskDrive: Interface=$it RotationRate=$($wdd.RotationRate) Model=$($wdd.Model)" }
-                    }
-                }
-            } catch {
-                # ignore
-            }
-        }
-
-        # Si aún no identificado, forzar heurística global buscando modelos SSD en todos los discos
-        if ($mediaType -eq "No identificado") {
-            try {
-                $allDrives = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
-                foreach ($d in $allDrives) {
-                    $m = ($d.Model | Out-String).Trim().ToUpper()
-                    if ($m -match '(SSD|NVME|M2|M\.2|ADATA|SAMSUNG|CRUCIAL|KINGSTON|INTEL|SKHYNIX|PHISON|970|980|SU630|SU8|PM9|SN)') {
-                        # ignore obvious external USB drives
-                        $it = ($d.InterfaceType | Out-String).Trim()
-                        if ($it -match '(?i)USB|USB') { continue }
-                        $mediaType = "SSD"
-                        $logEntry += " | ForcedByModel: $($d.Model) (Interface=$it)"
-                        break
-                    }
-                    if ($m -match '(WD|WDC|TOSHIBA|ST|SEAGATE|HITACHI|HGST|WD10|WD40|WD60|WD80|WD50)') {
-                        $it = ($d.InterfaceType | Out-String).Trim()
-                        if ($it -match '(?i)USB') { continue }
-                        $mediaType = "HDD"
-                        $logEntry += " | ForcedByModel: $($d.Model) (Interface=$it)"
-                        break
-                    }
-                }
-            } catch {
-                # ignore
-            }
-        }
-    }
-} catch {
-    # Si Get-Partition falla, dejamos mediaType en No identificado
-    $mediaType = "No identificado"
-}
-
-# Determinar la ruta completa de Windows para registrar
-$windowsPath = $null
-try {
-    if ($env:SystemRoot -and (Test-Path $env:SystemRoot)) { $windowsPath = (Get-Item $env:SystemRoot).FullName }
-    elseif ($env:WinDir -and (Test-Path $env:WinDir)) { $windowsPath = (Get-Item $env:WinDir).FullName }
-    else {
-        try {
-            $reg = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'SystemRoot' -ErrorAction SilentlyContinue
-            if ($reg -and $reg.SystemRoot) { $expanded = [Environment]::ExpandEnvironmentVariables($reg.SystemRoot); if (Test-Path $expanded) { $windowsPath = (Get-Item $expanded).FullName } }
-        } catch { }
-        if (-not $windowsPath -and $driveLetter) {
-            $cand = "$driveLetter`:\Windows"
-            if (Test-Path $cand) { $windowsPath = (Get-Item $cand).FullName }
-        }
-        if (-not $windowsPath) {
-            try { $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue; if ($os -and $os.SystemDirectory -and (Test-Path $os.SystemDirectory)) { $windowsPath = (Get-Item $os.SystemDirectory).FullName } } catch { }
-        }
-    }
-} catch { }
-
-if ($windowsPath) { Write-Host "Ruta de Windows detectada: $windowsPath"; $logEntry += " | WindowsPath: $windowsPath" } else { Write-Host "No se pudo determinar la ruta completa de Windows." -ForegroundColor Yellow; $logEntry += " | WindowsPath: No identificado" }
-
-# Mostrar y loguear el valor final de mediaType para diagnóstico
-Write-Host "mediaType final = '$mediaType'"
-$logEntry += " | mediaTypeFinal: $mediaType"
-
-switch ($mediaType) {
-    "SSD" {
-        Write-Host "Disco del sistema detectado: SSD"
-        $logEntry += " | Disco: SSD"
-        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
-        $regName = "SystemRestorePointCreationFrequency"
-
-        if (-not (Test-Path $regPath)) {
-            New-Item -Path $regPath -Force | Out-Null
-        }
-
-        Set-ItemProperty -Path $regPath -Name $regName -Value 0 -Type DWord
-        Write-Host "Optimizaci?n aplicada correctamente."
-        $logEntry += " | Optimizaci?n aplicada."
-    }
-    "HDD" {
-        Write-Host "Disco del sistema detectado: HDD"
-        $logEntry += " | Disco: HDD"
-    }
-    Default {
-        Write-Host "No se pudo determinar si el disco es SSD o HDD. Continuando..."
-        $logEntry += " | Disco: No identificado"
-    }
-}
-
-$restorePointName = "OptimizacionSyA"
-Write-Host "`nCreando punto de restauraci?n: $restorePointName ..." -ForegroundColor Yellow
-$start = Get-Date
-
-try {
-    Checkpoint-Computer -Description $restorePointName -RestorePointType "MODIFY_SETTINGS"
-    $end = Get-Date
-    $duration = $end - $start
-    $logEntry += " | Estado: ?xito | Duraci?n: $($duration.TotalSeconds) segundos"
-
-    Write-Host "`nPunto de restauraci?n creado exitosamente." -ForegroundColor Green
-    Write-Host "Tiempo total: $($duration.TotalSeconds) segundos." -ForegroundColor Gray
-} catch {
-    $logEntry += " | Estado: ERROR | Detalles: $_"
-    Write-Host "`nOcurri? un error al crear el punto de restauraci?n: $_" -ForegroundColor Red
-}
-
-# Guardar log final
-Add-Content -Path $logFile -Value $logEntry
-		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
 # Directorio base de destino
 $scriptDir = "C:\Windows\Setup\Scripts"
@@ -1677,27 +963,42 @@ if (-not (Test-Path $scriptDir)) {
 $downloads = @(
     @{
         Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/download.ps1"
-        FileName = "setup-final.ps1"
+        FileName = "verifyconfig.ps1"
         Execute  = $true
     },
     @{
-        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase1.ps1"
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/OptimizeWin.ps1"
         FileName = "OptimizarWindows.ps1"
         Execute  = $false
     },
     @{
-        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/fase2.ps1"
-        FileName = "Installapps.ps1"
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/Installapps.ps1"
+        FileName = "Installappcore.ps1"
         Execute  = $false
     },
 	@{
-        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/LimpiezaPuntosRestauracion.ps1"
-        FileName = "LimpiezaPuntosRestauracion.ps1"
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/Cleanrestore.ps1"
+        FileName = "Cleanrestore.ps1"
+        Execute  = $false
+    },
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/Integrity.ps1"
+        FileName = "Integrity.ps1"
+        Execute  = $false
+    },
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/OptimizeDrive.ps1"
+        FileName = "OptimizeDrive.ps1"
+        Execute  = $false
+    },
+    @{
+        Url      = "https://raw.githubusercontent.com/mggons93/OptimizeUpdate/refs/heads/main/Programs/task/CursorVista.ps1"
+        FileName = "CursorVista.ps1"
         Execute  = $false
     }
 )
 
-# Función de comprobaci&#xF3;n de red
+# Funci&#243;n de comprobaci&#xF3;n de red
 function Test-InternetConnection {
     try {
         $test = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
@@ -1743,12 +1044,12 @@ foreach ($item in $downloads) {
         Unblock-File -Path "$targetPath" -ErrorAction SilentlyContinue
         #Write-Host "$fileName descargado y desbloqueado exitosamente." -ForegroundColor Green
 
-        # Solo se ejecuta si Execute está marcado en $true
+        # Solo se ejecuta si Execute est&#225; marcado en $true
         if ($execute -eq$true) {
             Write-Host "Ejecutando $fileName..." -ForegroundColor Gray
             Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$targetPath`"" -Wait
         } else {
-            Write-Host "$fileName descargado para ejecuci&#xF3;n posterior (omitida ejecución inmediata)." -ForegroundColor DarkGray
+            Write-Host "$fileName descargado para ejecuci&#xF3;n posterior (omitida ejecuci&#243;n inmediata)." -ForegroundColor DarkGray
         }
 
     } catch {
@@ -1767,8 +1068,8 @@ Add-MpPreference -ExclusionProcess "C:\Windows\Setup\Scripts\launcher.ps1" -Erro
 $scriptPath = 'C:\Windows\Setup\Scripts\launcher.ps1'
 $scriptDir  = Split-Path -Parent $scriptPath
 
-# --- Delay compatible (10s) ---
-Start-Sleep -Seconds 10
+# --- Delay compatible (5s) ---
+Start-Sleep -Seconds 5
 
 # --- Helper: obtener ruta a powershell.exe adecuada ---
 function Get-PowerShellPath {
@@ -1793,7 +1094,7 @@ $downloadUrl = 'https://github.com/mggons93/OptimizeUpdate/releases/download/V2.
 # --- Mutex ---
 $mutexName = 'FirstLogonGUI_Launcher_Mutex'
 $mutex = New-Object System.Threading.Mutex($false, $mutexName)
-if (-not $mutex.WaitOne(0)) { Write-Host "Otra instancia ya está ejecutándose" -ForegroundColor Yellow; exit 0 }
+if (-not $mutex.WaitOne(0)) { Write-Host "Otra instancia ya est&#225; ejecut&#225;ndose" -ForegroundColor Yellow; exit 0 }
 
 # --- Logging ---
 function Write-Log {
@@ -1831,7 +1132,7 @@ function Remove-LauncherScheduledTask {
             Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
             Write-Log "Tarea programada eliminada: $taskName"
         } else {
-            Write-Log "No existía tarea programada: $taskName"
+            Write-Log "No exist&#237;a tarea programada: $taskName"
         }
     } catch {
         Write-Log "Error eliminando tarea programada: $($_.Exception.Message)"
@@ -1921,7 +1222,7 @@ function Wait-ForInternet {
     while ($true) {
         try {
             $response = Invoke-WebRequest -Uri "http://clients3.google.com/generate_204" -UseBasicParsing -TimeoutSec 3
-            if ($response.StatusCode -eq 204) { Write-Log "Internet OK"; Show-Info "Conexión a Internet detectada." Green; break }
+            if ($response.StatusCode -eq 204) { Write-Log "Internet OK"; Show-Info "Conexi&#243;n a Internet detectada." Green; break }
         } catch { Write-Log "Sin conexion. Reintentando..."; Show-Info "Sin conexion. Reintentando..." Red }
         Start-Sleep -Seconds 3
     }
@@ -1952,7 +1253,7 @@ function Download-IfMissing {
     }
 }
 
-# --- Elevación ---
+# --- Elevaci&#243;n ---
 $currentUserIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $windowsPrincipal = New-Object Security.Principal.WindowsPrincipal($currentUserIdentity)
 if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -1965,7 +1266,7 @@ if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 # --- START ---
 Write-Log "--- Launcher start ---"
 
-if (Test-Path $markerPath) { Write-Log "Instalación ya completada"; exit 0 }
+if (Test-Path $markerPath) { Write-Log "Instalaci&#243;n ya completada"; exit 0 }
 
 if (-not (Test-Path $exePath)) {
     Download-IfMissing $downloadUrl $exePath
@@ -1983,7 +1284,7 @@ if ($status -eq 'done' -or $status -eq 'error') {
 if (Test-Path $exePath) {
     try {
         $wd = Split-Path -Parent $exePath
-        Start-Process -FilePath $exePath -WorkingDirectory $wd -WindowStyle Normal
+        Start-Process -FilePath $exePath -WorkingDirectory $wd -WindowStyle Maximized
         Write-Log "FirstlogonGUI.App.exe lanzado"
 
         # --- Minimizar PowerShell después de lanzar la GUI ---
@@ -1994,7 +1295,7 @@ if (Test-Path $exePath) {
             '
             $hwnd = [Native.Win]::GetConsoleWindow()
             if ($hwnd -ne 0) { [Native.Win]::ShowWindow($hwnd, 6) }  # 6 = SW_MINIMIZE
-            Write-Log "Ventana PowerShell minimizada automáticamente"
+            Write-Log "Ventana PowerShell minimizada autom&#225;ticamente"
         } catch {
             Write-Log "Error minimizando ventana PowerShell: $($_.Exception.Message)"
         }
@@ -2016,12 +1317,12 @@ while ($true) {
             Invoke-LauncherCleanup $status
         }
     }
-    Start-Sleep -Seconds 15
+    Start-Sleep -Seconds 5
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Rustdesk_Download.ps1">
 # ============================================================
-# RustDesk - Descargar e instalar la última versión x86_64
+# RustDesk - Descargar e instalar la última versi&#243;n x86_64
 # ============================================================
 $ErrorActionPreference = "Stop"
 $Repo = "rustdesk/rustdesk"
@@ -2031,9 +1332,9 @@ Write-Host "       ACTUALIZADOR DE RUSTDESK x64" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 # ------------------------------------------------------------
-# 1. Consultar última versión estable
+# 1. Consultar última versi&#243;n estable
 # ------------------------------------------------------------
-Write-Host "[1/4] Consultando última versión de RustDesk..." -ForegroundColor Yellow
+Write-Host "[1/4] Consultando última versi&#243;n de RustDesk..." -ForegroundColor Yellow
 $Headers = @{
     "User-Agent" = "PowerShell-RustDesk-Updater"
     "Accept"     = "application/vnd.github+json"
@@ -2043,7 +1344,7 @@ $Release = Invoke-RestMethod `
     -Headers $Headers `
     -Method Get
 $Version = $Release.tag_name
-Write-Host "Última versión encontrada: $Version" -ForegroundColor Green
+Write-Host "Última versi&#243;n encontrada: $Version" -ForegroundColor Green
 # ------------------------------------------------------------
 # 2. Buscar MSI x86_64
 # ------------------------------------------------------------
@@ -2056,7 +1357,7 @@ $MsiAsset = $Release.assets |
     } |
     Select-Object -First 1
 if (-not $MsiAsset) {
-    Write-Host "No se encontró un MSI x86_64 en el release $Version." -ForegroundColor Red
+    Write-Host "No se encontr&#243; un MSI x86_64 en el release $Version." -ForegroundColor Red
     exit 1
 }
 $DownloadUrl = $MsiAsset.browser_download_url
@@ -2077,12 +1378,12 @@ Invoke-WebRequest `
     -Headers $Headers `
     -OutFile $TempFile
 if (-not (Test-Path $TempFile)) {
-    Write-Host "La descarga falló." -ForegroundColor Red
+    Write-Host "La descarga fall&#243;." -ForegroundColor Red
     exit 1
 }
 $FileSize = (Get-Item $TempFile).Length
 if ($FileSize -lt 1MB) {
-    Write-Host "El archivo descargado parece inválido." -ForegroundColor Red
+    Write-Host "El archivo descargado parece inv&#225;lido." -ForegroundColor Red
     Remove-Item $TempFile -Force
     exit 1
 }
@@ -2104,7 +1405,7 @@ Write-Host ""
 if ($Process.ExitCode -eq 0) {
 
     # Cerrar únicamente la ventana visible de RustDesk; no terminar sus procesos
-    # ni el servicio que mantiene la conexión en segundo plano.
+    # ni el servicio que mantiene la conexi&#243;n en segundo plano.
     Get-Process -Name 'rustdesk' -ErrorAction SilentlyContinue |
         Where-Object { $_.MainWindowHandle -ne 0 } |
         ForEach-Object { $null = $_.CloseMainWindow() }
@@ -2115,12 +1416,12 @@ if ($Process.ExitCode -eq 0) {
 }
 elseif ($Process.ExitCode -eq 3010) {
     Write-Host "============================================" -ForegroundColor Yellow
-    Write-Host "Instalación correcta. Es necesario reiniciar." -ForegroundColor Yellow
+    Write-Host "Instalaci&#243;n correcta. Es necesario reiniciar." -ForegroundColor Yellow
     Write-Host "============================================" -ForegroundColor Yellow
 }
 else {
     Write-Host "============================================" -ForegroundColor Red
-    Write-Host "La instalación terminó con código: $($Process.ExitCode)" -ForegroundColor Red
+    Write-Host "La instalaci&#243;n termin&#243; con c&#243;digo: $($Process.ExitCode)" -ForegroundColor Red
     Write-Host "============================================" -ForegroundColor Red
 }
 # ------------------------------------------------------------
@@ -2135,7 +1436,7 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
 #   1) Microsoft Store (solo LTSC/IoT)
 #   2) VCLibs
 #   3) Windows App Runtime
-#   4) Winget (Última versión desde GitHub)
+#   4) Winget (Última versi&#243;n desde GitHub)
 # ==========================================================
 
 # TLS 1.2 obligatorio
@@ -2143,6 +1444,31 @@ Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
 
 $BasePath = "$env:TEMP\WingetFullInstall"
 New-Item $BasePath -ItemType Directory -Force | Out-Null
+$WingetLogPath = "$env:TEMP\InstallWinget.log"
+
+function Write-WingetLog {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    $entry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Message"
+    if ($ErrorRecord) {
+        $entry += [Environment]::NewLine + ($ErrorRecord | Format-List * -Force | Out-String).TrimEnd()
+        $entry += [Environment]::NewLine + "Exception details: " + $ErrorRecord.Exception.ToString()
+        if ($ErrorRecord.ScriptStackTrace) {
+            $entry += [Environment]::NewLine + "Script stack: " + $ErrorRecord.ScriptStackTrace
+        }
+    }
+
+    try {
+        Add-Content -LiteralPath $WingetLogPath -Value $entry -Encoding UTF8 -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "No se pudo escribir el log de Winget en '$WingetLogPath': $($_.Exception.Message)"
+        Write-Host $entry
+    }
+}
 
 # ==========================================================
 # FUNCION → VALIDAR SI COMPONENTE APPX EXISTE
@@ -2169,10 +1495,10 @@ function Install-StoreIfNeeded {
 
     $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
 
-    Write-Host "Edición detectada: $edition"
+    Write-Host "Edici&#243;n detectada: $edition"
 
     if (-not $esLTSC) {
-        Write-Host "No es LTSC/IoT → se omite instalación de Store"
+        Write-Host "No es LTSC/IoT → se omite instalaci&#243;n de Store"
         return
     }
 
@@ -2194,7 +1520,7 @@ function Install-StoreIfNeeded {
         Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
     }
     else {
-        Write-Host "Descargando última versión de la Store desde GitHub..."
+        Write-Host "Descargando última versi&#243;n de la Store desde GitHub..."
 
         try {
             $latest = Invoke-RestMethod `
@@ -2203,7 +1529,7 @@ function Install-StoreIfNeeded {
 
             $StoreZipURL = $latest.zipball_url
 
-            Write-Host "Versión: $($latest.tag_name)"
+            Write-Host "Versi&#243;n: $($latest.tag_name)"
 
             Invoke-WebRequest $StoreZipURL -OutFile $ZipFile -UseBasicParsing -ErrorAction Stop
             Expand-Archive $ZipFile -DestinationPath $TempDir -Force
@@ -2225,139 +1551,176 @@ function Install-StoreIfNeeded {
         Start-Process $cmdPath -Verb RunAs -Wait
     }
     else {
-        Write-Host "No se encontró Add-Store.cmd"
+        Write-Host "No se encontr&#243; Add-Store.cmd"
     }
 }
 
 # ==========================================================
 # FUNCION → INSTALAR WINGET CON VALIDACIONES
 # ==========================================================
+function Test-WingetInstalled {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    try {
+        $null = &amp; winget --version 2>$null
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+}
+
 function Install-Winget {
 
     Write-Host "Verificando componentes de Winget..."
 
     $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
     $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
-    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
+    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260921001/windowsappruntimeinstall-x64.exe"
     
     $VCLibsPath = "$BasePath\VCLibs.appx"
     $XamlPath   = "$BasePath\UI.Xaml.appx"
     $RuntimeExe = "$BasePath\Runtime.exe"
     $WingetPath = "$BasePath\Winget.msixbundle"
 
+    function Install-WingetWindowsAppRuntime {
+        Write-Host "  -> Instalando/actualizando Windows App Runtime 1.8..."
+        Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
+        $runtimeProcess = Start-Process -FilePath $RuntimeExe -ArgumentList "/quiet" -Wait -PassThru -ErrorAction Stop
+        if ($runtimeProcess.ExitCode -notin @(0, 3010)) {
+            throw "El instalador de Windows App Runtime finalizo con codigo $($runtimeProcess.ExitCode)."
+        }
+
+        $minimumRuntimeVersion = [version]'8000.616.0.0'
+        $runtimePackage = Get-AppxPackage -AllUsers -Name 'Microsoft.WindowsAppRuntime.1.8' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Architecture -in @('X64', 'Neutral') } |
+            Sort-Object { [version]$_.Version } -Descending |
+            Select-Object -First 1
+        if (-not $runtimePackage -or [version]$runtimePackage.Version -lt $minimumRuntimeVersion) {
+            $foundVersion = if ($runtimePackage) { $runtimePackage.Version } else { 'no detectado' }
+            throw "Windows App Runtime 1.8 requerido >= $minimumRuntimeVersion; instalado: $foundVersion."
+        }
+        Write-Host "  -> Windows App Runtime disponible: $($runtimePackage.Version)"
+    }
+
     # ===============================
     # OBTENER ÚLTIMA VERSIÓN DE WINGET DESDE GITHUB
     # ===============================
-    Write-Host "Consultando la última versión de Winget en GitHub..."
+    Write-Host "Consultando la última versi&#243;n de Winget en GitHub..."
+    Write-WingetLog -Message "Consultando la última versión de Winget en GitHub."
     try {
-        $githubRelease = Invoke-RestMethod "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -ErrorAction Stop
-        $WingetUrl = ($githubRelease.assets | Where-Object { $_.name -match "\.msixbundle$" }).browser_download_url | Select-Object -First 1
+        $githubRelease = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest" `
+            -Headers @{ 'User-Agent' = 'PowerShell' } `
+            -ErrorAction Stop
+        $asset = $githubRelease.assets |
+            Where-Object { $_.name -match '\.msixbundle$' } |
+            Select-Object -First 1
+        $WingetUrl = $asset.browser_download_url
         
         if (-not $WingetUrl) {
-            throw "No se encontró un archivo .msixbundle en la última versión."
+            throw "No se encontr&#243; un archivo .msixbundle en la última versi&#243;n."
         }
-        Write-Host "Última versión encontrada: $($githubRelease.tag_name)"
+        Write-Host "Última versi&#243;n encontrada: $($githubRelease.tag_name)"
     } catch {
-        Write-Host "Error obteniendo la URL de Winget desde GitHub:"
-        Write-Host $_.Exception.Message
+        Write-Host "No se pudo consultar GitHub para obtener Winget. Revisa el log: $WingetLogPath" -ForegroundColor Red
+        Write-WingetLog -Message "Error obteniendo la URL de Winget desde GitHub." -ErrorRecord $_
         return
     }
 
-    # ===============================
-    # VERIFICAR SI WINGET YA EXISTE
-    # ===============================
-    $WingetExists = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
-    
-    if ($WingetExists) {
-        Write-Host "Winget ya instalado"
-        Write-Host "Versión actual:"
-        winget --version
-        
-        Write-Host "Descargando actualización de Winget ($($githubRelease.tag_name))..."
-        try {
-            Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
-            Write-Host "Actualizando Winget..."
-            Add-AppxPackage $WingetPath
-            Write-Host "Winget actualizado"
-            winget --version
-        }
-        catch {
-            Write-Host "Error actualizando Winget:"
-            Write-Host $_.Exception.Message
-        }
-        return
-    }
-
-    # ===============================
-    # INSTALAR COMPONENTES FALTANTES
-    # ===============================
-    Write-Host "Winget no detectado → Instalando componentes necesarios..."
-
+    $serverVersionText = [regex]::Match(
+        [string]$githubRelease.tag_name,
+        '\d+(?:\.\d+){1,3}'
+    ).Value
     try {
-        # VCLibs
-        if (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop") {
-            Write-Host "VCLibs ya instalado → se omite descarga"
+        if (-not $serverVersionText) {
+            throw "Formato de versi&#243;n remota inv&#225;lido: $($githubRelease.tag_name)"
         }
-        else {
-            Write-Host "Descargando VCLibs..."
-            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
-            Write-Host "Instalando VCLibs..."
-            Add-AppxPackage $VCLibsPath
-            Write-Host "VCLibs instalado"
-        }
-
-        # UI.Xaml
-        if (Test-AppxPackageInstalled "Microsoft.UI.Xaml") {
-            Write-Host "Microsoft.UI.Xaml ya instalado → se omite descarga"
-        }
-        else {
-            Write-Host "Descargando UI.Xaml..."
-            Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
-            Write-Host "Instalando UI.Xaml..."
-            Add-AppxPackage $XamlPath
-            Write-Host "UI.Xaml instalado"
-        }
-        
-        Start-Sleep 2
-
-        # Windows App Runtime
-        Write-Host "Verificando Windows App Runtime..."
-        $runtimeInstalled = Get-AppxPackage -AllUsers "Microsoft.WindowsAppRuntime" -ErrorAction SilentlyContinue
-        
-        if ($runtimeInstalled) {
-            Write-Host "Windows App Runtime ya instalado → se omite descarga"
-        }
-        else {
-            Write-Host "Descargando Windows App Runtime..."
-            Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
-            Write-Host "Instalando Windows App Runtime..."
-            Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait -ErrorAction Stop
-            Write-Host "Windows App Runtime instalado"
-        }
-        
-        Start-Sleep 3
-
-        # Winget versión actualizada desde GitHub
-        Write-Host "Descargando Winget $($githubRelease.tag_name)..."
-        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
-        Write-Host "Instalando Winget..."
-        Add-AppxPackage $WingetPath
-        Write-Host "Winget instalado correctamente"
-
-        Start-Sleep 2
-
-        # Verificación final
-        Write-Host "Verificando instalación..."
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            winget --version
-        }
-        else {
-            Write-Host "Winget no se instaló correctamente"
-        }
+        $serverVersion = [version]$serverVersionText
     }
     catch {
-        Write-Host "Error instalando Winget:"
-        Write-Host $_.Exception.Message
+        Write-Host "No se pudo interpretar la versión de Winget publicada. Revisa el log: $WingetLogPath" -ForegroundColor Red
+        Write-WingetLog -Message "Error interpretando la versión publicada de Winget." -ErrorRecord $_
+        return
+    }
+
+    try {
+        $installedPackages = @(
+            Get-AppxPackage -AllUsers -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
+                Sort-Object { [version]$_.Version } -Descending
+        )
+        $installedPackage = $installedPackages | Select-Object -First 1
+        $wingetExists = Test-WingetInstalled
+        $currentVersion = [version]'0.0.0'
+
+        if ($installedPackage) {
+            $currentVersion = [version]$installedPackage.Version
+        }
+
+        if ($wingetExists) {
+            $versionOutput = (&amp; winget --version 2>$null | Out-String).Trim()
+            $versionText = [regex]::Match($versionOutput, '\d+(?:\.\d+){1,3}').Value
+            if ($versionText) {
+                $commandVersion = [version]$versionText
+                if ($commandVersion -gt $currentVersion) {
+                    $currentVersion = $commandVersion
+                }
+            }
+        }
+
+        Write-Host "Winget local: $currentVersion | última versi&#243;n: $serverVersion"
+        if (($wingetExists -or $installedPackage) -and $currentVersion -ge $serverVersion) {
+            Write-Host "Winget ya est&#225; en la última versi&#243;n o es m&#225;s reciente."
+            Write-WingetLog -Message "Instalación omitida. Versión local: $currentVersion; versión publicada: $serverVersion."
+            return
+        }
+
+        Write-WingetLog -Message "Iniciando instalación/actualización. Versión local: $currentVersion; versión publicada: $serverVersion."
+        if (-not $installedPackage) {
+            Write-Host "Winget no detectado. Instalando componentes necesarios..."
+
+            if (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop") {
+                Write-Host "VCLibs ya instalado; se omite descarga."
+            }
+            else {
+                Write-Host "Descargando e instalando VCLibs..."
+                Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
+                Add-AppxPackage -Path $VCLibsPath -ErrorAction Stop
+            }
+
+            if (Test-AppxPackageInstalled "Microsoft.UI.Xaml") {
+                Write-Host "Microsoft.UI.Xaml ya instalado; se omite descarga."
+            }
+            else {
+                Write-Host "Descargando e instalando Microsoft.UI.Xaml..."
+                Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
+                Add-AppxPackage -Path $XamlPath -ErrorAction Stop
+            }
+        }
+
+        Install-WingetWindowsAppRuntime
+
+        Write-Host "Descargando Winget $serverVersion..."
+        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
+        Write-Host "Instalando o actualizando Winget..."
+        Add-AppxPackage -Path $WingetPath -ForceApplicationShutdown -ErrorAction Stop
+
+        $updatedPackage = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
+            Sort-Object { [version]$_.Version } -Descending |
+            Select-Object -First 1
+        if (-not $updatedPackage -or [version]$updatedPackage.Version -lt $serverVersion) {
+            $updatedVersion = if ($updatedPackage) { $updatedPackage.Version } else { 'no detectada' }
+            throw "Winget no quedo actualizado. Version detectada: $updatedVersion"
+        }
+
+        Write-Host "Winget instalado/actualizado correctamente a $($updatedPackage.Version)."
+        Write-WingetLog -Message "Instalación/actualización completada correctamente. Versión instalada: $($updatedPackage.Version)."
+    }
+    catch {
+        Write-Host "No se pudo instalar o actualizar Winget. Revisa el log: $WingetLogPath" -ForegroundColor Red
+        Write-WingetLog -Message "Error durante la instalación/actualización de Winget." -ErrorRecord $_
     }
 }
 
@@ -2366,7 +1729,7 @@ function Install-Winget {
 # ==========================================================
 Install-StoreIfNeeded
 
-# Ejecutar Install-Winget siempre para permitir actualización, la función maneja la lógica si ya existe
+# Ejecutar Install-Winget siempre para permitir actualizaci&#243;n, la funci&#243;n maneja la l&#243;gica si ya existe
 Install-Winget
 
 # ===============================
@@ -2377,9 +1740,9 @@ Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Limpieza completada"
 		</File>
 		<File path="C:\Windows\Setup\Scripts\CompactOS.ps1">
-# Script: detectar volumen donde está Windows y aplicar regla CompactOS
+# Script: detectar volumen donde est&#225; Windows y aplicar regla CompactOS
 try {
-    # Ruta Windows y unidad raíz (ej: "C:\Windows" -> "C:\")
+    # Ruta Windows y unidad ra&#237;z (ej: "C:\Windows" -> "C:\")
     $winPath = (Get-Item $env:SystemRoot).FullName
     $root = [System.IO.Path]::GetPathRoot($winPath)
 
@@ -2390,7 +1753,7 @@ try {
         $totalBytes = $drive.TotalSize
     }
     catch {
-        # Fallback: resolver ruta física del hive SYSTEM y extraer HarddiskN
+        # Fallback: resolver ruta f&#237;sica del hive SYSTEM y extraer HarddiskN
         Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -2426,14 +1789,14 @@ public static class PR {
             $diskNumber = [int]$matches[1]
             # intentar Get-Disk por número (puede fallar en algunos contextos)
             $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
-            if ($disk) { $totalBytes = $disk.Size } else { throw "No se pudo mapear disco físico" }
+            if ($disk) { $totalBytes = $disk.Size } else { throw "No se pudo mapear disco f&#237;sico" }
         }
         else { throw "No se pudo extraer HarddiskN" }
     }
 
-    # Convertir a GB y aplicar lógica
+    # Convertir a GB y aplicar l&#243;gica
     $sizeGB = [math]::Round($totalBytes / 1GB)
-    Write-Host "Volumen raíz: $root  —  Tamaño total: $sizeGB GB"
+    Write-Host "Volumen ra&#237;z: $root  —  Tamaño total: $sizeGB GB"
 
     if ($sizeGB -le 64) {
         Write-Host "El disco es menor o igual a 64GB. CompactOS NO se modifica."
@@ -2450,411 +1813,6 @@ catch {
     Write-Host "Error: $($_.Exception.Message)"
     exit 1
 }
-		</File>
-		<File path="C:\Windows\Setup\Scripts\Integrity.ps1">
-###############################################################################################
-# 1. PROCESO DE ELEVACIÓN (Se ejecuta de inmediato al abrir el script)
-###############################################################################################
-function Test-Admin {
-    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-if (-not (Test-Admin)) {
-    # Si no es administrador, reiniciar como administrador
-    Write-Host "Solicitando permisos de Administrador..." -ForegroundColor Yellow
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit # Sale de esta ventana para continuar en la nueva con permisos
-}
-
-###############################################################################################
-# 2. PREPARACIÓN DEL ENTORNO
-###############################################################################################
-# TLS 1.2 obligatorio para descargas de GitHub y Microsoft
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# Variables globales para Winget/Store
-$BasePath = "$env:TEMP\WingetFullInstall"
-New-Item $BasePath -ItemType Directory -Force | Out-Null
-
-###############################################################################################
-# 3. CÓDIGO DE EJECUCIÓN (Lógica principal paso a paso)
-###############################################################################################
-function Start-Execution {
-    Clear-Host
-    Write-Host "Iniciando optimizacion del sistema y despliegue de utilidades..." -ForegroundColor Cyan
-
-    Write-Host "`n[Paso 1] Aplicando exclusiones en Windows Defender..."
-    Ejecucion-1-Defender
-
-    Write-Host "`n[Paso 2] Desactivando el desenfoque (Blur) en el inicio de sesion..."
-    Ejecucion-2-LogonBlur
-
-    Write-Host "`n[Paso 3] Configurando opciones de energia (Pantalla y Suspension)..."
-    Ejecucion-3-Energia
-
-    Write-Host "`n[Paso 4] Reparando planes de energia..."
-    Ejecucion-4-Planes
-
-    Write-Host "`n[Paso 5] Configurando DNS (AdGuard + Cloudflare) y deshabilitando IPv6..."
-    Ejecucion-5-DNS
-    
-    Write-Host "`n[Paso 6] Verificando e instalando Microsoft Store (LTSC/IoT)..."
-    Ejecucion-6-Store
-
-    Write-Host "`n[Paso 7] Verificando e instalando/actualizando Winget..."
-    Ejecucion-7-Winget
-	
-	Write-Host "`n[Paso 8] Verificando Windows.."
-	Ejecucion-8-Windows
-
-    Write-Host "`n[Paso 9] Limpieza de temporales..."
-    Remove-Item $BasePath -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "  -> Archivos temporales de instalacion eliminados."
-
-}
-###############################################################################################
-# 4. DEFINICIÓN DE CADA PROCESO (Optimizaciones y Activación)
-###############################################################################################
-
-# --- EJECUCION 1 ---
-function Ejecucion-1-Defender {
-    Add-MpPreference -ExclusionPath "C:\Windows\Setup\FilesU" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionProcess "C:\Windows\Setup\FilesU\Optimizador-Windows.ps1" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionProcess "$env:TEMP\MAS_31F7FD1E.cmd" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionProcess "$env:TEMP\Ohook_Activation_AIO.cmd" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionProcess "$env:TEMP\officeinstaller.ps1" -ErrorAction SilentlyContinue
-
-    Write-Host "  -> Exclusiones aplicadas correctamente."
-}
-
-# --- EJECUCION 2 ---
-function Ejecucion-2-LogonBlur {
-    try {
-        $path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
-        if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
-        Set-ItemProperty -Path $path -Name "DisableAcrylicBackgroundOnLogon" -Value 1 -Type DWord
-
-        $path2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        if (-not (Test-Path $path2)) { New-Item -Path $path2 -Force | Out-Null }
-        Set-ItemProperty -Path $path2 -Name "EnableTransparency" -Value 0 -Type DWord
-        
-        Write-Host "  -> Efectos de transparencia y blur desactivados."
-    } catch {
-        Write-Host "  -> Error al aplicar las claves de registro." -ForegroundColor Red
-    }
-}
-
-# --- EJECUCION 3 ---
-function Ejecucion-3-Energia {
-    # Suspension en NUNCA (AC y DC)
-    powercfg /change standby-timeout-ac 0
-    powercfg /change standby-timeout-dc 0
-
-    # Apagar pantalla a los 10 minutos (AC y DC)
-    powercfg /change monitor-timeout-ac 10
-    powercfg /change monitor-timeout-dc 10
-    
-    Write-Host "  -> Tiempos de pantalla (10m) y suspension (Nunca) aplicados."
-}
-
-# --- EJECUCION 4 ---
-function Ejecucion-4-Planes {
-    for ($i = 1; $i -le 2; $i++) {
-        Write-Host "  -> PASADA $i DE 2" -ForegroundColor Yellow
-        
-        $LOG = "$PSScriptRoot\performance.txt"
-        powercfg /list | Out-File $LOG -Encoding Default
-
-        $BASE_PLANS = @{
-            "Equilibrado"        = "381b4222-f694-41f0-9685-ff5bb260df2e"
-            "Alto rendimiento"   = "e77b042d-37c5-452e-8dc8-47aefe0bff05"
-            "Economizador"       = "a1841308-3541-4fab-bc81-f71556f20b4a"
-            "Maximo rendimiento" = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-        }
-
-        $existingGUIDs = (powercfg /list) | Select-String -Pattern '[a-f0-9\-]{36}' | ForEach-Object { $_.Matches.Value }
-
-        # Limpiar clones
-        $allPlans = powercfg /list | Select-String "GUID" | ForEach-Object {
-            if ($_ -match '([a-f0-9\-]{36}).+\((.+)\)') {
-                [PSCustomObject]@{ GUID = $matches[1]; Name = $matches[2] }
-            }
-        }
-        $allPlans | Group-Object Name | Where-Object Count -gt 1 | ForEach-Object {
-            $_.Group | Where-Object { $_.GUID -notin $BASE_PLANS.Values } | ForEach-Object {
-                Write-Host "     - Eliminando clon:" $_.GUID
-                powercfg /delete $_.GUID | Out-Null
-            }
-        }
-
-        # Crear faltantes
-        foreach ($plan in $BASE_PLANS.GetEnumerator()) {
-            if ($plan.Key -eq "Equilibrado") { continue }
-            if ($existingGUIDs -notcontains $plan.Value) {
-                try {
-                    Write-Host "     - Creando plan faltante:" $plan.Key
-                    $out = powercfg -duplicatescheme $plan.Value 2>$null
-                } catch {
-                    # Silenciado si el sistema no lo soporta
-                }
-            }
-        }
-
-        # Seleccionar plan Optimo
-        $battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
-        if (-not $battery -and (powercfg /list) -match "Maximo rendimiento") {
-            powercfg /setactive $BASE_PLANS["Maximo rendimiento"]
-            Write-Host "     - Plan activo: Maximo rendimiento"
-        }
-        elseif ((powercfg /list) -match "Alto rendimiento") {
-            powercfg /setactive $BASE_PLANS["Alto rendimiento"]
-            Write-Host "     - Plan activo: Alto rendimiento"
-        }
-        else {
-            powercfg /setactive $BASE_PLANS["Equilibrado"]
-            Write-Host "     - Plan activo: Equilibrado"
-        }
-        
-        Start-Sleep -Milliseconds 800
-    }
-}
-
-# --- EJECUCION 5 ---
-function Ejecucion-5-DNS {
-    $networkAdapters = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Disconnected' }
-
-    if (-not $networkAdapters -or $networkAdapters.Count -eq 0) {
-        Write-Host "  -> No se encontraron adaptadores de red activos. Se omite DNS/IPv6."
-        return
-    }
-
-    $dnsServers = @('94.140.14.14','94.140.15.15','1.1.1.1')
-
-    # Filtrar adaptadores LAN y Wi-Fi para configurarlos
-    $lanAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Ethernet|LAN' }
-    $wifiAdapters = $networkAdapters | Where-Object { $_.InterfaceDescription -match 'Wi-Fi|Wireless' -or $_.Name -match 'Wi-Fi' }
-    $targetAdapters = $lanAdapters + $wifiAdapters
-
-    if ($targetAdapters.Count -gt 0) {
-        foreach ($adapter in $targetAdapters) {
-            Write-Host "  -> Configurando $($adapter.Name)..."
-            try {
-                Set-DnsClientServerAddress -InterfaceAlias $adapter.Name -ServerAddresses $dnsServers -ErrorAction Stop
-            } catch {
-                Write-Host "     - No se pudo establecer DNS en $($adapter.Name)" -ForegroundColor Red
-            }
-
-            try {
-                Disable-NetAdapterBinding -Name $adapter.Name -ComponentID 'ms_tcpip6' -Confirm:$false -ErrorAction SilentlyContinue
-            } catch {
-                Write-Host "     - No se pudo deshabilitar IPv6 en $($adapter.Name)" -ForegroundColor Red
-            }
-        }
-        
-        ipconfig /flushdns | Out-Null
-        Write-Host "  -> Configuracion de DNS/IPv6 aplicada y cache de red liberada."
-    } else {
-        Write-Host "  -> No hay adaptadores de tipo LAN/Wi-Fi compatibles. Se omite."
-    }
-}
-
-###############################################################################################
-# 5. DEFINICIÓN DE CADA PROCESO (Microsoft Store, Winget, DNS)
-###############################################################################################
-
-function Test-AppxPackageInstalled {
-    param([string]$PackageName)
-    return $null -ne (Get-AppxPackage -AllUsers $PackageName -ErrorAction SilentlyContinue)
-}
-
-# --- EJECUCION 6 ---
-function Ejecucion-6-Store {
-    $OfflineFolder = "$PSScriptRoot\StoreOffline"
-    $TempDir       = "$BasePath\StorePack"
-    $ZipFile       = "$BasePath\store_pack.zip"
-    $CmdName       = "Add-Store.cmd"
-
-    $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-    $edition = $cv.EditionID
-    $esLTSC = @("EnterpriseS","EnterpriseSN","IoTEnterpriseS") -contains $edition
-
-    Write-Host "  -> Edicion detectada: $edition"
-
-    if (-not $esLTSC) {
-        Write-Host "  -> No es LTSC/IoT. Se omite instalacion de Store."
-        return
-    }
-
-    if (Test-AppxPackageInstalled "Microsoft.WindowsStore") {
-        Write-Host "  -> Microsoft Store ya esta instalada. Se omite."
-        return
-    }
-
-    Write-Host "  -> Preparando instalacion de Microsoft Store..."
-    Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item $TempDir -ItemType Directory | Out-Null
-    
-    if (Test-Path $OfflineFolder) {
-        Write-Host "  -> Modo OFFLINE detectado. Copiando archivos..."
-        Copy-Item "$OfflineFolder\*" $TempDir -Recurse -Force
-    }
-    else {
-        Write-Host "  -> Descargando ultima version de la Store desde GitHub (mggons93)..."
-        try {
-            $latest = Invoke-RestMethod "https://api.github.com/repos/mggons93/LTSC_STORE/releases/latest" -ErrorAction Stop
-            Invoke-WebRequest $latest.zipball_url -OutFile $ZipFile -UseBasicParsing -ErrorAction Stop
-            Expand-Archive $ZipFile -DestinationPath $TempDir -Force
-        }
-        catch {
-            Write-Host "  -> ERROR descargando Microsoft Store. Se omite." -ForegroundColor Red
-            return
-        }
-    }
-    
-    $cmdPath = Get-ChildItem $TempDir -Recurse -Filter $CmdName | Select-Object -First 1 -ExpandProperty FullName
-    if ($cmdPath) {
-        Write-Host "  -> Inyectando Store en el sistema..."
-        Start-Process $cmdPath -Verb RunAs -Wait
-        Write-Host "  -> Instalacion de Store completada."
-    } else {
-        Write-Host "  -> No se encontro Add-Store.cmd" -ForegroundColor Red
-    }
-}
-
-# --- EJECUCION 7 ---
-function Ejecucion-7-Winget {
-    $VCLibsUrl  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-    $XamlUrl    = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx"
-    $RuntimeUrl = "https://aka.ms/windowsappsdk/1.8/1.8.260101001/windowsappruntimeinstall-x64.exe"
-    
-    $VCLibsPath = "$BasePath\VCLibs.appx"
-    $XamlPath   = "$BasePath\UI.Xaml.appx"
-    $RuntimeExe = "$BasePath\Runtime.exe"
-    $WingetPath = "$BasePath\Winget.msixbundle"
-
-    Write-Host "  -> Consultando la ultima version de Winget en GitHub..."
-    try {
-        $githubRelease = Invoke-RestMethod "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -ErrorAction Stop
-        $WingetUrl = ($githubRelease.assets | Where-Object { $_.name -match "\.msixbundle$" }).browser_download_url | Select-Object -First 1
-        
-        if (-not $WingetUrl) { throw "No se encontro .msixbundle." }
-        Write-Host "  -> Version encontrada: $($githubRelease.tag_name)"
-    } catch {
-        Write-Host "  -> Error obteniendo URL de Winget. Se omite." -ForegroundColor Red
-        return
-    }
-
-    $serverVersionText = ([string]$githubRelease.tag_name).Trim() -replace '^[vV]', ''
-    $serverVersion = $null
-    if (-not [version]::TryParse($serverVersionText, [ref]$serverVersion)) {
-        Write-Host "  -> No se pudo interpretar la version del servidor '$($githubRelease.tag_name)'. Se omite Winget." -ForegroundColor Red
-        return
-    }
-
-    $installedPackages = @(Get-AppxPackage -AllUsers -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue)
-    $installedPackage = $installedPackages | Sort-Object { [version]$_.Version } -Descending | Select-Object -First 1
-    if ($installedPackage) {
-        $installedVersion = [version]$installedPackage.Version
-        Write-Host "  -> Winget instalado: $installedVersion | Servidor: $serverVersion"
-        if ($installedVersion -eq $serverVersion) {
-            Write-Host "  -> Winget ya esta en la version del servidor. Se omite la instalacion." -ForegroundColor Green
-            return
-        }
-
-        Write-Host "  -> Las versiones no coinciden. Actualizando Winget..."
-        try {
-            Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
-            Add-AppxPackage $WingetPath -ErrorAction Stop
-            Write-Host "  -> Winget ha sido actualizado a $serverVersion."
-        } catch {
-            Write-Host "  -> Error al actualizar Winget: $($_.Exception.Message)" -ForegroundColor Red
-        }
-        return
-    }
-
-    Write-Host "  -> Winget no detectado. Instalando dependencias..."
-    try {
-        # VCLibs
-        if (-not (Test-AppxPackageInstalled "Microsoft.VCLibs.140.00.UWPDesktop")) {
-            Write-Host "     - Descargando e instalando VCLibs..."
-            Invoke-WebRequest $VCLibsUrl -OutFile $VCLibsPath -UseBasicParsing -ErrorAction Stop
-            Add-AppxPackage $VCLibsPath
-        }
-
-        # UI.Xaml
-        if (-not (Test-AppxPackageInstalled "Microsoft.UI.Xaml")) {
-            Write-Host "     - Descargando e instalando UI.Xaml..."
-            Invoke-WebRequest $XamlUrl -OutFile $XamlPath -UseBasicParsing -ErrorAction Stop
-            Add-AppxPackage $XamlPath
-        }
-        
-        Start-Sleep 2
-
-        # Windows App Runtime
-        if (-not (Get-AppxPackage -AllUsers "Microsoft.WindowsAppRuntime" -ErrorAction SilentlyContinue)) {
-            Write-Host "     - Descargando e instalando Windows App Runtime..."
-            Invoke-WebRequest $RuntimeUrl -OutFile $RuntimeExe -UseBasicParsing -ErrorAction Stop
-            Start-Process $RuntimeExe -ArgumentList "/quiet" -Wait -ErrorAction Stop
-        }
-        
-        Start-Sleep 3
-
-        # Instalar Winget
-        Write-Host "  -> Descargando e instalando Winget $($githubRelease.tag_name)..."
-        Invoke-WebRequest $WingetUrl -OutFile $WingetPath -UseBasicParsing -ErrorAction Stop
-        Add-AppxPackage $WingetPath
-        Write-Host "  -> Winget instalado correctamente."
-    }
-    catch {
-        Write-Host "  -> Error instalando dependencias de Winget:" $_.Exception.Message -ForegroundColor Red
-    }
-}
-
-
-# --- EJECUCION 8 ---
-function Get-WindowsActivationStatus {
-    $licenseStatus = (Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL AND LicenseFamily IS NOT NULL").LicenseStatus
-    return $licenseStatus -eq 1
-}
-
-function Enable-WindowsActivation {
-    $url = "https://raw.githubusercontent.com/%blank%massgravel/Microsoft-%blank%Activation-Scripts/refs/%blank%heads/master/MAS/All-In-%blank%One-Version-KL/MAS_AIO.%blank%cmd"
-    $url = $url -replace "%blank%", ""
-    $outputPath1 = "$env:TEMP\O%blank%hook_Acti%blank%vation_AI%blank%O.cmd"
-    $outputPath1 = $outputPath1 -replace "%blank%", ""
-
-    #Write-Host "  -> Descargando y ejecutando Activacion..."
-    Invoke-WebRequest -Uri $url -OutFile $outputPath1 -UseBasicParsing | Out-Null
-    Start-Process -FilePath $outputPath1 -ArgumentList "/HWID" -WindowStyle Hidden -Wait
-    Remove-Item -Path $outputPath1 -Force
-}
-
-function Ejecucion-8-Windows {
-    # Verificar si Windows esta activado
-    if (Get-WindowsActivationStatus) {
-        Write-Host "  -> Windows ya esta activado."
-        Start-Sleep 2
-    } else {
-        Write-Host "  -> Windows no esta activado. Intentando activar..."
-        Start-Sleep 2
-        Enable-WindowsActivation
-        
-        # Verificar nuevamente despues de intentar activar
-        if (Get-WindowsActivationStatus) {
-            Write-Host "  -> Windows ha sido activado exitosamente." -ForegroundColor Green
-            Start-Sleep 2
-        } else {
-            Write-Host "  -> La activacion de Windows ha fallado. Verifica la conexion a internet." -ForegroundColor Red
-        }
-    }
-}
-###############################################################################################
-# INICIO DEL SCRIPT
-###############################################################################################
-Start-Execution
 		</File>
 		<File path="C:\Windows\Setup\Scripts\PSUpdates.ps1">
 ##=============================================================================
@@ -2890,9 +1848,9 @@ function Write-Log($Message) {
 ##=============================================================================
 
 try {
-    # -----------------------------------------------------------------------
+    Write-Log "-------------------------------------------------------"
     Write-Log "--- FASE 1: Instalando y preparando PSWindowsUpdate ---"
-    # -----------------------------------------------------------------------
+    Write-Log "-------------------------------------------------------"
     if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
         Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers -ErrorAction Stop
     }
@@ -2917,41 +1875,45 @@ try {
     # Array donde guardaremos todo lo encontrado antes de descargar/instalar
     $listaActualizaciones = @()
 
-    # -----------------------------------------------------------------------
+    Write-Log "---------------------------------------------------"
     Write-Log "--- FASE 2: Buscando actualizaciones de Drivers ---"
-    # -----------------------------------------------------------------------
+    Write-Log "---------------------------------------------------"
     $drivers = Get-WindowsUpdate -MicrosoftUpdate -Category "Drivers" -ErrorAction SilentlyContinue
     if ($drivers) { 
         $listaActualizaciones += $drivers 
-        Write-Log "-> Se encontraron $($drivers.Count) Drivers."
+        Write-Log "!! Se encontraron $($drivers.Count) Drivers. !!"
     } else {
         Write-Log "-> No se encontraron Drivers."
     }
 
-    # -----------------------------------------------------------------------
-    Write-Log "--- FASE 3: Buscando Definiciones y Otros (Excluyendo Acumulativas y MSRT) ---"
-    # -----------------------------------------------------------------------
+    Write-Log "---------------------------------------------------------------"
+    Write-Log "--- FASE 3: Buscando Definiciones y Otros (Excluyendo MSRT) ---"
+    Write-Log "---------------------------------------------------------------"
     $otros = Get-WindowsUpdate -MicrosoftUpdate -NotCategory "Drivers" -ErrorAction SilentlyContinue
     if ($otros) {
-        # Filtro estricto: Ignora si el título contiene "Cumulative", "Acumulativa", "Malicious" o "malintencionado"
+        # Excluir solo la herramienta de eliminaci&#243;n de software malintencionado.
+        # Las acumulativas y de seguridad se conservan para compararlas con la
+        # revisi&#243;n completa instalada (Build.UBR) m&#225;s abajo.
         $otrosFiltrados = $otros | Where-Object {
-            $_.Title -notmatch "Cumulative|Acumulativa" -and 
-            $_.Title -notmatch "Malicious Software Removal Tool|eliminación de software malintencionado"
+            $_.Title -notmatch "Malicious Software Removal Tool|eliminaci&#243;n de software malintencionado"
         }
         $listaActualizaciones += $otrosFiltrados
-        Write-Log "-> Se encontraron $($otrosFiltrados.Count) actualizaciones válidas."
+        Write-Log " !! Se encontraron $($otrosFiltrados.Count) actualizaciones vlidas. !!"
     } else {
         Write-Log "-> No se encontraron otras actualizaciones."
     }
 
-    # Omitir actualizaciones de características/build que ya corresponde a la
-    # versión instalada en la imagen. Las actualizaciones acumulativas siguen
-    # excluidas por el filtro anterior; este filtro evita volver a bajar la
-    # misma versión base de Windows.
+    # Omitir versiones/builds que ya est&#225;n instaladas. Para acumulativas y
+    # actualizaciones de seguridad comparar Build.UBR, porque el build base
+    # (por ejemplo 26300) puede ser el mismo aunque haya una revisi&#243;n m&#225;s nueva.
     $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
     $installedBuild = [string]$osInfo.BuildNumber
     $osVersionKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $currentVersion = Get-ItemProperty -Path $osVersionKey -ErrorAction SilentlyContinue
+    $installedUBR = 0
+    if ($null -ne $currentVersion.UBR) {
+        $installedUBR = [int]$currentVersion.UBR
+    }
     $installedDisplayVersion = [string]$currentVersion.DisplayVersion
     if ([string]::IsNullOrWhiteSpace($installedDisplayVersion)) {
         $installedDisplayVersion = [string]$currentVersion.ReleaseId
@@ -2961,29 +1923,41 @@ try {
     $listaActualizaciones = @($listaActualizaciones | Where-Object {
         $updateText = "$( $_.Title ) $( $_.Description )"
         $matchesInstalledBuild = $false
+        $isCumulativeOrSecurity = $updateText -match '(?i)cumulative|acumulativa|security update|actualizaci[o&#243;]n de seguridad'
 
-        if ($installedDisplayVersion -and $updateText -match '(?i)(?:version|versi[oó]n)\s*(?&lt;version&gt;\d{2}H\d)') {
+        if (-not $isCumulativeOrSecurity -and $installedDisplayVersion -and
+            $updateText -match '(?i)(?:version|versi[o&#243;]n)\s*(?&lt;version&gt;\d{2}H\d)') {
             if ($matches['version'] -ieq $installedDisplayVersion) {
                 $matchesInstalledBuild = $true
             }
         }
 
         if (-not $matchesInstalledBuild -and $installedBuild -and
-            $updateText -match '(?i)(?:build|compilaci[oó]n)\s*(?:number|n[uú]mero)?\s*[:#]?\s*(?&lt;build&gt;\d{5})') {
-            if ($matches['build'] -eq $installedBuild) {
-                $matchesInstalledBuild = $true
+            $updateText -match '(?i)(?:OS\s*)?(?:build|compilaci[o&#243;]n)\s*(?:number|n[uú]mero)?\s*[:#]?\s*(?&lt;build&gt;\d{5})(?:\.(?&lt;ubr&gt;\d{1,5}))?') {
+            $updateBuild = $matches['build']
+            $hasUpdateUBR = -not [string]::IsNullOrWhiteSpace($matches['ubr'])
+
+            if ($updateBuild -eq $installedBuild) {
+                if ($isCumulativeOrSecurity) {
+                    # Sin UBR expl&#237;cito no se puede afirmar que una LCU esté ya instalada.
+                    if ($hasUpdateUBR -and [int]$matches['ubr'] -le $installedUBR) {
+                        $matchesInstalledBuild = $true
+                    }
+                } elseif (-not $hasUpdateUBR -or [int]$matches['ubr'] -le $installedUBR) {
+                    $matchesInstalledBuild = $true
+                }
             }
         }
 
         if ($matchesInstalledBuild) {
-            Write-Log "-> Omitida por corresponder a la version/build ya instalada ($installedDisplayVersion, compilacion $installedBuild): $($_.Title)"
+            Write-Log "-> Omitida por corresponder a la version/build ya instalada ($installedDisplayVersion, compilacion $installedBuild.$installedUBR): $($_.Title)"
             return $false
         }
         return $true
     })
     $skippedBaseUpdates = $updatesBeforeBuildFilter - $listaActualizaciones.Count
     if ($skippedBaseUpdates -gt 0) {
-        Write-Log "-> Se omitieron $skippedBaseUpdates actualizaciones que corresponden a la version/build instalada ($installedDisplayVersion, compilacion $installedBuild)."
+        Write-Log "-> Se omitieron $skippedBaseUpdates actualizaciones que corresponden a la version/build instalada ($installedDisplayVersion, compilacion $installedBuild.$installedUBR)."
     }
 
     # Validar si hay algo que hacer
@@ -2993,30 +1967,34 @@ try {
         exit
     }
 
-    # -----------------------------------------------------------------------
+    Write-Log "--------------------------------------"
     Write-Log "--- FASE 4: Listando y Descargando ---"
-    # -----------------------------------------------------------------------
+    Write-Log "--------------------------------------"
+    Write-Log ""
+    Write-Log "-----------------------------------------------"
     Write-Log "Total a procesar: $($listaActualizaciones.Count) actualizaciones."
+    Write-Log "-----------------------------------------------"
     foreach ($upd in $listaActualizaciones) {
         Write-Log " [Pendiente] $($upd.Title)"
     }
 
-    $ProgressPreference = 'Continue' 
+    $ProgressPreference = 'Continue'
+    Write-Log "-----------------------------------------------"
     Write-Log "Iniciando descarga estricta en segundo plano..."
-
-    # Descarga obligando al módulo a buscar solo el KB o Título exacto filtrado
+    Write-Log "-----------------------------------------------"
+    # Descarga obligando al m&#243;dulo a buscar solo el KB o T&#237;tulo exacto filtrado
     foreach ($update in $listaActualizaciones) {
         if ($update.KBArticleID) {
             Get-WindowsUpdate -KBArticleID $update.KBArticleID -Download -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
         } else {
-            # Los drivers a veces no tienen KB, usamos el título exacto
+            # Los drivers a veces no tienen KB, usamos el t&#237;tulo exacto
             Get-WindowsUpdate -Title $update.Title -Download -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
         }
     }
-
-    # -----------------------------------------------------------------------
+    Write-Log ""
+    Write-Log "--------------------------------------------------"
     Write-Log "--- FASE 5: Instalando la secuencia descargada ---"
-    # -----------------------------------------------------------------------
+    Write-Log "--------------------------------------------------"
     $total = $listaActualizaciones.Count
     $contador = 1
 
@@ -3024,9 +2002,9 @@ try {
         $porcentaje = [math]::Round(($contador / $total) * 100)
         Write-Progress -Activity "Instalando actualizaciones (Fase 5)" -Status "Progreso general: $contador de $total" -PercentComplete $porcentaje -CurrentOperation $update.Title
 
-        Write-Log "Instalando [$contador/$total]: $($update.Title)"
+        Write-Log " -> Instalando [$contador/$total]: $($update.Title)"
         
-        # Instalación estricta usando el identificador
+        # Instalaci&#243;n estricta usando el identificador
         if ($update.KBArticleID) {
             Install-WindowsUpdate -KBArticleID $update.KBArticleID -AcceptAll -IgnoreReboot -ErrorAction SilentlyContinue | Out-Null
         } else {
@@ -3043,296 +2021,6 @@ try {
     Write-Log "ERROR CRÍTICO: $_"
 }
 		</File>
-		<File path="C:\Windows\Setup\Scripts\OptimizeUnidades.ps1">
-############################################################
-# OPTIMIZAR DISCO SSD
-# Compatible con Win10 / Win11 (hasta 26H2) / LTSC / IoT / PS5 / PS7
-############################################################
-
-# Requerir elevacion de privilegios (Administrador)
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Warning "Este script requiere ejecutarse como Administrador para configurar servicios, TRIM y directivas de disco."
-    exit 1
-}
-
-# No ocultar fallos: cada operación opcional ya debe manejar su propio error.
-# El valor predeterminado de PowerShell permite ver advertencias y errores reales.
-
-Write-Host ""
-Write-Host "===== LISTADO DE DISCOS =====" -ForegroundColor Cyan
-
-# ==========================================
-# FUNCION: Deteccion robusta del disco del sistema
-# ==========================================
-function Get-SystemDiskInfo {
-    $driveLetter = ($env:SystemDrive).TrimEnd(':')
-
-    # Metodo 1: Modulo Storage nativo (Get-Partition -> Get-Disk)
-    try {
-        $part = @(Get-Partition -DriveLetter $driveLetter -ErrorAction Stop)
-        $diskNumbers = @($part | Select-Object -ExpandProperty DiskNumber -Unique)
-        if ($diskNumbers.Count -ne 1) {
-            throw "La unidad del sistema no se pudo asociar a un único disco físico."
-        }
-        $disk = Get-Disk -Number $diskNumbers[0] -ErrorAction Stop
-
-        $mediaType = "Unknown"
-        try {
-            $pd = Get-PhysicalDisk | Where-Object { 
-                $_.FriendlyName -eq $disk.FriendlyName -or $_.DeviceId -eq "$($disk.Number)" 
-            }
-            if ($pd) { $mediaType = $pd[0].MediaType }
-        } catch {}
-
-        return [PSCustomObject]@{
-            Index       = $disk.Number
-            Model       = $disk.FriendlyName
-            BusType     = $disk.BusType.ToString()
-            MediaType   = $mediaType
-            Size        = $disk.Size
-            SizeGB      = [math]::Round($disk.Size / 1GB, 0)
-            DriveLetter = $driveLetter
-        }
-    } catch {}
-
-    # Metodo 2: Extraccion de particion via WMI/CIM
-    try {
-        $logical = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${driveLetter}:'" -ErrorAction Stop
-        $partAssoc = Get-CimAssociatedInstance $logical -Association Win32_LogicalDiskToPartition -ErrorAction Stop
-        $driveAssoc = Get-CimAssociatedInstance $partAssoc -Association Win32_DiskDriveToDiskPartition -ErrorAction Stop
-
-        if ($driveAssoc) {
-            return [PSCustomObject]@{
-                Index       = $driveAssoc.Index
-                Model       = $driveAssoc.Model
-                BusType     = $driveAssoc.InterfaceType
-                MediaType   = $driveAssoc.MediaType
-                Size        = $driveAssoc.Size
-                SizeGB      = [math]::Round($driveAssoc.Size / 1GB, 0)
-                DriveLetter = $driveLetter
-            }
-        }
-    } catch {}
-
-    # No asumir que el disco 0 contiene Windows: en equipos con varios discos
-    # esa suposición podría aplicar cambios al dispositivo equivocado.
-    return $null
-}
-
-# ==========================================
-# MOSTRAR DISCOS DEL EQUIPO
-# ==========================================
-try {
-    $allDisks = @(Get-CimInstance Win32_DiskDrive -ErrorAction Stop)
-} catch {
-    Write-Host "No se pudo consultar la lista de discos: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-foreach ($d in $allDisks) {
-    Write-Host ""
-    Write-Host "Disco #      : $($d.Index)"
-    Write-Host "Modelo       : $($d.Model)"
-    Write-Host "Interface    : $($d.InterfaceType)"
-    Write-Host "MediaType    : $($d.MediaType)"
-    Write-Host "Tamano       : $([math]::Round($d.Size / 1GB, 0)) GB"
-}
-
-# ==========================================
-# IDENTIFICACION DEL DISCO DEL SISTEMA
-# ==========================================
-$sysDisk = Get-SystemDiskInfo
-
-if (-not $sysDisk) {
-    Write-Host ""
-    Write-Host "Error: No se pudo detectar el disco del sistema." -ForegroundColor Red
-    exit 1
-}
-
-Write-Host ""
-Write-Host "===== DISCO DEL SISTEMA ($($sysDisk.DriveLetter):) =====" -ForegroundColor Green
-Write-Host "Disco fisico : $($sysDisk.Index)"
-Write-Host "Modelo       : $($sysDisk.Model)"
-Write-Host "Interface    : $($sysDisk.BusType)"
-Write-Host "MediaType    : $($sysDisk.MediaType)"
-Write-Host "Tamano       : $($sysDisk.SizeGB) GB"
-Write-Host "================================="
-
-Write-Output "93% Completado"
-
-# ==========================================
-# EVALUACION DE TIPO DE DISCO (SSD / NVMe)
-# ==========================================
-# Si Windows informa MediaType/BusType como Unknown y el modelo no permite
-# reconocer el SSD, cambia este valor a $true para el disco del sistema.
-# En $false, el script conserva la deteccion automatica y actua con cautela.
-$ForceSystemDiskSSD = $false
-
-$isSSD = $false
-
-# Criterio 1: Clasificacion del subsistema de almacenamiento
-if ($sysDisk.MediaType -in @('SSD', 'SCM') -or $sysDisk.BusType -in @('NVMe', 'PCIe')) {
-    $isSSD = $true
-}
-
-# Criterio 2: Coincidencia por modelo (cubre NVMe detras de controladoras Intel RST/SCSI)
-if (-not $isSSD) {
-    $ssdPatterns = "SSD|NVME|M\.2|KBG|KIOXIA|ADATA|FANXIANG|S500\s?PRO|SU[0-9]+|KINGSTON|WD GREEN|WD BLUE|WD BLACK|CRUCIAL|SAMSUNG|SK hynix|SANDISK|MICRON"
-    if ($sysDisk.Model -match $ssdPatterns) {
-        $isSSD = $true
-    }
-}
-
-# Sobrescritura manual para SSD no identificados por el controlador o modelo.
-if ($ForceSystemDiskSSD) {
-    $isSSD = $true
-    Write-Host "Deteccion manual: el disco del sistema se tratara como SSD." -ForegroundColor Yellow
-}
-
-# ==========================================
-# OPTIMIZACION
-# ==========================================
-if ($isSSD) {
-
-    Write-Host ""
-    Write-Host "SSD detectado - Aplicando optimizaciones..." -ForegroundColor Cyan
-
-    # 1. Habilitar TRIM para NTFS y ReFS (0 = Activado)
-    fsutil behavior set DisableDeleteNotify 0 | Out-Null
-    fsutil behavior set DisableDeleteNotify ReFS 0 | Out-Null
-
-    # 2. ReTrim oficial mediante cmdlet nativo
-    Optimize-Volume -DriveLetter $sysDisk.DriveLetter -ReTrim -ErrorAction SilentlyContinue
-
-    Write-Output "95% Completado"
-
-    # 3. Desactivar Hibernacion (ahorra decenas de GB y reduce escrituras en SSD)
-    powercfg -h off
-
-    # 4. Desactivar SysMain / SuperFetch (innecesario y genera escrituras constantes en SSD)
-    $sysMain = Get-Service -Name SysMain -ErrorAction SilentlyContinue
-    if ($sysMain) {
-        Stop-Service -Name SysMain -Force -ErrorAction SilentlyContinue
-        Set-Service -Name SysMain -StartupType Disabled -ErrorAction SilentlyContinue
-    }
-
-    # 5. Deshabilitar registro de fecha del ultimo acceso a archivos
-    fsutil behavior set DisableLastAccess 1 | Out-Null
-
-    # 6. Restauracion del sistema protegida para compatibilidad con LTSC e IoT
-    try {
-        Enable-ComputerRestore -Drive "$($sysDisk.DriveLetter):\" -ErrorAction Stop
-    } catch {
-        # Ignora el error si las directivas de LTSC/IoT tienen deshabilitado VSS
-    }
-
-    Write-Output "98% Completado"
-
-    # 7. Evaluacion automatica de CompactOS
-    Write-Host ""
-    Write-Host "Evaluando tamano del disco..."
-
-    if ($sysDisk.Size -le (64GB)) {
-        Write-Host "Disco pequeno ($($sysDisk.SizeGB) GB) - Activando CompactOS..." -ForegroundColor Yellow
-
-        $state = compact.exe /compactOS:query
-        if ($state -notmatch "already") {
-            compact.exe /compactOS:always | Out-Null
-            Write-Host "CompactOS habilitado (ahorra 2-6 GB)."
-        } else {
-            Write-Host "CompactOS ya activo."
-        }
-    } else {
-        Write-Host "Disco suficiente ($($sysDisk.SizeGB) GB) - No se requiere compresion."
-    }
-
-    # 8. Ocultar carpeta ODT si existe
-    if (Test-Path "C:\ODT") {
-        (Get-Item "C:\ODT").Attributes = "Hidden"
-    }
-
-} else {
-    Write-Host ""
-    Write-Host "HDD detectado - No se aplican optimizaciones exclusivas para SSD." -ForegroundColor Yellow
-}
-
-# Configurar las categorías mostradas en Disk Cleanup, incluidas las que el usuario
-# dejó desmarcadas. Esto puede vaciar la Papelera, borrar paquetes de controladores
-# antiguos y quitar archivos de limpieza de Windows Update.
-$volumeCachesPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches"
-$cleanupCategories = @(
-    "BranchCache",
-    "D3D Shader Cache",
-    "DirectX Shader Cache",
-    "Delivery Optimization Files",
-    "Device Driver Packages",
-    "Downloaded Program Files",
-    "Internet Cache Files",
-    "Language Pack",
-    "Recycle Bin",
-    "Setup Log Files",
-    "System error memory dump files",
-    "System error minidump files",
-    "Temporary Files",
-    "Temporary Setup Files",
-    "Temporary Sync Files",
-    "Thumbnail Cache",
-    "Update Cleanup",
-    "Windows Error Reporting Archive Files",
-    "Windows Error Reporting ArchiveFiles",
-    "Windows Error Reporting Files",
-    "Windows Error Reporting Queue Files",
-    "Windows Error Reporting QueueReporting",
-    "Windows Error Reporting System Archive Files",
-    "Windows Error Reporting System ArchiveFiles",
-    "Windows Error Reporting System Queue Files",
-    "Windows Error Reporting System QueueReporting",
-    "Windows Defender"
-)
-
-$cleanupProfile = "StateFlags0001"
-$configuredCategories = 0
-
-foreach ($category in $cleanupCategories) {
-    $categoryPath = Join-Path $volumeCachesPath $category
-    if (Test-Path -LiteralPath $categoryPath) {
-        try {
-            New-ItemProperty -LiteralPath $categoryPath -Name $cleanupProfile `
-                -PropertyType DWord -Value 2 -Force -ErrorAction Stop | Out-Null
-            $configuredCategories++
-        } catch {
-            Write-Warning "No se pudo configurar cleanmgr para '$category': $($_.Exception.Message)"
-        }
-    }
-}
-
-Write-Host "Iniciando limpieza amplia de archivos temporales y cachés con cleanmgr..." -ForegroundColor Cyan
-try {
-    if ($configuredCategories -gt 0) {
-        Write-Host "Categorías seguras configuradas: $configuredCategories"
-        $cleanmgrArguments = "/sagerun:1"
-    } else {
-        # Respaldo si esta edición de Windows no expone las categorías del perfil.
-        Write-Warning "No se encontraron categorías para el perfil; se usará la limpieza predeterminada."
-        $cleanmgrArguments = "/verylowdisk"
-    }
-
-    $cleanmgr = Start-Process -FilePath "cleanmgr.exe" `
-        -ArgumentList $cleanmgrArguments -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
-
-    if ($cleanmgr.ExitCode -eq 0) {
-        Write-Host "Limpieza de cleanmgr finalizada." -ForegroundColor Green
-    } else {
-        Write-Warning "cleanmgr terminó con código $($cleanmgr.ExitCode)."
-    }
-} catch {
-    Write-Warning "No se pudo ejecutar cleanmgr: $($_.Exception.Message)"
-}
-
-Write-Host ""
-Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
-		</File>
 		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
  $firstLogonOutputLog = 'C:\Windows\Setup\Scripts\FirstLogon.log'
  $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
@@ -3345,6 +2033,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 
 &amp; {
     $ErrorActionPreference = 'Stop'
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
     # --- ELEVAR A ADMINISTRADOR ---
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -3368,7 +2057,7 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
     function Write-Log {
         param([Parameter(Mandatory = $true)][string]$Message)
         $line = '[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Message
-        # Tee-Object al final del controlador escribe cada línea en FirstLogon.log.
+        # Tee-Object al final del controlador escribe cada l&#237;nea en FirstLogon.log.
         Write-Output $line
     }
 
@@ -3380,21 +2069,41 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
         Move-Item -LiteralPath $tempFile -Destination $stateFile -Force
     }
 
+    
     function Invoke-LocalScript {
         param([Parameter(Mandatory = $true)][string]$Name)
+
         $path = Join-Path $scriptDir $Name
+
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "No se encuentra el script requerido: $path"
         }
-        Write-Log "Ejecutando $Name..."
+
+        # Crear únicamente la carpeta Logs, sin subcarpetas.
+        if (-not $script:runLogsDir) {
+            $script:runLogsDir = Join-Path $scriptDir 'Logs'
+
+            if (-not (Test-Path -LiteralPath $script:runLogsDir -PathType Container)) {
+                New-Item -ItemType Directory -Path $script:runLogsDir -Force |
+                    Out-Null
+            }
+        }
+
+        Write-Log "Ejecutando $Name dentro de la fase activa."
+
         $content = Get-Content -LiteralPath $path -Raw -ErrorAction Stop
-        if ([string]::IsNullOrWhiteSpace($content)) { throw "El script está vacío: $path" }
+
+        if ([string]::IsNullOrWhiteSpace($content)) {
+            throw "El script está vacío: $path"
+        }
+
         Invoke-Expression -Command $content
+
         Write-Log "Finalizó la invocación de $Name."
     }
 
     try {
-        Add-Content -LiteralPath $logFilePath -Value "`r`n=== Inicio de ejecución: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding UTF8
+        Add-Content -LiteralPath $logFilePath -Value "`r`n=== Inicio de ejecuci&#243;n: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding UTF8
     } catch {
         Write-Output "No se pudo escribir el separador del registro: $($_.Exception.Message)"
     }
@@ -3409,15 +2118,15 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
                     Write-Log 'Intentando eliminar C:\Windows.old...'
                     &amp; cmd.exe /c 'rmdir C:\Windows.old /s /q'
                     if (Test-Path -LiteralPath $oldPath) {
-                        Write-Log 'Aviso: C:\Windows.old sigue existiendo; Windows puede impedir su eliminación.'
+                        Write-Log 'Aviso: C:\Windows.old sigue existiendo; Windows puede impedir su eliminaci&#243;n.'
                     } else { Write-Log 'C:\Windows.old eliminado.' }
                 } else { Write-Log 'C:\Windows.old no existe; se omite.' }
             }
         },
         @{ Name = 'Cambiando ID Equipo'
 		    Script = {
-		        # Equipo.log debe ser creado por ChangePC-ID.ps1 al completar su operación.
-		        # Si el equipo se reinicia dentro de ese script, esta tarea se reintentará al volver.
+		        # Equipo.log debe ser creado por ChangePC-ID.ps1 al completar su operaci&#243;n.
+		        # Si el equipo se reinicia dentro de ese script, esta tarea se reintentar&#225; al volver.
 		        if (Test-Path -LiteralPath $equipoLog) {
 		            Write-Log 'Equipo.log ya existe; se omite ChangePC-ID.ps1.'
 		            return
@@ -3425,23 +2134,21 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
 		
 		        Invoke-LocalScript -Name 'ChangePC-ID.ps1'
 		
-		        # Esperar 5 segundos y reiniciar Windows.
-		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciará en 5 segundos.'
+		        Write-Log 'ChangePC-ID.ps1 finalizado. Windows se reiniciar&#225; en 5 segundos para aplicar el cambio de nombre.'
 		        Start-Sleep -Seconds 5
 		        Restart-Computer -Force
 		    }
 		},
         @{ Name = 'Verificando Sistema'; Script = { Invoke-LocalScript -Name 'unattend-02.ps1' } },
-        @{ Name = 'Verificando Configuracion'; Script = { Invoke-LocalScript -Name 'setup-final.ps1' } },
+        @{ Name = 'Verificando Configuracion'; Script = { Invoke-LocalScript -Name 'verifyconfig.ps1' } },
         @{ Name = 'Comprobar Integridad'; Script = { Invoke-LocalScript -Name 'Integrity.ps1' } },
         @{ Name = 'Cambiando Cursor'; Script = { Invoke-LocalScript -Name 'CursorVista.ps1' } },
         @{ Name = 'Instalando Actualizaciones'; Script = { Invoke-LocalScript -Name 'PSUpdates.ps1' } },
-        @{ Name = 'Instalando Aplicaciones'; Script = { Invoke-LocalScript -Name 'Installapps.ps1' } },
-        @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
+        @{ Name = 'Instalando Apps + VCLibs'; Script = { Invoke-LocalScript -Name 'Installappcore.ps1' } },
         @{ Name = 'Instalando Office 365'; Script = { Invoke-LocalScript -Name 'OfficeInstaller.ps1' } },
         @{ Name = 'Optimizando Windows'; Script = { Invoke-LocalScript -Name 'OptimizarWindows.ps1' } },
-        @{ Name = 'Limpieza Puntos Restauracion'; Script = { Invoke-LocalScript -Name 'LimpiezaPuntosRestauracion.ps1' } },
-		@{ Name = 'Optimizando Discos'; Script = { Invoke-LocalScript -Name 'OptimizeUnidades.ps1' } },
+        @{ Name = 'Instalando Rustdesk'; Script = { Invoke-LocalScript -Name 'Rustdesk_Download.ps1' } },
+		@{ Name = 'Optimizando Discos'; Script = { Invoke-LocalScript -Name 'OptimizeDrive.ps1' } },
         @{ Name = 'Finalizado'
             Script = {
                 # Preservar el controlador, lanzador, estado y registros.
@@ -3471,17 +2178,17 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             }
         )
         Save-State -Items $state
-        Write-Log 'Se creó state.json con el estado inicial.'
+        Write-Log 'Se cre&#243; state.json con el estado inicial.'
     } else {
         try {
             $loaded = Get-Content -LiteralPath $stateFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
             $state = @($loaded)
         } catch {
-            Write-Log "ERROR: state.json no se puede leer como JSON válido: $($_.Exception.Message)"
+            Write-Log "ERROR: state.json no se puede leer como JSON v&#225;lido: $($_.Exception.Message)"
             throw
         }
 
-        # Actualizar el estado por nombre: así se conservan tareas ya completadas
+        # Actualizar el estado por nombre: as&#237; se conservan tareas ya completadas
         # y se crean las nuevas cuando cambia la lista del controlador.
         $previousByName = @{}
         foreach ($previousTask in $state) {
@@ -3528,13 +2235,12 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
         $state = $updatedState
         if ($stateChanged) {
             Save-State -Items $state
-            Write-Log "state.json actualizado: $($state.Count) tareas sincronizadas con esta versión."
+            Write-Log "state.json actualizado: $($state.Count) tareas sincronizadas con esta versi&#243;n."
         }
     }
 
     Write-Log "Controlador iniciado. Tareas configuradas: $($scripts.Count)."
 
-    $restartRequested = $false
     for ($i = 0; $i -lt $scripts.Count; $i++) {
         $status = [string]$state[$i].status
         if ($status -eq 'done') {
@@ -3542,24 +2248,43 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             continue
         }
         if ($status -eq 'error') {
-            Write-Log "La tarea '$($scripts[$i].Name)' ya agotó sus intentos; se omite y continúa el flujo."
+            Write-Log "La tarea '$($scripts[$i].Name)' ya agot&#243; sus intentos; se omite y continúa el flujo."
             continue
         }
         if ([int]$state[$i].attempts -ge 2) {
             $state[$i].status = 'error'
             Save-State -Items $state
-            Write-Log "La tarea '$($scripts[$i].Name)' no se completó dentro de sus 2 intentos; se omite y continúa el flujo."
+            Write-Log "La tarea '$($scripts[$i].Name)' no se complet&#243; dentro de sus 2 intentos; se omite y continúa el flujo."
             continue
         }
 
         $completed = $false
+        $retryOnNextStart = $false
         while (-not $completed -and [int]$state[$i].attempts -lt 2) {
             $state[$i].attempts = [int]$state[$i].attempts + 1
             $state[$i].status = 'running'
             Save-State -Items $state
             Write-Log "Iniciando tarea $($i + 1)/$($scripts.Count): $($scripts[$i].Name) (intento $($state[$i].attempts)/2)."
 
+            if (-not $script:runLogsDir) {
+                $script:runLogsDir = Join-Path $scriptDir 'Logs'
+                if (-not (Test-Path -LiteralPath $script:runLogsDir -PathType Container)) {
+                    New-Item -ItemType Directory -Path $script:runLogsDir -Force |
+                        Out-Null
+                }
+            }
+
+            $phaseLogName = $scripts[$i].Name
+            foreach ($invalidLogCharacter in [IO.Path]::GetInvalidFileNameChars()) {
+                $phaseLogName = $phaseLogName.Replace([string]$invalidLogCharacter, '_')
+            }
+            $phaseLogPath = Join-Path $script:runLogsDir ($phaseLogName + '.log')
+            $transcriptStarted = $false
             try {
+                Start-Transcript -Path $phaseLogPath -Append -Force -ErrorAction Stop |
+                    Out-Null
+                $transcriptStarted = $true
+
                 &amp; $scripts[$i].Script
 
                 $state[$i].status = 'done'
@@ -3569,37 +2294,45 @@ Write-Host "Proceso finalizado al 100%." -ForegroundColor Green
             } catch {
                 $errorMessage = $_.Exception.Message
                 if ([int]$state[$i].attempts -lt 2) {
-                    $state[$i].status = 'pending-reboot'
+                    $state[$i].status = 'pending'
                     Save-State -Items $state
-                    Write-Log "ERROR en '$($scripts[$i].Name)' (intento $($state[$i].attempts)/2): $errorMessage. Se reiniciará Windows antes del último intento."
-                    try {
-                        Restart-Computer -Force -ErrorAction Stop
-                        $restartRequested = $true
-                    } catch {
-                        $state[$i].status = 'error'
-                        try { Save-State -Items $state } catch {}
-                        Write-Log "No se pudo reiniciar Windows para reintentar '$($scripts[$i].Name)': $($_.Exception.Message). Se omite la fase."
-                    }
+                    Write-Log "ERROR en '$($scripts[$i].Name)' (intento $($state[$i].attempts)/2): $errorMessage. Se reintentar&#225; cuando se vuelva a iniciar FirstLogon."
+                    $retryOnNextStart = $true
+                    break
                 } else {
                     $state[$i].status = 'error'
                     try { Save-State -Items $state } catch {}
                     Write-Log "ERROR definitivo en '$($scripts[$i].Name)' tras 2 intentos: $errorMessage. Se omite y continúa el flujo."
                 }
             }
+            finally {
+                if ($transcriptStarted) {
+                    Stop-Transcript -ErrorAction SilentlyContinue |
+                        Out-Null
+                }
+            }
 
-            if ($restartRequested) { break }
         }
 
-        if ($restartRequested) { break }
+        if ($retryOnNextStart) {
+            Write-Log "El controlador se detiene para permitir el reintento de '$($scripts[$i].Name)' en la pr&#243;xima ejecuci&#243;n."
+            break
+        }
     }
 
     $notDone = @($state | Where-Object { $_.status -ne 'done' })
     if ($notDone.Count -eq 0) {
-        Write-Log 'Todas las tareas están marcadas como completadas.'
+        Write-Log 'Todas las tareas est&#225;n marcadas como completadas.'
     } else {
         Write-Log ('El flujo no ha terminado. Tareas pendientes o con error: ' + (($notDone | ForEach-Object { "$($_.name)=$($_.status)" }) -join '; '))
     }
-} 2>&amp;1 | Out-File -FilePath "C:\Windows\Setup\Scripts\FirstLogon.log" -Append -Encoding UTF8
+
+    Write-Log 'El controlador no fuerza un reinicio; las tareas ejecutadas pueden reiniciar Windows si lo solicitan expl&#237;citamente.'
+} 2>&amp;1 | ForEach-Object {
+    $line = [string]$_
+    Add-Content -LiteralPath "C:\Windows\Setup\Scripts\FirstLogon.log" -Value $line -Encoding UTF8
+    $line
+}
 		</File>
 	</Extensions>
 </unattend>
